@@ -36,7 +36,11 @@ impl Profile {
                 if y > b.y {
                     break;
                 }
-                let t = if b.y - a.y > 1e-9 { (y - a.y) / (b.y - a.y) } else { 0.0 };
+                let t = if b.y - a.y > 1e-9 {
+                    (y - a.y) / (b.y - a.y)
+                } else {
+                    0.0
+                };
                 let zi = a.z + (b.z - a.z) * t;
                 if z[i].is_nan() || zi > z[i] {
                     z[i] = zi;
@@ -60,21 +64,30 @@ impl Profile {
     /// Profondeur du contour à la hauteur `y` (échantillon le plus proche).
     pub fn at(&self, y: f32) -> Option<f32> {
         let i = ((y - self.y0) / self.step).round();
-        (i >= 0.0).then(|| self.z.get(i as usize).copied()).flatten().filter(|z| !z.is_nan())
+        (i >= 0.0)
+            .then(|| self.z.get(i as usize).copied())
+            .flatten()
+            .filter(|z| !z.is_nan())
     }
 
     /// Point le plus en avant entre `lo` et `hi` : (y, z).
     pub fn max(&self, lo: f32, hi: f32) -> Option<Point> {
         self.range(lo, hi)
             .max_by(|a, b| self.z[*a].total_cmp(&self.z[*b]))
-            .map(|i| Point { y: self.y(i), z: self.z[i] })
+            .map(|i| Point {
+                y: self.y(i),
+                z: self.z[i],
+            })
     }
 
     /// Point le plus en retrait entre `lo` et `hi`.
     pub fn min(&self, lo: f32, hi: f32) -> Option<Point> {
         self.range(lo, hi)
             .min_by(|a, b| self.z[*a].total_cmp(&self.z[*b]))
-            .map(|i| Point { y: self.y(i), z: self.z[i] })
+            .map(|i| Point {
+                y: self.y(i),
+                z: self.z[i],
+            })
     }
 
     /// Creux le plus marqué entre `lo` et `hi` : minimum local dont le
@@ -92,7 +105,10 @@ impl Profile {
                 best = Some((depth, i));
             }
         }
-        best.map(|(_, i)| Point { y: self.y(i), z: self.z[i] })
+        best.map(|(_, i)| Point {
+            y: self.y(i),
+            z: self.z[i],
+        })
     }
 }
 

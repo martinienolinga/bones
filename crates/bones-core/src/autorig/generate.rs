@@ -18,6 +18,10 @@ pub struct AutoRigOptions {
     /// Recale les articulations sur le volume du maillage ([`generate_fitted`]).
     #[serde(default = "enabled")]
     pub fit_to_mesh: bool,
+    /// Ajoute un rig facial (mâchoire, yeux, lèvres…) si la tête a un visage
+    /// reconnaissable. Voir [`super::face`].
+    #[serde(default = "enabled")]
+    pub face: bool,
 }
 
 fn enabled() -> bool {
@@ -32,6 +36,7 @@ impl Default for AutoRigOptions {
             fingers: true,
             toes: true,
             fit_to_mesh: true,
+            face: true,
         }
     }
 }
@@ -52,6 +57,33 @@ pub fn generate_fitted(markers: &Markers, options: &AutoRigOptions, mesh: &Mesh)
         super::fit_layout(&mut layout, mesh);
     }
     build(&layout, options)
+}
+
+/// Comme [`generate_fitted`], mais avec un garde-fou global : si l'ajustement
+/// au maillage produit un squelette dégénéré (articulation non finie ou os de
+/// longueur quasi nulle), on revient à la disposition générique des marqueurs
+/// ([`generate`]). Un maillage inhabituel n'est ainsi jamais moins bien riggé
+/// que par les seuls marqueurs. C'est l'entrée utilisée par l'éditeur.
+pub fn generate_safe(markers: &Markers, options: &AutoRigOptions, mesh: &Mesh) -> (Skeleton, Vec<Limb>) {
+    let fitted = generate_fitted(markers, options, mesh);
+    if !options.fit_to_mesh || skeleton_sound(&fitted.0) {
+        fitted
+    } else {
+        generate(markers, options)
+    }
+}
+
+/// Un squelette est sain si toutes ses articulations sont finies et si aucun
+/// os n'est de longueur quasi nulle.
+fn skeleton_sound(skeleton: &Skeleton) -> bool {
+    skeleton
+        .rest_world()
+        .iter()
+        .all(|t| t.translation.is_finite() && t.rotation.is_finite())
+        && skeleton
+            .bones()
+            .iter()
+            .all(|b| b.length.is_finite() && b.length > 1e-4)
 }
 
 /// Crée les os et les membres IK/FK d'une disposition d'articulations.

@@ -3,6 +3,7 @@
 
 mod deform;
 pub mod envelope;
+mod face;
 pub mod heat;
 mod sparse;
 #[cfg(test)]
@@ -43,7 +44,19 @@ pub enum BindMethod {
 }
 
 impl BindMethod {
+    /// Calcule les poids. Si le squelette a des os de visage, la liaison
+    /// passe par le pipeline facial ([`face::bind_with_face`]) qui ajoute les
+    /// influences localisées du visage ; sinon c'est la liaison du corps.
     pub fn compute(self, mesh: &Mesh, skeleton: &Skeleton) -> Skin {
+        if crate::autorig::face::present(skeleton).is_empty() {
+            self.compute_body(mesh, skeleton)
+        } else {
+            face::bind_with_face(mesh, skeleton, self)
+        }
+    }
+
+    /// Liaison du corps uniquement (sans traitement du visage).
+    pub(crate) fn compute_body(self, mesh: &Mesh, skeleton: &Skeleton) -> Skin {
         match self {
             BindMethod::Heat => heat_weights(mesh, skeleton),
             BindMethod::Envelope => Skin::automatic(mesh, skeleton),

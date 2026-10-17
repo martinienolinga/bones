@@ -17,16 +17,18 @@
 //!   un mouvement symétrique).
 //!
 //! Étapes : [`FaceMarkers`] (estimés sur la tête du maillage, modifiables)
-//! → [`FaceLayout`] (positions des os) → os ajoutés par [`super::build`].
+//! → [`FaceLayout`] (positions des os) → os ajoutés par [`build`].
 
 mod build;
 mod guess;
+mod layout;
 mod markers;
 mod profile;
 #[cfg(test)]
 mod tests;
 
-pub use build::FaceLayout;
+pub use build::build;
+pub use layout::FaceLayout;
 pub use markers::{FaceMarkerKind, FaceMarkers};
 
 use crate::{BoneId, Skeleton};
@@ -120,6 +122,11 @@ pub const NAMES: [&str; FaceBone::ALL.len()] = {
 impl FaceBone {
     pub fn from_name(name: &str) -> Option<FaceBone> {
         FaceBone::ALL.into_iter().find(|b| b.name() == name)
+    }
+
+    /// Os symétrique (`.l` ↔ `.r`), ou `None` pour un os central (`.x`).
+    pub fn mirrored(self) -> Option<FaceBone> {
+        crate::rig::mirror::mirror_name(self.name()).and_then(|n| FaceBone::from_name(&n))
     }
 
     /// Os de la partie basse du visage, qui suit la mâchoire.

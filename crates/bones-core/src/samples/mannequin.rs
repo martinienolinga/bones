@@ -11,7 +11,7 @@
 
 use std::path::Path;
 
-use crate::autorig::{self, AutoRigOptions};
+use crate::autorig::{self, AutoRigOptions, face};
 use crate::io::{Format, Imported, import_bytes};
 use crate::project::{self, ProjectError, ProjectInfo, ProjectSnapshot};
 use crate::{BindMethod, Editor, Markers, Mesh, Rig};
@@ -56,13 +56,27 @@ pub fn mannequin_mesh() -> Mesh {
     }
 }
 
+/// Mannequin riggé (corps + visage) mais pas encore lié. Rapide (pas de
+/// diffusion de chaleur) : sert au précalcul et à la vérification que l'asset
+/// embarqué correspond toujours à l'auto-rig courant.
+pub(crate) fn mannequin_rig_unbound() -> Rig {
+    let mut rig = Rig::new(NAME, mannequin_mesh());
+    let markers = Markers::guess(&rig.mesh).expect("maillage du mannequin vide");
+    let options = AutoRigOptions::default();
+    let (mut skeleton, limbs) = autorig::generate_safe(&markers, &options, &rig.mesh);
+    if options.face
+        && let Some(fm) = face::FaceMarkers::guess(&rig.mesh, &markers)
+    {
+        face::build(&mut skeleton, &face::FaceLayout::new(fm, markers.root.x));
+    }
+    rig.set_skeleton(skeleton, limbs);
+    rig
+}
+
 /// Construit le mannequin de zéro depuis le GLB source (quelques secondes en
 /// debug ; la diffusion de chaleur domine).
 pub fn build_mannequin() -> Rig {
-    let mut rig = Rig::new(NAME, mannequin_mesh());
-    let markers = Markers::guess(&rig.mesh).expect("maillage du mannequin vide");
-    let (skeleton, limbs) = autorig::generate_fitted(&markers, &AutoRigOptions::default(), &rig.mesh);
-    rig.set_skeleton(skeleton, limbs);
+    let mut rig = mannequin_rig_unbound();
     rig.bind(BindMethod::Heat);
     rig
 }

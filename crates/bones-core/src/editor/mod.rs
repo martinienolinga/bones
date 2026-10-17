@@ -127,6 +127,9 @@ pub struct Editor {
     pub frame: f32,
     pub playing: bool,
     pub markers: Option<Markers>,
+    /// Marqueurs du visage (étape « Face » de l'auto-rig), estimés avec les
+    /// marqueurs du corps et ajustables ; `None` si la tête n'a pas de visage.
+    pub face_markers: Option<crate::autorig::face::FaceMarkers>,
     pub autorig_options: AutoRigOptions,
     /// Dernier message à afficher (toast).
     pub status: Option<String>,
@@ -180,6 +183,7 @@ impl Editor {
             frame: 0.0,
             playing: false,
             markers: None,
+            face_markers: None,
             autorig_options: AutoRigOptions::default(),
             status: None,
             mirror_edit: false,
@@ -210,6 +214,7 @@ impl Editor {
         self.rig = rig;
         self.selected = None;
         self.markers = None;
+        self.face_markers = None;
         self.frame = 0.0;
         self.playing = false;
         self.drag = None;
@@ -222,6 +227,7 @@ impl Editor {
         self.checkpoint();
         self.rig.set_mesh(mesh);
         self.markers = None;
+        self.face_markers = None;
         self.frame_all();
     }
 

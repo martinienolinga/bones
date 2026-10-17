@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use super::{Editor, Mode};
-use crate::autorig;
+use crate::autorig::{self, face};
 use crate::rig::mirror;
 use crate::{BindMethod, Markers, Mesh, Side, Skeleton, Skin};
 
@@ -54,13 +54,26 @@ impl Editor {
 
     pub fn guess_markers(&mut self) {
         self.markers = Markers::guess(&self.rig.mesh);
+        // Marqueurs du visage estimés en même temps que ceux du corps.
+        self.face_markers = self
+            .markers
+            .and_then(|m| face::FaceMarkers::guess(&self.rig.mesh, &m));
     }
 
     pub fn generate_rig(&mut self) {
         let Some(markers) = self.markers else { return };
         self.checkpoint();
-        // Recalé sur le maillage si l'option est active (sinon marqueurs seuls).
-        let (skeleton, limbs) = autorig::generate_fitted(&markers, &self.autorig_options, &self.rig.mesh);
+        // Recalé sur le maillage si l'option est active, avec repli de sûreté.
+        let (mut skeleton, limbs) = autorig::generate_safe(&markers, &self.autorig_options, &self.rig.mesh);
+        // Rig facial si demandé et si la tête a un visage reconnaissable.
+        if self.autorig_options.face {
+            let face = self
+                .face_markers
+                .or_else(|| face::FaceMarkers::guess(&self.rig.mesh, &markers));
+            if let Some(fm) = face {
+                face::build(&mut skeleton, &face::FaceLayout::new(fm, markers.root.x));
+            }
+        }
         let count = skeleton.len();
         self.rig.set_skeleton(skeleton, limbs);
         self.selected = None;

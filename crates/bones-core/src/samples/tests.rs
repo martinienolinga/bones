@@ -3,8 +3,7 @@ use std::sync::OnceLock;
 use glam::{Quat, Vec3};
 
 use super::*;
-use crate::autorig::{self, AutoRigOptions};
-use crate::{Markers, Rig};
+use crate::Rig;
 
 /// Mannequin embarqué, lu une fois pour tous les tests.
 fn rig() -> &'static Rig {
@@ -45,12 +44,34 @@ fn embedded_asset_is_small_and_well_placed() {
 fn rig_has_the_humanoid_bones_and_limbs() {
     let rig = rig();
     assert_eq!(rig.name, "Mannequin");
-    // Même convention de noms que le mannequin de démonstration.
+    // Tous les os du corps (mêmes noms que le mannequin de démonstration)…
     let demo = Rig::demo();
-    assert_eq!(rig.skeleton.len(), demo.skeleton.len());
     for bone in demo.skeleton.bones() {
         assert!(rig.skeleton.find(&bone.name).is_some(), "{} manquant", bone.name);
     }
+    // … plus un rig facial complet (contrat de noms d'`autorig::face`).
+    for name in [
+        "jaw.x",
+        "chin.x",
+        "eye.l",
+        "eye.r",
+        "eyelid_top.l",
+        "eyelid_bot.r",
+        "brow_mid.l",
+        "cheek.l",
+        "nose.x",
+        "nostril.l",
+        "lip_top.x",
+        "lip_bot.l",
+        "lip_corner.r",
+        "ear.l",
+    ] {
+        assert!(rig.skeleton.find(name).is_some(), "os de visage {name} manquant");
+    }
+    assert!(
+        rig.skeleton.len() > demo.skeleton.len(),
+        "aucun os de visage ajouté"
+    );
     let names: Vec<&str> = rig.limbs.iter().map(|l| l.name.as_str()).collect();
     assert_eq!(names, ["Arm L", "Leg L", "Arm R", "Leg R"]);
     assert!(rig.limbs.iter().all(|l| l.is_valid(&rig.skeleton)));
@@ -147,10 +168,16 @@ fn embedded_project_is_small_and_complete() {
         MANNEQUIN_KBRIG.len()
     );
     let rig = load_mannequin(MANNEQUIN_KBRIG).unwrap();
+    // Corps (52 os) + rig facial : le compte exact est celui de l'auto-rig courant.
+    let expected = super::mannequin::mannequin_rig_unbound();
     assert_eq!(rig.mesh.vertex_count(), mannequin_mesh().vertex_count());
     assert_eq!(rig.mesh.triangle_count(), mannequin_mesh().triangle_count());
     assert_eq!(rig.skin.weights.len(), rig.mesh.vertex_count());
-    assert_eq!((rig.skeleton.len(), rig.limbs.len()), (52, 4));
+    assert_eq!(
+        (rig.skeleton.len(), rig.limbs.len()),
+        (expected.skeleton.len(), 4)
+    );
+    assert!(rig.skeleton.len() > 52, "corps + visage");
     assert!(!rig.needs_bind());
     assert!(load_mannequin(&MANNEQUIN_KBRIG[..100]).is_err());
 }
@@ -160,16 +187,18 @@ fn embedded_project_is_small_and_complete() {
 /// [`rebuild_embedded_mannequin`].
 #[test]
 fn embedded_project_matches_the_current_autorig() {
-    let mesh = mannequin_mesh();
-    let markers = Markers::guess(&mesh).unwrap();
-    let (fresh, limbs) = autorig::generate_fitted(&markers, &AutoRigOptions::default(), &mesh);
-    let baked = &rig().skeleton;
+    // Squelette (corps + visage) recalculé sans les poids, rapide.
+    let fresh = super::mannequin::mannequin_rig_unbound();
+    let baked = rig();
     let stale = "mannequin.kbrig périmé : cargo test -p bones-core --lib \
                  samples::tests::rebuild_embedded_mannequin -- --ignored";
-    assert_eq!(fresh.len(), baked.len(), "{stale}");
-    for (id, bone) in fresh.ids().zip(fresh.bones()) {
-        let other = baked.find(&bone.name).expect(stale);
-        let (a, b) = (fresh.rest_head_tail(id), baked.rest_head_tail(other));
+    assert_eq!(fresh.skeleton.len(), baked.skeleton.len(), "{stale}");
+    for (id, bone) in fresh.skeleton.ids().zip(fresh.skeleton.bones()) {
+        let other = baked.skeleton.find(&bone.name).expect(stale);
+        let (a, b) = (
+            fresh.skeleton.rest_head_tail(id),
+            baked.skeleton.rest_head_tail(other),
+        );
         assert!(
             a.0.abs_diff_eq(b.0, 1e-4) && a.1.abs_diff_eq(b.1, 1e-4),
             "{} : {stale}",
@@ -177,7 +206,7 @@ fn embedded_project_matches_the_current_autorig() {
         );
     }
     let names = |l: &[crate::Limb]| l.iter().map(|l| l.name.clone()).collect::<Vec<_>>();
-    assert_eq!(names(&limbs), names(&rig().limbs), "{stale}");
+    assert_eq!(names(&fresh.limbs), names(&baked.limbs), "{stale}");
 }
 
 /// Régénère `assets/mannequin/mannequin.kbrig` (maillage, squelette, poids)
@@ -189,10 +218,16 @@ fn rebuild_embedded_mannequin() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/mannequin/mannequin.kbrig");
     let info = bake_mannequin(&path).unwrap();
     let size = std::fs::metadata(&path).unwrap().len();
+    // Temps de chargement du projet embarqué (relecture seule, sans liaison).
+    let bytes = std::fs::read(&path).unwrap();
+    let start = std::time::Instant::now();
+    let loaded = load_mannequin(&bytes).unwrap();
+    let load_ms = start.elapsed().as_secs_f64() * 1000.0;
     println!(
-        "{} : {size} octets, {} os, {} sommets",
+        "{} : {size} octets, {} os, {} sommets, chargé en {load_ms:.1} ms ({} os relus)",
         path.display(),
         info.bones,
-        info.vertices
+        info.vertices,
+        loaded.skeleton.len()
     );
 }

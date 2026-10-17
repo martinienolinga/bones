@@ -10,6 +10,7 @@
 //! génériques) → ajustement facultatif au maillage ([`fit_layout`]) → os et
 //! membres ([`build`]).
 
+pub mod face;
 mod fit;
 mod generate;
 mod layout;
@@ -19,7 +20,7 @@ mod markers;
 mod tests;
 
 pub use fit::fit_layout;
-pub use generate::{AutoRigOptions, build, generate, generate_fitted};
+pub use generate::{AutoRigOptions, build, generate, generate_fitted, generate_safe};
 pub use layout::{FINGER_NAMES, Layout};
 pub use limb::{Limb, LimbMode};
 pub use markers::{MarkerKind, Markers};

@@ -2,7 +2,7 @@ use super::*;
 use glam::Vec3;
 
 use crate::Rig;
-use crate::{Pose, head_tail};
+use crate::{Mesh, Pose, head_tail};
 
 #[test]
 fn generates_symmetric_humanoid() {
@@ -48,4 +48,32 @@ fn ik_limb_holds_target() {
     assert!(ankle.abs_diff_eq(goal, 1e-3), "{ankle:?} vs {goal:?}");
     // Le genou plie vers l'avant (+Z).
     assert!(w[leg.lower.index()].translation.z > goal.z - 0.5);
+}
+
+#[test]
+fn generate_safe_matches_fitted_on_a_sound_mesh() {
+    // Sur le mannequin de démonstration, l'ajustement est sain : le garde-fou
+    // laisse passer le résultat recalé.
+    let demo = Rig::demo();
+    let markers = Markers::guess(&demo.mesh).unwrap();
+    let opts = AutoRigOptions::default();
+    let safe = generate_safe(&markers, &opts, &demo.mesh).0;
+    let fitted = generate_fitted(&markers, &opts, &demo.mesh).0;
+    assert_eq!(safe.rest_world(), fitted.rest_world());
+}
+
+#[test]
+fn generate_safe_never_panics_on_a_degenerate_mesh() {
+    // Marqueurs plausibles mais maillage dégénéré (sommets confondus) : pas de
+    // panique, squelette fini et membres valides (repli sur les marqueurs).
+    let markers = Markers::guess(&Rig::demo().mesh).unwrap();
+    let bad = Mesh {
+        positions: vec![Vec3::ZERO; 30],
+        indices: (0..30).collect(),
+        ..Default::default()
+    };
+    let (s, limbs) = generate_safe(&markers, &AutoRigOptions::default(), &bad);
+    assert!(!s.is_empty() && limbs.len() == 4);
+    assert!(s.rest_world().iter().all(|t| t.translation.is_finite()));
+    assert!(s.bones().iter().all(|b| b.length > 0.0));
 }

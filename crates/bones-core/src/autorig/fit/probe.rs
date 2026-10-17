@@ -5,8 +5,8 @@ use glam::{Vec2, Vec3};
 
 use super::surface::Surface;
 
-// Outils de recalage prévus pour le rig facial, encore en pause (wip/LISEZMOI.md).
-#[allow(dead_code)]
+// Requêtes géométriques utilisées par l'estimation des marqueurs du visage
+// (`autorig::face::guess`) et le profil (`autorig::face::profile`).
 impl Surface<'_> {
     /// Segments de la coupe par le plan (`point`, `normal`), sans les
     /// regrouper en contours.

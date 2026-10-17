@@ -45,6 +45,7 @@ pub mod weight_paint;
 pub use glam;
 
 pub use anim::{Clip, Interpolation, Key};
+pub use autorig::face::{FaceBone, FaceMarkerKind, FaceMarkers};
 pub use autorig::{AutoRigOptions, Limb, LimbMode, MarkerKind, Markers};
 pub use editor::{BindJob, EditTool, Editor, Handle, Mode, PoseTool, ViewOptions};
 pub use ik::{IkSettings, Pin};

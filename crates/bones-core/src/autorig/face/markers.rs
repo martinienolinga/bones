@@ -121,7 +121,11 @@ impl FaceMarkers {
 
     /// Toutes les valeurs sont finies et le rayon de l'œil positif.
     pub fn is_valid(&self) -> bool {
-        let optional = self.ear.into_iter().chain(self.teeth_top).chain(self.teeth_bottom);
+        let optional = self
+            .ear
+            .into_iter()
+            .chain(self.teeth_top)
+            .chain(self.teeth_bottom);
         let tongue = self.tongue.into_iter().flatten();
         FaceMarkerKind::ALL
             .iter()
