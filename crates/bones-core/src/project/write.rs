@@ -7,7 +7,9 @@ use std::path::Path;
 use rayon::prelude::*;
 
 use super::codec::encode_indices;
-use super::container::{deflate, finish, store, write_atomically, writer};
+use super::container::{
+    MAX_JSON, MAX_TEXTURE, MAX_THUMBNAIL, deflate, finish, store, write_atomically, writer,
+};
 use super::document::*;
 use super::split::split;
 use super::{ProjectError, ProjectInfo, ProjectSnapshot, unix_now};
@@ -29,6 +31,18 @@ pub(super) fn save(
     let info = snapshot.info(name, created, unix_now());
     let manifest = deflate(MANIFEST, &serde_json::to_vec_pretty(&Manifest::new(&info))?)?;
     let (document, heavy) = split(snapshot);
+    // Mêmes limites qu'à la lecture : un projet enregistré reste lisible.
+    document
+        .counts
+        .check(snapshot.rig.clip.keys().len(), snapshot.rig.skeleton.len())?;
+    let sizes = heavy
+        .textures
+        .iter()
+        .map(|(n, t)| (n.as_str(), t.bytes.len(), MAX_TEXTURE));
+    let thumb = thumbnail.map(|t| (THUMBNAIL, t.len(), MAX_THUMBNAIL));
+    if let Some((name, len, _)) = sizes.chain(thumb).find(|(_, len, max)| *len as u64 > *max) {
+        return Err(ProjectError::TooLarge(format!("entry {name} ({len} bytes)")));
+    }
     let rig = &snapshot.rig;
     let mesh = &*rig.mesh;
 
@@ -36,7 +50,7 @@ pub(super) fn save(
     // tableaux déjà au bon format sont compressés sans copie).
     type Encode<'a> = &'a (dyn Fn() -> Result<Cow<'a, [u8]>, ProjectError> + Sync);
     let entries: [(&str, Encode); 7] = [
-        (DOCUMENT, &|| Ok(Cow::Owned(serde_json::to_vec(&document)?))),
+        (DOCUMENT, &|| json(&document)),
         (POSITIONS, &|| raw(bytemuck::cast_slice(&mesh.positions))),
         (NORMALS, &|| raw(bytemuck::cast_slice(&mesh.normals))),
         (UVS, &|| raw(bytemuck::cast_slice(&mesh.uvs))),
@@ -69,6 +83,17 @@ pub(super) fn save(
         finish(zip)
     })?;
     Ok(info)
+}
+
+fn json(document: &Document) -> Result<Cow<'static, [u8]>, ProjectError> {
+    let bytes = serde_json::to_vec(document)?;
+    if bytes.len() as u64 > MAX_JSON {
+        return Err(ProjectError::TooLarge(format!(
+            "{DOCUMENT} ({} bytes)",
+            bytes.len()
+        )));
+    }
+    Ok(Cow::Owned(bytes))
 }
 
 fn raw(bytes: &[u8]) -> Result<Cow<'_, [u8]>, ProjectError> {

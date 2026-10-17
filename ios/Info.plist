@@ -65,19 +65,21 @@
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 
-	<!-- Documents .bones (JSON). -->
+	<!-- Projets .kbrig : un fichier compressé par projet (conteneur ZIP, mais
+	     déclaré comme simple donnée pour que Fichiers ne propose pas de le
+	     décompresser). -->
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
-			<string>Rig PaintSharp Bones</string>
+			<string>PaintSharp Bones Project</string>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSHandlerRank</key>
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>com.paintsharp.bones.rig</string>
+				<string>com.paintsharp.bones.kbrig</string>
 			</array>
 		</dict>
 	</array>
@@ -85,23 +87,23 @@
 	<array>
 		<dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.paintsharp.bones.rig</string>
+			<string>com.paintsharp.bones.kbrig</string>
 			<key>UTTypeDescription</key>
-			<string>Rig PaintSharp Bones</string>
+			<string>PaintSharp Bones Project</string>
 			<key>UTTypeConformsTo</key>
 			<array>
-				<string>public.json</string>
 				<string>public.data</string>
+				<string>public.content</string>
 			</array>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
 				<array>
-					<string>bones</string>
+					<string>kbrig</string>
 				</array>
 				<key>public.mime-type</key>
 				<array>
-					<string>application/vnd.paintsharp.bones+json</string>
+					<string>application/vnd.paintsharp.bones.kbrig</string>
 				</array>
 			</dict>
 		</dict>

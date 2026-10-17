@@ -7,28 +7,32 @@
 //! Le fichier est un conteneur ZIP (lecture directe d'une entrée sans
 //! décompresser les autres) :
 //!
-//! | entrée                 | contenu                                   | compression |
-//! |------------------------|-------------------------------------------|-------------|
-//! | `manifest.json`        | format, version, nom, dates, statistiques | deflate     |
-//! | `thumbnail.jpg`        | vignette JPEG                             | aucune      |
-//! | `document.json`        | `Rig` sans données lourdes + éditeur      | deflate     |
-//! | `mesh/positions.bin`   | `[f32; 3]` par sommet                     | deflate     |
-//! | `mesh/normals.bin`     | `[f32; 3]` par sommet                     | deflate     |
-//! | `mesh/uvs.bin`         | `[f32; 2]` par sommet (si présentes)      | deflate     |
-//! | `mesh/indices.bin`     | indices `u32` : différences, plans d'octets | deflate   |
-//! | `skin/weights.bin`     | 4 × `u16` os + 4 × `u16` poids par sommet | deflate     |
-//! | `anim/poses.bin`       | 10 × `f32` par os et par clé              | deflate     |
-//! | `textures/<n>.<ext>`   | image d'origine (PNG, JPEG…)              | aucune      |
+//! | entrée               | contenu                                      | compression |
+//! |----------------------|----------------------------------------------|-------------|
+//! | `manifest.json`      | format, version, nom, dates, statistiques    | deflate     |
+//! | `thumbnail.jpg`      | vignette JPEG                                | aucune      |
+//! | `document.json`      | `Rig` sans données lourdes + éditeur         | deflate     |
+//! | `mesh/positions.bin` | `[f32; 3]` par sommet                        | deflate     |
+//! | `mesh/normals.bin`   | `[f32; 3]` par sommet                        | deflate     |
+//! | `mesh/uvs.bin`       | `[f32; 2]` par sommet (si présentes)         | deflate     |
+//! | `mesh/indices.bin`   | `u32` : différences zigzag, plans d'octets   | deflate     |
+//! | `skin/weights.bin`   | 4 × `u16` os + 4 × `u16` poids par sommet    | deflate     |
+//! | `anim/poses.bin`     | 10 × `f32` par os et par clé                 | deflate     |
+//! | `textures/<n>.<ext>` | image d'origine (PNG, JPEG…)                 | aucune      |
 //!
-//! Les tableaux binaires sont en petit-boutiste. L'enregistrement est
+//! Les tableaux binaires sont en petit-boutiste ; une entrée absente vaut un
+//! tableau vide, un champ JSON absent sa valeur par défaut. Les entrées sont
+//! compressées et décompressées en parallèle (rayon). L'enregistrement est
 //! atomique (fichier temporaire synchronisé puis renommé) et la lecture
 //! bornée et vérifiée : les fichiers reçus d'ailleurs ne peuvent ni épuiser
-//! la mémoire ni faire paniquer l'application.
+//! la mémoire ni faire paniquer l'application. Un fichier d'une version du
+//! format plus récente est refusé avec un message clair.
 
 mod codec;
 pub(crate) mod container;
 mod document;
 mod error;
+mod finite;
 mod read;
 mod snapshot;
 mod split;

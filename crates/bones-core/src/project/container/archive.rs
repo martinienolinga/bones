@@ -3,13 +3,17 @@
 //! entrée par entrée et au total, quoi qu'annonce le conteneur.
 
 use std::fs::File;
-use std::io::{BufReader, Read, Seek, Write};
+use std::io::{Read, Seek, Write};
 use std::path::Path;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use bytemuck::Pod;
+use zip::read::{ArchiveOffset, Config};
 use zip::result::ZipError;
 use zip::{ZipArchive, ZipWriter};
 
+use super::shared_file::SharedFile;
 use crate::project::ProjectError;
 use crate::project::error::invalid;
 
@@ -22,16 +26,25 @@ pub(crate) const MAX_TEXTURE: u64 = 256 << 20;
 /// s'étendre jusqu'à mille fois : la limite doit rester supportable par un iPad).
 pub(crate) const MAX_TOTAL: u64 = 1536 << 20;
 
+/// Conteneur ouvert en lecture. Cloner un `Archive` est peu coûteux (même
+/// fichier ouvert, répertoire déjà lu, plafond partagé) : chaque fil lit
+/// ainsi ses entrées en parallèle.
+#[derive(Clone)]
 pub(crate) struct Archive {
-    zip: ZipArchive<BufReader<File>>,
-    /// Octets décompressés restant autorisés.
-    budget: u64,
+    zip: ZipArchive<SharedFile>,
+    /// Octets décompressés restant autorisés, pour tous les clones.
+    budget: Arc<AtomicU64>,
 }
 
 impl Archive {
     pub fn open(path: &Path) -> Result<Self, ProjectError> {
-        let file = BufReader::with_capacity(1 << 16, File::open(path)?);
-        let zip = ZipArchive::new(file).map_err(|e| match e {
+        let file = SharedFile::new(File::open(path)?)?;
+        // Conteneur toujours au début du fichier : la recherche (coûteuse)
+        // d'un décalage éventuel est inutile.
+        let config = Config {
+            archive_offset: ArchiveOffset::Known(0),
+        };
+        let zip = ZipArchive::with_config(config, file).map_err(|e| match e {
             ZipError::InvalidArchive(_) | ZipError::UnsupportedArchive(_) => {
                 invalid("unrecognized file format")
             }
@@ -39,7 +52,7 @@ impl Archive {
         })?;
         Ok(Self {
             zip,
-            budget: MAX_TOTAL,
+            budget: Arc::new(AtomicU64::new(MAX_TOTAL)),
         })
     }
 
@@ -50,7 +63,7 @@ impl Archive {
             Err(ZipError::FileNotFound) => return Ok(None),
             Err(e) => return Err(e.into()),
         };
-        let max = max.min(self.budget);
+        let max = max.min(self.budget.load(Ordering::Relaxed));
         let declared = entry.size();
         if declared > max {
             return Err(too_large(name, declared));
@@ -66,7 +79,7 @@ impl Archive {
         if out.len() as u64 > max {
             return Err(too_large(name, out.len() as u64));
         }
-        self.budget -= out.len() as u64;
+        spend(&self.budget, name, out.len() as u64)?;
         Ok(Some(out))
     }
 
@@ -77,9 +90,6 @@ impl Archive {
             return Ok(Vec::new());
         }
         let expected = u64::from(count) * size_of::<T>() as u64;
-        if expected > self.budget {
-            return Err(too_large(name, expected));
-        }
         let mut entry = match self.zip.by_name(name) {
             Ok(entry) => entry,
             Err(ZipError::FileNotFound) => return Err(invalid(format!("missing entry {name}"))),
@@ -88,6 +98,8 @@ impl Archive {
         if entry.size() != expected {
             return Err(invalid(format!("entry {name} has an unexpected size")));
         }
+        // Plafond prélevé avant d'allouer.
+        spend(&self.budget, name, expected)?;
         let mut out: Vec<T> = Vec::new();
         out.try_reserve_exact(count as usize)
             .map_err(|_| too_large(name, expected))?;
@@ -100,7 +112,6 @@ impl Archive {
         if entry.read(&mut extra).map_err(|e| damaged(name, e))? != 0 {
             return Err(invalid(format!("entry {name} is longer than declared")));
         }
-        self.budget -= expected;
         Ok(out)
     }
 }
@@ -121,6 +132,14 @@ impl Archive {
         }
         Ok(())
     }
+}
+
+/// Prélève `size` octets sur le plafond total.
+fn spend(budget: &AtomicU64, name: &str, size: u64) -> Result<(), ProjectError> {
+    budget
+        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |b| b.checked_sub(size))
+        .map(|_| ())
+        .map_err(|_| too_large(name, size))
 }
 
 fn too_large(name: &str, size: u64) -> ProjectError {

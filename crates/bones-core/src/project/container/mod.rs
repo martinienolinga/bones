@@ -18,6 +18,7 @@
 mod archive;
 mod atomic;
 mod entries;
+mod shared_file;
 
 pub(crate) use archive::{Archive, MAX_JSON};
 pub(crate) use atomic::write_atomically;

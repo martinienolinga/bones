@@ -9,8 +9,9 @@ use zip::{CompressionMethod, ZipWriter};
 
 use crate::project::ProjectError;
 
-/// Niveau de compression deflate (zlib-rs) : bon compromis vitesse / taille.
-const LEVEL: i64 = 6;
+/// Niveau de compression deflate (zlib-rs). Mesuré sur des projets réels :
+/// à 2-4 % près la taille du niveau 6, pour 1,5 à 2 fois moins de temps.
+const LEVEL: i64 = 3;
 
 /// Conteneur écrit dans un fichier (tamponné).
 pub(crate) fn writer(file: File) -> ZipWriter<BufWriter<File>> {

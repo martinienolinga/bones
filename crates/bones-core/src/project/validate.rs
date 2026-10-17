@@ -11,11 +11,10 @@ use super::ProjectError;
 use super::codec::{PackedTransform, unpack};
 use super::document::Document;
 use super::error::invalid;
+use super::finite::make_finite;
 use super::snapshot::ProjectSnapshot;
 use crate::{Clip, Mesh, Rig, Skin, VertexWeights};
 
-/// Nombre maximal d'os : les poids les désignent sur 16 bits.
-pub(super) const MAX_BONES: usize = u16::MAX as usize;
 /// Nombre maximal d'images d'animation.
 pub(super) const MAX_FRAMES: u32 = 1 << 20;
 
@@ -46,6 +45,8 @@ pub(super) fn assemble(
         weights_bound,
         editor: mut state,
     } = document;
+
+    make_finite(&mut rig);
 
     // Déstructuration exhaustive (voir l'écriture) : géométrie lue à part,
     // matériaux et parties venant du document.
@@ -98,7 +99,7 @@ pub(super) fn assemble(
     check_mesh(&mut mesh)?;
     rig.mesh = Arc::new(mesh);
 
-    check_skeleton(&mut rig)?;
+    check_skeleton(&mut rig);
     let weights_ok = check_weights(&weights, rig.mesh.vertex_count(), rig.skeleton.len());
     rig.skin = Arc::new(if weights_ok {
         Skin { weights }
@@ -120,7 +121,10 @@ pub(super) fn assemble(
 fn check_mesh(mesh: &mut Mesh) -> Result<(), ProjectError> {
     let n = mesh.vertex_count();
     if !mesh.positions.par_iter().all(|p| p.is_finite()) {
-        return Err(invalid("mesh has non-finite vertex positions"));
+        mesh.positions
+            .par_iter_mut()
+            .filter(|p| !p.is_finite())
+            .for_each(|p| *p = Vec3::ZERO);
     }
     if !mesh.indices.len().is_multiple_of(3) || !mesh.indices.par_iter().all(|&i| (i as usize) < n) {
         return Err(invalid("mesh has out-of-range triangle indices"));
@@ -143,40 +147,15 @@ fn check_mesh(mesh: &mut Mesh) -> Result<(), ProjectError> {
     Ok(())
 }
 
-fn check_skeleton(rig: &mut Rig) -> Result<(), ProjectError> {
-    // L'ordre parent < enfant est déjà vérifié à la désérialisation.
-    let s = &rig.skeleton;
-    if s.len() > MAX_BONES {
-        return Err(ProjectError::TooLarge(format!("{} bones", s.len())));
-    }
-    let finite = s.bones().iter().all(|b| {
-        b.length.is_finite()
-            && b.rest.translation.is_finite()
-            && b.rest.rotation.is_finite()
-            && b.rest.scale.is_finite()
-    });
-    if !finite {
-        return Err(invalid("skeleton has non-finite values"));
-    }
+fn check_skeleton(rig: &mut Rig) {
+    // L'ordre parent < enfant est déjà vérifié à la désérialisation, le
+    // nombre d'os avec les autres tailles, et les valeurs non finies
+    // remplacées (`make_finite`).
     rig.pose.sync_len(&rig.skeleton);
-    for t in &mut rig.pose.bones {
-        if !(t.translation.is_finite() && t.rotation.is_finite() && t.scale.is_finite()) {
-            *t = crate::Transform::IDENTITY;
-        }
-    }
-    // Cibles et pôles gardés tels quels (l'éditeur les recale sur la pose en
-    // passant en mode Pose), sauf s'ils sont inutilisables.
+    // Cibles et pôles gardés tels quels : l'éditeur les recale sur la pose en
+    // passant en mode Pose.
     rig.limbs.retain(|l| l.is_valid(&rig.skeleton));
-    let broken = |l: &crate::Limb| !(l.target.is_finite() && l.pole.is_finite());
-    if rig.limbs.iter().any(broken) {
-        let world = rig.world();
-        for limb in rig.limbs.iter_mut().filter(|l| broken(l)) {
-            limb.snap_to_pose(&rig.skeleton, &world);
-        }
-    }
-    rig.pins
-        .retain(|p| rig.skeleton.contains(p.bone) && p.target.is_finite());
-    Ok(())
+    rig.pins.retain(|p| rig.skeleton.contains(p.bone));
 }
 
 /// Poids utilisables tels quels : un par sommet, os existants.

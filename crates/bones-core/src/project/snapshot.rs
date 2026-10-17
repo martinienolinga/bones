@@ -15,6 +15,12 @@ pub struct ProjectSnapshot {
     pub(crate) state: EditorState,
 }
 
+// Garantie du contrat : un instantané part sur un fil de fond.
+const _: () = {
+    const fn send<T: Send + 'static>() {}
+    send::<ProjectSnapshot>()
+};
+
 impl ProjectSnapshot {
     pub fn capture(editor: &Editor) -> Self {
         Self {

@@ -8,8 +8,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::ProjectInfo;
 use super::state::EditorState;
+use super::{ProjectError, ProjectInfo};
 use crate::Rig;
 
 /// Identifiant du format, dans le manifeste.
@@ -27,6 +27,15 @@ pub(super) const INDICES: &str = "mesh/indices.bin";
 pub(super) const WEIGHTS: &str = "skin/weights.bin";
 pub(super) const POSES: &str = "anim/poses.bin";
 pub(super) const TEXTURES_DIR: &str = "textures/";
+
+/// Nombre maximal de sommets d'un projet.
+const MAX_VERTICES: u32 = 1 << 23;
+/// Nombre maximal d'indices de triangles.
+const MAX_INDICES: u32 = 3 << 24;
+/// Nombre maximal de transformations de poses-clés (clés × os).
+const MAX_POSES: u64 = 1 << 23;
+/// Nombre maximal d'os : les poids les désignent sur 16 bits.
+const MAX_BONES: usize = u16::MAX as usize;
 
 /// Petit résumé lisible sans rien décompresser d'autre (galerie).
 #[derive(Debug, Serialize, Deserialize)]
@@ -124,4 +133,26 @@ pub(super) struct Counts {
     pub weights: u32,
     /// Transformations par pose-clé (toutes les clés en ont autant).
     pub key_bones: u32,
+}
+
+impl Counts {
+    /// Vérifie les tailles (mêmes limites à l'écriture et à la lecture : un
+    /// projet enregistré reste toujours lisible). Retourne le nombre de
+    /// transformations des poses-clés.
+    pub fn check(&self, keys: usize, bones: usize) -> Result<u32, ProjectError> {
+        let vertices = [self.positions, self.normals, self.uvs, self.weights];
+        let poses = u64::from(self.key_bones) * keys as u64;
+        if vertices.iter().any(|n| *n > MAX_VERTICES)
+            || self.indices > MAX_INDICES
+            || poses > MAX_POSES
+            || bones > MAX_BONES
+        {
+            return Err(ProjectError::TooLarge(format!(
+                "{} vertices, {} triangles, {bones} bones, {poses} key transforms",
+                self.positions,
+                self.indices / 3
+            )));
+        }
+        Ok(poses as u32)
+    }
 }

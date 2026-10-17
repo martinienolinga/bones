@@ -4,19 +4,14 @@
 use std::path::Path;
 use std::sync::Arc;
 
+use bytemuck::Pod;
+
 use super::codec::decode_indices;
 use super::container::{Archive, MAX_JSON, MAX_MANIFEST, MAX_TEXTURE, MAX_THUMBNAIL};
 use super::document::*;
 use super::error::invalid;
 use super::validate::{Arrays, assemble};
 use super::{LoadedProject, ProjectError, ProjectInfo};
-
-/// Nombre maximal de sommets d'un projet.
-pub(super) const MAX_VERTICES: u32 = 1 << 23;
-/// Nombre maximal d'indices de triangles.
-pub(super) const MAX_INDICES: u32 = 3 << 24;
-/// Nombre maximal de transformations de poses-clés (clés × os).
-pub(super) const MAX_POSES: u64 = 1 << 23;
 
 /// Lecture rapide : manifeste + vignette encodée, sans décompresser le reste.
 pub(super) fn read_info(path: &Path) -> Result<(ProjectInfo, Option<Vec<u8>>), ProjectError> {
@@ -37,23 +32,8 @@ pub(super) fn load(path: &Path) -> Result<LoadedProject, ProjectError> {
     drop(json);
 
     let c = document.counts;
-    let vertices = [c.positions, c.normals, c.uvs, c.weights];
-    let poses = u64::from(c.key_bones) * document.rig.clip.keys().len() as u64;
-    if vertices.iter().any(|n| *n > MAX_VERTICES) || c.indices > MAX_INDICES || poses > MAX_POSES {
-        return Err(ProjectError::TooLarge(format!(
-            "{} vertices, {} indices, {poses} key transforms",
-            c.positions, c.indices
-        )));
-    }
-    let arrays = Arrays {
-        positions: archive.read_array(POSITIONS, c.positions)?,
-        normals: archive.read_array(NORMALS, c.normals)?,
-        uvs: archive.read_array(UVS, c.uvs)?,
-        indices: decode_indices(&archive.read_array::<u8>(INDICES, c.indices * 4)?),
-        weights: archive.read_array(WEIGHTS, c.weights)?,
-        poses: archive.read_array(POSES, poses as u32)?,
-        key_bones: c.key_bones as usize,
-    };
+    let poses = c.check(document.rig.clip.keys().len(), document.rig.skeleton.len())?;
+    let arrays = read_arrays(&archive, &c, poses)?;
     let textures = document
         .textures
         .iter()
@@ -71,6 +51,38 @@ pub(super) fn load(path: &Path) -> Result<LoadedProject, ProjectError> {
         info,
         snapshot,
         thumbnail,
+    })
+}
+
+/// Tableaux binaires, décompressés en parallèle (un clone de l'archive par
+/// tâche).
+fn read_arrays(archive: &Archive, c: &Counts, poses: u32) -> Result<Arrays, ProjectError> {
+    fn get<T: Pod + Send>(archive: &Archive, name: &str, count: u32) -> Result<Vec<T>, ProjectError> {
+        archive.clone().read_array(name, count)
+    }
+    let indices = || get::<u8>(archive, INDICES, c.indices * 4).map(|b| decode_indices(&b));
+    let ((positions, normals), ((uvs, indices), (weights, poses))) = rayon::join(
+        || {
+            rayon::join(
+                || get(archive, POSITIONS, c.positions),
+                || get(archive, NORMALS, c.normals),
+            )
+        },
+        || {
+            rayon::join(
+                || rayon::join(|| get(archive, UVS, c.uvs), indices),
+                || rayon::join(|| get(archive, WEIGHTS, c.weights), || get(archive, POSES, poses)),
+            )
+        },
+    );
+    Ok(Arrays {
+        positions: positions?,
+        normals: normals?,
+        uvs: uvs?,
+        indices: indices?,
+        weights: weights?,
+        poses: poses?,
+        key_bones: c.key_bones as usize,
     })
 }
 

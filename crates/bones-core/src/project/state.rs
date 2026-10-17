@@ -84,7 +84,6 @@ impl EditorState {
 
     /// Ramène des réglages lus dans un fichier à des valeurs sûres.
     pub fn sanitize(&mut self, rig: &Rig) {
-        let fresh = Self::default();
         if self.camera.is_some_and(|c| !camera_ok(&c)) {
             self.camera = None;
         }
@@ -108,7 +107,7 @@ impl EditorState {
             .into_iter()
             .all(positive)
         {
-            self.manipulator = fresh.manipulator;
+            self.manipulator = ManipulatorSettings::default();
         }
     }
 }

@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use super::codec::{PackedTransform, pack};
 use super::document::{Counts, Document, TEXTURES_DIR};
+use super::finite::make_finite;
 use super::snapshot::ProjectSnapshot;
 use crate::{Material, Mesh, Skin, Texture, Transform};
 
@@ -51,6 +52,10 @@ pub(super) fn split(snapshot: &ProjectSnapshot) -> (Document, Heavy) {
         clip.poses_mut().for_each(|p| p.bones = Vec::new());
     }
 
+    make_finite(&mut rig);
+    let mut state = snapshot.state.clone();
+    state.sanitize(&rig);
+
     let len = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
     let document = Document {
         weights_bound: !source.needs_bind(),
@@ -65,7 +70,7 @@ pub(super) fn split(snapshot: &ProjectSnapshot) -> (Document, Heavy) {
         },
         textures: textures.iter().map(|(n, _)| n.clone()).collect(),
         material_textures,
-        editor: snapshot.state.clone(),
+        editor: state,
     };
     (document, Heavy { textures, poses })
 }

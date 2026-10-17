@@ -88,6 +88,17 @@ résultat revient par un canal et `Editor::finish_bind` ne l'installe que si les
 sont toujours d'actualité : un résultat périmé (squelette modifié ou annulation entre-temps) est
 simplement ignoré.
 
+### Projets `.kbrig`
+
+Chaque projet est un fichier `.kbrig` autonome (`bones_core::project`) : un conteneur ZIP (deflate
+pur Rust) avec un manifeste, une vignette JPEG stockée sans recompression (la galerie la lit sans
+rien décompresser d'autre), le `Rig` en JSON allégé de ses données lourdes, le maillage, les poids
+et les poses des clés en binaire, et les textures telles quelles. `ProjectSnapshot::capture` ne
+copie que des `Arc` : l'enregistrement se fait sur un fil de fond, de façon atomique (fichier
+temporaire puis renommage). Les fichiers reçus d'ailleurs sont lus avec des tailles bornées et
+validés ; un fichier d'une version plus récente est refusé. `project::container` et
+`project::store` (noms, renommage, duplication) servent aussi aux autres formats de l'app.
+
 ### Rendu
 
 Deux passes par image, puis l'interface :

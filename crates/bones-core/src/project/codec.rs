@@ -2,6 +2,8 @@
 //! plans d'octets, très bien compressés par deflate) et transformations des
 //! poses-clés (10 flottants).
 
+use rayon::prelude::*;
+
 use crate::Transform;
 
 /// Transformation enregistrée : translation (3), rotation (4), échelle (3).
@@ -24,20 +26,25 @@ pub(super) fn unpack(v: &PackedTransform) -> Transform {
     }
 }
 
+/// Taille des blocs traités en parallèle.
+const CHUNK: usize = 1 << 16;
+
 /// Indices → différences successives (zigzag) rangées par plans d'octets :
-/// des indices voisins donnent de longues suites de zéros.
+/// des indices voisins donnent de longues suites de zéros. Un plan et un
+/// bloc par tâche.
 pub(super) fn encode_indices(indices: &[u32]) -> Vec<u8> {
     let n = indices.len();
     let mut out = vec![0u8; n * 4];
-    let mut prev = 0u32;
-    for (k, &i) in indices.iter().enumerate() {
-        let d = i.wrapping_sub(prev) as i32;
-        prev = i;
-        let z = ((d << 1) ^ (d >> 31)) as u32;
-        for (b, byte) in z.to_le_bytes().into_iter().enumerate() {
-            out[b * n + k] = byte;
-        }
-    }
+    out.par_chunks_mut(n.max(1)).enumerate().for_each(|(b, plane)| {
+        plane.par_chunks_mut(CHUNK).enumerate().for_each(|(c, part)| {
+            let start = c * CHUNK;
+            let mut prev = start.checked_sub(1).map_or(0, |p| indices[p]);
+            for (dst, &i) in part.iter_mut().zip(&indices[start..]) {
+                *dst = (zigzag(i.wrapping_sub(prev)) >> (8 * b)) as u8;
+                prev = i;
+            }
+        });
+    });
     out
 }
 
@@ -47,13 +54,28 @@ pub(super) fn decode_indices(bytes: &[u8]) -> Vec<u32> {
     let (p0, rest) = bytes.split_at(n);
     let (p1, rest) = rest.split_at(n);
     let (p2, p3) = rest.split_at(n);
+    let mut out = vec![0u32; n];
+    out.par_chunks_mut(CHUNK).enumerate().for_each(|(c, part)| {
+        let start = c * CHUNK;
+        for (k, v) in part.iter_mut().enumerate() {
+            let j = start + k;
+            *v = unzigzag(u32::from_le_bytes([p0[j], p1[j], p2[j], p3[j]]));
+        }
+    });
+    // Somme cumulée des différences (séquentielle, très rapide).
     let mut prev = 0u32;
-    (0..n)
-        .map(|k| {
-            let z = u32::from_le_bytes([p0[k], p1[k], p2[k], p3[k]]);
-            let d = ((z >> 1) as i32) ^ -((z & 1) as i32);
-            prev = prev.wrapping_add(d as u32);
-            prev
-        })
-        .collect()
+    for v in &mut out {
+        prev = prev.wrapping_add(*v);
+        *v = prev;
+    }
+    out
+}
+
+fn zigzag(d: u32) -> u32 {
+    let d = d as i32;
+    ((d << 1) ^ (d >> 31)) as u32
+}
+
+fn unzigzag(z: u32) -> u32 {
+    ((z >> 1) as i32 ^ -((z & 1) as i32)) as u32
 }
