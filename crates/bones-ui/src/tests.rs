@@ -20,7 +20,7 @@ fn run(mut ui_fn: impl FnMut(&mut egui::Ui)) -> egui::FullOutput {
 
 #[test]
 fn every_icon_is_valid_and_visible() {
-    assert_eq!(icons::all().len(), 48);
+    assert_eq!(icons::all().len(), 54);
     for &icon in icons::all() {
         let pixels = icons::rasterize(icon, 40);
         let opaque = pixels.chunks_exact(4).filter(|p| p[3] > 128).count();
@@ -82,6 +82,26 @@ fn widgets_render() {
         widgets::section_title(ui, "Section");
         let mut r = 22.0;
         widgets::slider_row(ui, &mut r, 10.0..=48.0, "Radius", "pt");
+        widgets::well_button(ui, icons::Icon::Actions, true, "Actions");
+        widgets::bar_tool(ui, icons::Icon::Move, false, "Move");
+        widgets::square_button(ui, "Frame");
+        widgets::tab(ui, icons::Icon::Export, "Export", true);
+        widgets::group(ui, |g| {
+            g.check_row("Heat diffusion", true);
+            g.value_row("Format", "GLB");
+            g.switch_row(&mut on, "Mesh", Some("Show the mesh"));
+            g.icon_row(icons::Icon::Folder, "Doc", None, Some("BONES"));
+            g.custom(46.0, |ui| ui.label("Custom"));
+        });
+        widgets::nav_item(ui, icons::Icon::Bone, "Bone", true);
+        widgets::studio_title(ui, "Bone");
+        widgets::value_chip(ui, "17 %");
+        widgets::drag_chip(ui, &mut r, 0.0..=50.0, 0.1, 2, " m", 80.0);
+        widgets::chip_button(ui, "X", false);
+        let mut parts = 2;
+        widgets::stepper(ui, &mut parts, 2..=8);
+        widgets::cancel_button(ui, "Cancel");
+        widgets::confirm_button(ui, "Done");
         icons::paint(
             ui.painter(),
             Rect::from_min_size(pos2(10.0, 10.0), vec2(24.0, 24.0)),

@@ -1,11 +1,12 @@
-//! Thème sombre et plat, dans l'esprit de Procreate et Nomad Sculpt : blocs
-//! très sombres aux coins généreux, liseré d'un pixel, ombres courtes, un
-//! accent bleu iOS en aplat ; aucun dégradé.
+//! Thème sombre et plat, calqué sur Procreate : barre pleine en haut,
+//! bandeaux collés aux bords, fenêtres #2C2C2E aux coins de 20 pt, listes
+//! groupées, icônes monochromes ; l'accent bleu ne marque que l'état actif
+//! ou la sélection. Aucun dégradé, ombres seulement sous les fenêtres.
 //!
 //! - couleurs (ce module) ;
 //! - [`fonts`] : police Inter embarquée ;
 //! - [`style`] : réglages egui (espacements, états des widgets) ;
-//! - [`frames`] : cadres des blocs, cartes et fenêtres contextuelles.
+//! - [`frames`] : cadres des blocs et fenêtres contextuelles.
 
 mod fonts;
 mod frames;
@@ -17,32 +18,46 @@ pub use fonts::{install_fonts, semibold};
 pub use frames::{bar_frame, card_frame, panel_frame, small_shadow, soft_shadow};
 pub use style::apply;
 
-/// Couleur de fond de la vue 3D (sRGB #262628), en espace d'affichage : la
+/// Couleur de fond de la vue 3D (sRGB #242426), en espace d'affichage : la
 /// surface wgpu est en `Bgra8Unorm` (non sRGB), la valeur est écrite telle
 /// quelle.
-pub const BACKGROUND: [f64; 3] = [0.149, 0.149, 0.157];
+pub const BACKGROUND: [f64; 3] = [0.141, 0.141, 0.149];
 
-/// Blocs posés sur la vue (barre du haut, cartes latérales).
-pub const BAR: Color32 = Color32::from_rgba_premultiplied(22, 22, 25, 244);
+/// Barre du haut, bandeaux latéraux, frise.
+pub const BAR: Color32 = Color32::from_rgb(0x1c, 0x1c, 0x1e);
+/// Puits circulaires des boutons de la barre du haut.
+pub const WELL: Color32 = Color32::from_rgb(0x2c, 0x2c, 0x2e);
 /// Fenêtres contextuelles.
-pub const PANEL: Color32 = Color32::from_rgb(0x21, 0x21, 0x25);
-/// Liseré de lumière intérieur des blocs (blanc 7 %).
+pub const PANEL: Color32 = Color32::from_rgb(0x2c, 0x2c, 0x2e);
+/// Colonne de navigation des studios (réglages, os).
+pub const NAV: Color32 = Color32::from_rgb(0x26, 0x26, 0x28);
+/// Liseré discret des blocs (blanc 7 %).
 pub const PANEL_BORDER: Color32 = Color32::from_rgba_premultiplied(18, 18, 18, 18);
-/// Fond des boutons au repos et des pistes.
-pub const WIDGET: Color32 = Color32::from_rgb(0x2e, 0x2e, 0x34);
-/// Fond survolé / pressé.
-pub const WIDGET_HOVER: Color32 = Color32::from_rgb(0x3a, 0x3a, 0x41);
-/// Pouce des curseurs (gris perle).
-pub const THUMB: Color32 = Color32::from_rgb(0xe5, 0xe5, 0xea);
-/// Accent : bleu iOS de Procreate.
+/// Listes groupées, pastilles de valeur, pistes.
+pub const WIDGET: Color32 = Color32::from_rgb(0x3a, 0x3a, 0x3c);
+/// Fond survolé / pressé, filets de séparation.
+pub const WIDGET_HOVER: Color32 = Color32::from_rgb(0x48, 0x48, 0x4a);
+/// Filet d'un demi-point entre les lignes d'une liste.
+pub const HAIRLINE: Color32 = WIDGET_HOVER;
+/// Pouce des curseurs verticaux (gris).
+pub const THUMB: Color32 = Color32::from_rgb(0xa0, 0xa0, 0xa0);
+/// Accent : bleu iOS de Procreate (actif, sélection).
 pub const ACCENT: Color32 = Color32::from_rgb(0x0a, 0x84, 0xff);
 /// Accent survolé / pressé (un ton plus sombre).
 pub const ACCENT_PRESSED: Color32 = Color32::from_rgb(0x00, 0x6e, 0xdb);
 /// Accent atténué (fonds de sélection).
 pub const ACCENT_SOFT: Color32 = Color32::from_rgba_premultiplied(4, 46, 89, 89);
-pub const TEXT: Color32 = Color32::from_rgb(0xf5, 0xf5, 0xf7);
+pub const TEXT: Color32 = Color32::from_rgb(0xf2, 0xf2, 0xf7);
+/// Texte des lignes de liste.
+pub const TEXT_LIST: Color32 = Color32::from_rgb(0xe5, 0xe5, 0xea);
 pub const TEXT_DIM: Color32 = Color32::from_rgb(0x8e, 0x8e, 0x93);
 pub const TEXT_FAINT: Color32 = Color32::from_rgb(0x63, 0x63, 0x66);
+/// Icônes au repos (#EBEBF5 à 90 %).
+pub const ICON: Color32 = Color32::from_rgba_premultiplied(212, 212, 221, 230);
+/// Icônes secondaires.
+pub const ICON_DIM: Color32 = TEXT_DIM;
+/// Icônes et commandes désactivées.
+pub const DISABLED: Color32 = Color32::from_rgb(0x6e, 0x6e, 0x73);
 pub const DANGER: Color32 = Color32::from_rgb(0xff, 0x45, 0x3a);
 pub const SUCCESS: Color32 = Color32::from_rgb(0x30, 0xd1, 0x58);
 

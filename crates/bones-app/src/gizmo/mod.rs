@@ -67,7 +67,7 @@ impl Basis {
 pub fn show(ctx: &egui::Context, editor: &mut Editor, style: GizmoStyle) -> Vec<egui::Rect> {
     view::step(ctx, editor);
     let area = egui::Area::new(egui::Id::unique("view-gizmo"))
-        .anchor(egui::Align2::RIGHT_TOP, [-90.0, 76.0])
+        .anchor(egui::Align2::RIGHT_TOP, [-76.0, 60.0])
         .order(egui::Order::Foreground)
         .show(ctx, |ui| {
             ui.vertical_centered(|ui| {

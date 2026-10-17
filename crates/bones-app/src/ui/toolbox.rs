@@ -1,53 +1,52 @@
-//! Boîte à outils de droite, à la Nomad Sculpt : une colonne de cellules
-//! (icône en couleur + étiquette) qui dépend du mode courant, en groupes
-//! séparés par de fins traits.
+//! Bandeau droit, pendant du bandeau gauche : collé au bord et centré
+//! verticalement, il réunit les actions et bascules du mode courant
+//! (glyphe + libellé gris, bleus quand la bascule est active).
 
-use bones_core::{EditTool, Editor, Mode, PoseTool, Side};
+use bones_core::{Editor, Mode, Side};
 use bones_ui::icons::Icon;
 use bones_ui::{theme, widgets};
 
-use super::{COLUMN_TOP, EDGE, UiState, block};
+use super::{BAR_H, UiState, block};
 
 pub fn show(ctx: &egui::Context, editor: &mut Editor, _state: &mut UiState) -> egui::Rect {
+    let frame = egui::Frame::new()
+        .fill(theme::BAR)
+        .corner_radius(egui::CornerRadius {
+            nw: 10,
+            sw: 10,
+            ne: 0,
+            se: 0,
+        })
+        .inner_margin(egui::Margin::symmetric(4, 8));
     block(
         ctx,
         "toolbox",
-        egui::Align2::RIGHT_TOP,
-        [-EDGE, COLUMN_TOP],
-        theme::card_frame(),
+        egui::Align2::RIGHT_CENTER,
+        [0.0, BAR_H * 0.5],
+        frame,
         |ui| {
             ui.vertical_centered(|ui| {
-                ui.spacing_mut().item_spacing.y = 4.0;
+                ui.spacing_mut().item_spacing.y = 2.0;
                 match editor.mode {
-                    Mode::Pose => pose_tools(ui, editor),
-                    Mode::Edit => edit_tools(ui, editor),
-                    Mode::AutoRig => autorig_tools(ui, editor),
+                    Mode::Pose => pose(ui, editor),
+                    Mode::Edit => edit(ui, editor),
+                    Mode::AutoRig => autorig(ui, editor),
                 }
             });
         },
     )
 }
 
-/// Trait de séparation discret entre deux groupes d'outils.
+/// Filet de séparation entre deux groupes.
 fn divider(ui: &mut egui::Ui) {
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(40.0, 9.0), egui::Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(36.0, 9.0), egui::Sense::hover());
     ui.painter().line_segment(
         [rect.left_center(), rect.right_center()],
-        egui::Stroke::new(1.0, egui::Color32::from_white_alpha(22)),
+        egui::Stroke::new(0.5, theme::HAIRLINE),
     );
 }
 
-fn pose_tools(ui: &mut egui::Ui, editor: &mut Editor) {
-    for (tool, icon, label) in [
-        (PoseTool::Move, Icon::Move, "Move"),
-        (PoseTool::Rotate, Icon::Rotate, "Rotate"),
-        (PoseTool::Pin, Icon::Pin, "Pin"),
-    ] {
-        if widgets::tool_cell(ui, icon, label, editor.pose_tool == tool).clicked() {
-            editor.pose_tool = tool;
-        }
-    }
-    divider(ui);
+fn pose(ui: &mut egui::Ui, editor: &mut Editor) {
     if widgets::tool_cell(ui, Icon::Mirror, "Mirror", false).clicked() {
         editor.mirror_pose();
     }
@@ -65,40 +64,39 @@ fn pose_tools(ui: &mut egui::Ui, editor: &mut Editor) {
     toggle(ui, Icon::CenterOfMass, "Mass", &mut view.center_of_mass);
 }
 
-fn edit_tools(ui: &mut egui::Ui, editor: &mut Editor) {
-    for (tool, icon, label) in [
-        (EditTool::Select, Icon::Select, "Adjust"),
-        (EditTool::AddBone, Icon::BoneAdd, "Add"),
-    ] {
-        if widgets::tool_cell(ui, icon, label, editor.edit_tool == tool).clicked() {
-            editor.edit_tool = tool;
-        }
-    }
-    divider(ui);
-    let has_selection = editor.selected.is_some();
-    if ui
-        .add_enabled_ui(has_selection, |ui| {
+fn edit(ui: &mut egui::Ui, editor: &mut Editor) {
+    let selected = editor.selected.is_some();
+    let delete = ui
+        .add_enabled_ui(selected, |ui| {
             widgets::tool_cell(ui, Icon::Delete, "Delete", false)
         })
-        .inner
-        .clicked()
-    {
+        .inner;
+    if delete.clicked() {
         editor.delete_selected();
     }
+    let duplicate = ui
+        .add_enabled_ui(selected, |ui| {
+            widgets::tool_cell(ui, Icon::Duplicate, "Copy", false)
+        })
+        .inner;
+    if duplicate.on_hover_text("Duplicate (D)").clicked() {
+        editor.duplicate_selected(false);
+    }
+    divider(ui);
     if widgets::tool_cell(ui, Icon::Symmetrize, "L → R", false).clicked() {
         editor.symmetrize(Side::Left);
     }
     if widgets::tool_cell(ui, Icon::Mirror, "R → L", false).clicked() {
         editor.symmetrize(Side::Right);
     }
+    toggle(ui, Icon::XMirror, "X-Mirror", &mut editor.mirror_edit);
     divider(ui);
     if widgets::tool_cell(ui, Icon::Weights, "Rebind", false).clicked() {
         editor.request_rebind();
     }
 }
 
-fn autorig_tools(ui: &mut egui::Ui, editor: &mut Editor) {
-    widgets::tool_cell(ui, Icon::Marker, "Markers", true);
+fn autorig(ui: &mut egui::Ui, editor: &mut Editor) {
     if widgets::tool_cell(ui, Icon::Reset, "Guess", false).clicked() {
         editor.guess_markers();
     }

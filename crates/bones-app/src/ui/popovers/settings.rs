@@ -1,61 +1,95 @@
-//! Réglages : tâches réservées à l'Apple Pencil (les doigts naviguent),
-//! guide de rotation et rayon de sélection tactile. Chaque changement marque
-//! les réglages comme à enregistrer.
+//! Studio des réglages : tâches réservées à l'Apple Pencil, guide de
+//! rotation et rayon de sélection tactile. Chaque changement s'applique tout
+//! de suite ; « Cancel » rétablit les réglages d'avant l'ouverture.
 
-use bones_ui::{theme, widgets};
+use bones_ui::icons::Icon;
+use bones_ui::widgets;
 
-use super::UiState;
+use super::{note, studio};
 use crate::gizmo::GizmoStyle;
 use crate::settings::PencilPolicy;
+use crate::ui::UiState;
 
-pub fn show(ui: &mut egui::Ui, state: &mut UiState) {
-    widgets::section_title(ui, "Apple Pencil only for:");
-    ui.spacing_mut().item_spacing.y = 6.0;
-    for (index, (label, description)) in PencilPolicy::TASKS.iter().enumerate() {
-        let value = state.settings.pencil.get_mut(index);
-        if widgets::switch_row(ui, value, label, description).changed() {
-            state.settings_dirty = true;
-        }
-    }
-    ui.label(
-        egui::RichText::new("Fingers then only navigate (orbit, pinch, undo taps).")
-            .size(12.0)
-            .color(theme::TEXT_DIM),
+const SECTIONS: [(Icon, &str); 3] = [
+    (Icon::Edit, "Apple Pencil"),
+    (Icon::Ortho, "Rotation guide"),
+    (Icon::Select, "Touch"),
+];
+
+/// Retourne vrai quand le studio doit se fermer.
+pub fn show(ui: &mut egui::Ui, state: &mut UiState) -> bool {
+    let mut close = false;
+    let mut section = state.settings_section;
+    let mut cancel = false;
+    studio::show(
+        ui,
+        "Settings",
+        &SECTIONS,
+        &mut section,
+        440.0,
+        |ui| {
+            close = widgets::confirm_button(ui, "Done").clicked();
+            ui.add_space(4.0);
+            cancel = widgets::cancel_button(ui, "Cancel").clicked();
+        },
+        |ui, section| match section {
+            0 => pencil(ui, state),
+            1 => guide(ui, state),
+            _ => touch(ui, state),
+        },
     );
-    ui.add_space(10.0);
-    widgets::section_title(ui, "View");
-    ui.horizontal(|ui| {
-        ui.vertical(|ui| {
-            ui.spacing_mut().item_spacing.y = 0.0;
-            ui.label("Rotation guide");
-            ui.label(
-                egui::RichText::new("Blender-style axes or Nomad-style cube")
-                    .size(12.0)
-                    .color(theme::TEXT_DIM),
-            );
-        });
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            const STYLES: [GizmoStyle; 2] = [GizmoStyle::Axes, GizmoStyle::Cube];
-            let mut index = STYLES
-                .iter()
-                .position(|s| *s == state.settings.gizmo)
-                .unwrap_or(0);
-            if widgets::segmented(ui, &["Axes", "Cube"], &mut index).changed() {
-                state.settings.gizmo = STYLES[index];
-                state.settings_dirty = true;
-            }
-        });
+    state.settings_section = section;
+    if cancel {
+        state.settings = state.settings_backup;
+        state.settings_dirty = true;
+    }
+    close || cancel
+}
+
+fn pencil(ui: &mut egui::Ui, state: &mut UiState) {
+    widgets::section_title(ui, "Apple Pencil only for");
+    let changed = widgets::group(ui, |g| {
+        let mut changed = false;
+        for (index, (label, description)) in PencilPolicy::TASKS.iter().enumerate() {
+            let value = state.settings.pencil.get_mut(index);
+            changed |= g.switch_row(value, label, Some(description)).changed();
+        }
+        changed
     });
-    ui.add_space(10.0);
-    widgets::section_title(ui, "Touch");
+    state.settings_dirty |= changed;
+    note(ui, "Fingers then only navigate (orbit, pinch, undo taps).");
+}
+
+fn guide(ui: &mut egui::Ui, state: &mut UiState) {
+    widgets::section_title(ui, "Style");
+    let current = state.settings.gizmo;
+    let picked = widgets::group(ui, |g| {
+        let mut picked = None;
+        for (style, label) in [
+            (GizmoStyle::Axes, "Axes (Blender style)"),
+            (GizmoStyle::Cube, "Cube (Nomad style)"),
+        ] {
+            if g.check_row(label, current == style).clicked() {
+                picked = Some(style);
+            }
+        }
+        picked
+    });
+    if let Some(style) = picked.filter(|s| *s != current) {
+        state.settings.gizmo = style;
+        state.settings_dirty = true;
+    }
+    note(ui, "Tap a face or an axis to look along it; drag to orbit.");
+}
+
+fn touch(ui: &mut egui::Ui, state: &mut UiState) {
     let mut radius = state.settings.pick_radius;
     if widgets::slider_row(ui, &mut radius, 10.0..=48.0, "Selection radius", "pt").changed() {
         state.settings.pick_radius = radius.round();
         state.settings_dirty = true;
     }
-    ui.label(
-        egui::RichText::new("How close, in points, a finger must be to grab a bone or handle.")
-            .size(12.0)
-            .color(theme::TEXT_DIM),
+    note(
+        ui,
+        "How close, in points, a finger must be to grab a bone or a handle.",
     );
 }

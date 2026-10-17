@@ -1,42 +1,48 @@
-//! Barre latérale gauche à la Procreate : deux curseurs verticaux séparés par
-//! un bouton carré, puis annuler / rétablir. En dessous, une carte de
-//! raccourcis d'affichage façon Nomad Sculpt.
+//! Bandeau latéral gauche, comme celui de Procreate : collé au bord, centré
+//! verticalement ; deux curseurs gris séparés par un petit carré cerclé
+//! (cadrer le modèle), puis annuler / rétablir.
 
 use bones_core::{Editor, Mode};
 use bones_ui::icons::Icon;
 use bones_ui::{theme, widgets};
 
-use super::{COLUMN_TOP, EDGE, UiState, block};
+use super::{BAR_H, UiState, block};
 
-pub fn show(ctx: &egui::Context, editor: &mut Editor, state: &mut UiState) -> Vec<egui::Rect> {
-    let main = block(
+pub fn show(ctx: &egui::Context, editor: &mut Editor, state: &mut UiState) -> egui::Rect {
+    let frame = egui::Frame::new()
+        .fill(theme::BAR)
+        .corner_radius(egui::CornerRadius {
+            nw: 0,
+            sw: 0,
+            ne: 10,
+            se: 10,
+        })
+        .inner_margin(egui::Margin {
+            left: 2,
+            right: 2,
+            top: 12,
+            bottom: 6,
+        });
+    block(
         ctx,
         "sidebar",
-        egui::Align2::LEFT_TOP,
-        [EDGE, COLUMN_TOP],
-        theme::card_frame(),
+        egui::Align2::LEFT_CENTER,
+        [0.0, BAR_H * 0.5],
+        frame,
         |ui| {
             ui.vertical_centered(|ui| {
                 ui.spacing_mut().item_spacing.y = 6.0;
-                ui.add_space(4.0);
                 context_slider(ui, editor);
-                if widgets::tool_button(ui, Icon::Frame, false, "Frame the model").clicked() {
+                if widgets::square_button(ui, "Frame the model (F)").clicked() {
                     editor.frame_all();
                 }
                 let mut radius = state.settings.pick_radius;
-                if widgets::vertical_slider_with_icon(
-                    ui,
-                    &mut radius,
-                    10.0..=48.0,
-                    Icon::Marker,
-                    "Selection radius",
-                )
-                .changed()
-                {
+                if widgets::vertical_slider(ui, &mut radius, 10.0..=48.0, "Selection radius").changed() {
                     state.settings.pick_radius = radius;
                     state.settings_dirty = true;
                 }
-                ui.add_space(4.0);
+                ui.add_space(2.0);
+                ui.spacing_mut().item_spacing.y = 0.0;
                 let undo = ui
                     .add_enabled_ui(editor.can_undo(), |ui| {
                         widgets::tool_button(ui, Icon::Undo, false, "Undo (two-finger tap)")
@@ -55,59 +61,25 @@ pub fn show(ctx: &egui::Context, editor: &mut Editor, state: &mut UiState) -> Ve
                 }
             });
         },
-    );
-
-    let below = main.bottom() + 10.0;
-    let shortcuts = block(
-        ctx,
-        "sidebar-cards",
-        egui::Align2::LEFT_TOP,
-        [EDGE, below],
-        theme::card_frame(),
-        |ui| {
-            ui.vertical_centered(|ui| {
-                ui.spacing_mut().item_spacing.y = 4.0;
-                let view = &mut editor.view;
-                toggle(
-                    ui,
-                    Icon::Weights,
-                    &mut view.weights,
-                    "Weight map of the selected bone",
-                );
-                toggle(ui, Icon::Mesh, &mut view.mesh, "Show the mesh");
-                toggle(ui, Icon::Bone, &mut view.bones, "Show the bones");
-            });
-        },
-    );
-    vec![main, shortcuts]
+    )
 }
 
 /// Premier curseur : longueur de chaîne IK en pose, nombre de vertèbres en
-/// auto-rig, masqué en édition.
+/// auto-rig ; absent en édition.
 fn context_slider(ui: &mut egui::Ui, editor: &mut Editor) {
     match editor.mode {
         Mode::Pose => {
             let mut v = editor.chain_len as f32;
-            if widgets::vertical_slider_with_icon(ui, &mut v, 1.0..=6.0, Icon::Chain, "IK chain length")
-                .changed()
-            {
+            if widgets::vertical_slider(ui, &mut v, 1.0..=6.0, "IK chain length").changed() {
                 editor.chain_len = v.round() as usize;
             }
         }
         Mode::AutoRig => {
             let mut v = editor.autorig_options.spine_count as f32;
-            if widgets::vertical_slider_with_icon(ui, &mut v, 1.0..=6.0, Icon::Hierarchy, "Spine bones")
-                .changed()
-            {
+            if widgets::vertical_slider(ui, &mut v, 1.0..=6.0, "Spine bones").changed() {
                 editor.autorig_options.spine_count = v.round() as u8;
             }
         }
         Mode::Edit => {}
-    }
-}
-
-fn toggle(ui: &mut egui::Ui, icon: Icon, value: &mut bool, hint: &str) {
-    if widgets::tool_button(ui, icon, *value, hint).clicked() {
-        *value = !*value;
     }
 }

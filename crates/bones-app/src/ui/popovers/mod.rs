@@ -1,18 +1,21 @@
-//! Fenêtres contextuelles ouvertes depuis le bloc du haut (comme les menus
-//! de Procreate) : galerie, actions, affichage, os, réglages. Elles
-//! apparaissent en fondu avec un léger glissement.
+//! Fenêtres contextuelles ouvertes depuis la barre du haut, comme celles de
+//! Procreate : panneau #2C2C2E aux coins de 20 pt, large ombre légère et
+//! encoche pointée vers le bouton d'origine. Galerie, Actions et Vue se
+//! ferment d'un toucher à l'extérieur ; Réglages et Os sont des « studios »
+//! (navigation à gauche, valeurs à droite) fermés par leurs boutons.
 
 mod actions;
+mod bones;
 mod gallery;
-mod outliner;
 mod settings;
+mod studio;
 mod view;
 
 use bones_core::Editor;
 use bones_ui::icons::Icon;
 use bones_ui::{theme, widgets};
 
-use super::{EDGE, UiAction, UiState, block};
+use super::{BAR_H, EDGE, UiAction, UiState};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Popover {
@@ -24,16 +27,22 @@ pub enum Popover {
 }
 
 impl Popover {
-    fn title(self) -> &'static str {
+    fn width(self) -> f32 {
         match self {
-            Popover::Gallery => "Gallery",
-            Popover::Actions => "Actions",
-            Popover::View => "View",
-            Popover::Outliner => "Bones",
-            Popover::Settings => "Settings",
+            Popover::Outliner => 720.0,
+            Popover::Settings => 640.0,
+            Popover::Actions => 420.0,
+            Popover::Gallery | Popover::View => 400.0,
         }
     }
+
+    fn is_studio(self) -> bool {
+        matches!(self, Popover::Outliner | Popover::Settings)
+    }
 }
+
+/// Hauteur de l'encoche au-dessus du panneau.
+const NOTCH: f32 = 10.0;
 
 pub fn show(
     ctx: &egui::Context,
@@ -47,39 +56,56 @@ pub fn show(
         return None;
     };
     let t = ctx.animate_bool_with_time(anim_id(), true, 0.16);
+    let screen = ctx.content_rect();
+    let width = popover.width();
+    let left = (state.popover_anchor - 44.0).clamp(EDGE, (screen.right() - width - EDGE).max(EDGE));
+    let top = BAR_H + NOTCH + 4.0 - 8.0 * (1.0 - t);
+    let max_height = screen.height() - top - 24.0;
+    let margin = if popover.is_studio() { 10 } else { 20 };
     let mut close = false;
-    let offset = [EDGE, 76.0 - 10.0 * (1.0 - t)];
-    let rect = block(
-        ctx,
-        "popover",
-        egui::Align2::LEFT_TOP,
-        offset,
-        theme::panel_frame(),
-        |ui| {
+    let area = egui::Area::new(egui::Id::unique("popover"))
+        .fixed_pos(egui::pos2(left, top))
+        .order(egui::Order::Foreground)
+        .show(ctx, |ui| {
             ui.set_opacity(t);
-            ui.set_width(384.0);
-            ui.horizontal(|ui| {
-                ui.label(egui::RichText::new(popover.title()).font(theme::semibold(21.0)));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if widgets::tool_button(ui, Icon::Close, false, "Close").clicked() {
-                        close = true;
-                    }
-                });
+            let frame = theme::panel_frame().inner_margin(egui::Margin::same(margin));
+            let panel = frame.show(ui, |ui| {
+                ui.set_width(width - 2.0 * margin as f32);
+                match popover {
+                    Popover::Gallery => gallery::show(ui, editor, state, actions, max_height),
+                    Popover::Actions => actions::show(ui, editor, state, actions, max_height),
+                    Popover::View => view::show(ui, editor, max_height),
+                    Popover::Outliner => close = bones::show(ui, editor, state),
+                    Popover::Settings => close = settings::show(ui, state),
+                }
             });
-            ui.add_space(2.0);
-            match popover {
-                Popover::Gallery => gallery::show(ui, editor, state, actions),
-                Popover::Actions => actions::show(ui, editor, actions),
-                Popover::View => view::show(ui, editor),
-                Popover::Outliner => outliner::show(ui, editor, state),
-                Popover::Settings => settings::show(ui, state),
-            }
-        },
-    );
+            let rect = panel.response.rect;
+            let x = state
+                .popover_anchor
+                .clamp(rect.left() + 30.0, rect.right() - 30.0);
+            ui.painter().add(egui::Shape::convex_polygon(
+                vec![
+                    egui::pos2(x - 12.0, rect.top() + 1.0),
+                    egui::pos2(x, rect.top() - NOTCH),
+                    egui::pos2(x + 12.0, rect.top() + 1.0),
+                ],
+                theme::PANEL,
+                egui::Stroke::NONE,
+            ));
+            rect
+        });
+    let rect = area.inner.with_min_y(area.inner.top() - NOTCH);
+
+    let tapped_outside = ctx.input(|i| {
+        i.pointer.any_pressed()
+            && i.pointer
+                .interact_pos()
+                .is_some_and(|p| !rect.contains(p) && p.y > BAR_H)
+    });
     let picked = actions
         .iter()
         .any(|a| matches!(a, UiAction::Import(_) | UiAction::Export(_)));
-    if close || picked {
+    if close || picked || (tapped_outside && !popover.is_studio()) {
         state.popover = None;
     }
     Some(rect)
@@ -87,4 +113,26 @@ pub fn show(
 
 fn anim_id() -> egui::Id {
     egui::Id::unique("popover-anim")
+}
+
+/// Ligne de titre : 24 pt semi-gras, bouton « + » facultatif à droite.
+fn header(ui: &mut egui::Ui, title: &str, plus: Option<&str>) -> bool {
+    let mut clicked = false;
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new(title).font(theme::semibold(24.0)));
+        if let Some(hint) = plus {
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                clicked = widgets::tool_button(ui, Icon::Plus, false, hint).clicked();
+            });
+        }
+    });
+    clicked
+}
+
+/// Note discrète sous une liste (13 pt, retrait de 16 pt).
+fn note(ui: &mut egui::Ui, text: &str) {
+    ui.horizontal_wrapped(|ui| {
+        ui.add_space(16.0);
+        ui.label(egui::RichText::new(text).size(13.0).color(theme::TEXT_DIM));
+    });
 }

@@ -13,7 +13,7 @@ pub fn apply(ctx: &egui::Context) {
         style.text_styles = [
             (TextStyle::Heading, semibold(19.0)),
             (TextStyle::Body, FontId::new(15.0, FontFamily::Proportional)),
-            (TextStyle::Button, FontId::new(15.0, FontFamily::Proportional)),
+            (TextStyle::Button, FontId::new(17.0, FontFamily::Proportional)),
             (TextStyle::Small, FontId::new(12.0, FontFamily::Proportional)),
             (TextStyle::Monospace, FontId::new(13.0, FontFamily::Monospace)),
         ]
@@ -41,12 +41,13 @@ pub fn apply(ctx: &egui::Context) {
         v.selection.stroke = Stroke::new(1.5, Color32::WHITE);
         v.window_fill = PANEL;
         v.panel_fill = PANEL;
-        v.window_stroke = Stroke::new(1.0, PANEL_BORDER);
-        v.window_corner_radius = CornerRadius::same(18);
+        v.window_stroke = Stroke::NONE;
+        v.window_corner_radius = CornerRadius::same(20);
         v.menu_corner_radius = CornerRadius::same(14);
         v.window_shadow = soft_shadow();
         v.popup_shadow = soft_shadow();
-        v.extreme_bg_color = Color32::from_rgb(0x17, 0x17, 0x1a);
+        v.extreme_bg_color = WIDGET;
+        v.text_cursor.stroke = Stroke::new(2.0, ACCENT);
         v.faint_bg_color = BAR;
         v.error_fg_color = DANGER;
         v.warn_fg_color = Color32::from_rgb(0xff, 0x9f, 0x0a);
@@ -55,7 +56,7 @@ pub fn apply(ctx: &egui::Context) {
         let w = &mut v.widgets;
         w.noninteractive.bg_fill = PANEL;
         w.noninteractive.weak_bg_fill = PANEL;
-        w.noninteractive.bg_stroke = Stroke::new(1.0, Color32::from_white_alpha(14));
+        w.noninteractive.bg_stroke = Stroke::new(0.5, HAIRLINE);
         w.noninteractive.fg_stroke = Stroke::new(1.0, TEXT_DIM);
         w.noninteractive.corner_radius = radius;
         for (visuals, fill, fg) in [

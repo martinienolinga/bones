@@ -1,13 +1,16 @@
-//! Interface tactile inspirée de Procreate et Nomad Sculpt : la vue 3D occupe
-//! tout l'écran, les commandes sont regroupées en blocs posés sur les bords.
+//! Interface tactile calquée sur Procreate : la vue 3D occupe tout l'écran,
+//! une barre pleine court le long du bord supérieur et deux bandeaux sont
+//! collés aux bords latéraux.
 //!
-//! - en haut à gauche : Galerie, Actions, Vue, Os, Réglages ([`top`]) ;
-//! - en haut à droite : modes Pose / Édition / Auto-Rig ([`top`]) ;
-//! - à gauche : curseurs verticaux et annuler/rétablir ([`sidebar`]) ;
-//! - à droite : boîte à outils du mode courant ([`toolbox`]) ;
+//! - barre du haut : Galerie, menus en puits ronds, outils du mode et choix
+//!   du mode ([`top`]) ;
+//! - bandeau gauche : curseurs verticaux, cadrage, annuler/rétablir
+//!   ([`sidebar`]) ;
+//! - bandeau droit : actions et bascules du mode ([`toolbox`]) ;
 //! - en bas : frise d'animation ([`timeline`]) ou panneau d'auto-rig
 //!   ([`autorig_panel`]) ;
-//! - fenêtres contextuelles ([`popovers`]) et informations ([`overlay`]).
+//! - fenêtres contextuelles et studios ([`popovers`]), informations
+//!   ([`overlay`]).
 
 mod autorig_panel;
 mod overlay;
@@ -21,7 +24,7 @@ mod top;
 use std::path::PathBuf;
 
 use bones_core::io::Format;
-use bones_core::{Editor, Mode, Viewport};
+use bones_core::{EditTool, Editor, Mode, Viewport};
 
 pub use popovers::Popover;
 
@@ -54,6 +57,18 @@ pub struct UiState {
     pub settings: Settings,
     /// Vrai quand un réglage a changé et doit être enregistré.
     pub settings_dirty: bool,
+    /// Abscisse du bouton qui a ouvert la fenêtre (pointe de l'encoche).
+    popover_anchor: f32,
+    /// Réglages à l'ouverture du studio, rétablis par « Cancel ».
+    settings_backup: Settings,
+    /// Onglet des actions, section des studios (réglages, os).
+    actions_tab: usize,
+    settings_section: usize,
+    bones_section: usize,
+    /// Nombre de morceaux pour « Subdivide ».
+    subdivide_parts: usize,
+    /// Consigne de l'outil « Parent » (pastille en bas de l'écran).
+    hint: Option<String>,
     rename: String,
     toast: Option<(String, f64)>,
     /// Documents `.bones` et fichiers importables du dossier Documents.
@@ -68,6 +83,13 @@ impl UiState {
             docs_dir,
             settings,
             settings_dirty: false,
+            popover_anchor: 0.0,
+            settings_backup: settings,
+            actions_tab: 0,
+            settings_section: 0,
+            bones_section: 0,
+            subdivide_parts: 2,
+            hint: None,
             rename: String::new(),
             toast: None,
             files: None,
@@ -94,14 +116,18 @@ impl UiState {
         })
     }
 
-    fn toggle(&mut self, popover: Popover) {
+    /// Ouvre ou ferme une fenêtre ; `anchor_x` est le centre du bouton.
+    fn toggle(&mut self, popover: Popover, anchor_x: f32) {
         self.popover = if self.popover == Some(popover) {
             None
         } else {
             Some(popover)
         };
-        if self.popover == Some(Popover::Gallery) {
-            self.refresh_files();
+        self.popover_anchor = anchor_x;
+        match self.popover {
+            Some(Popover::Gallery) => self.refresh_files(),
+            Some(Popover::Settings) => self.settings_backup = self.settings,
+            _ => {}
         }
     }
 }
@@ -116,14 +142,11 @@ pub fn show(
 ) -> Vec<UiAction> {
     let mut actions = Vec::new();
     let mut rects = Vec::new();
-    if let Some(message) = editor.status.take() {
-        state.notify(message);
-    }
+    route_status(editor, state);
     shortcuts::handle(ctx, editor, state);
 
-    rects.push(top::left(ctx, editor, state));
-    rects.push(top::right(ctx, editor, state));
-    rects.extend(sidebar::show(ctx, editor, state));
+    rects.push(top::show(ctx, editor, state));
+    rects.push(sidebar::show(ctx, editor, state));
     rects.push(toolbox::show(ctx, editor, state));
     rects.extend(crate::gizmo::show(ctx, editor, state.settings.gizmo));
     match editor.mode {
@@ -134,16 +157,32 @@ pub fn show(
     if let Some(rect) = popovers::show(ctx, editor, state, &mut actions) {
         rects.push(rect);
     }
-    overlay::show(ctx, editor, state, viewport, busy);
+    rects.extend(overlay::show(ctx, editor, state, viewport, busy));
 
     state.rects = rects;
     actions
 }
 
-/// Marge entre les blocs et les bords de l'écran.
+/// Messages de l'éditeur : consigne persistante pendant l'outil « Parent »,
+/// message temporaire sinon.
+fn route_status(editor: &mut Editor, state: &mut UiState) {
+    let reparenting = editor.mode == Mode::Edit && editor.edit_tool == EditTool::Reparent;
+    if let Some(message) = editor.status.take() {
+        if reparenting {
+            state.hint = Some(message);
+        } else {
+            state.notify(message);
+        }
+    }
+    if !reparenting {
+        state.hint = None;
+    }
+}
+
+/// Marge entre les blocs flottants et les bords de l'écran.
 const EDGE: f32 = 10.0;
-/// Haut des colonnes latérales (sous la barre supérieure).
-const COLUMN_TOP: f32 = 76.0;
+/// Hauteur de la barre du haut.
+const BAR_H: f32 = 48.0;
 
 /// Bloc flottant ancré sur un bord de l'écran ; retourne sa zone.
 fn block(

@@ -1,27 +1,28 @@
-//! Cadres : blocs posés sur la vue (barre, cartes) et fenêtres
-//! contextuelles. Aplats, coins généreux, liseré d'un pixel, ombre courte.
+//! Cadres : blocs posés sur la vue (frise, bulles) et fenêtres
+//! contextuelles. Aplats, coins arrondis, ombre large et légère sous les
+//! fenêtres seulement.
 
 use egui::{Color32, CornerRadius, Frame, Margin, Shadow, Stroke};
 
 use super::{BAR, PANEL, PANEL_BORDER};
 
-/// Ombre portée nette des blocs flottants.
+/// Ombre large et légère des fenêtres contextuelles.
 pub fn soft_shadow() -> Shadow {
     Shadow {
-        offset: [0, 4],
-        blur: 12,
+        offset: [0, 12],
+        blur: 40,
         spread: 0,
-        color: Color32::from_black_alpha(80),
+        color: Color32::from_black_alpha(64),
     }
 }
 
-/// Ombre très courte des petites bulles flottantes (valeur d'un curseur).
+/// Ombre très courte des petites bulles flottantes et des pouces.
 pub fn small_shadow() -> Shadow {
     Shadow {
-        offset: [0, 2],
-        blur: 4,
+        offset: [0, 1],
+        blur: 3,
         spread: 0,
-        color: Color32::from_black_alpha(70),
+        color: Color32::from_black_alpha(60),
     }
 }
 
@@ -29,28 +30,24 @@ pub fn small_shadow() -> Shadow {
 pub fn panel_frame() -> Frame {
     Frame::new()
         .fill(PANEL)
-        .stroke(Stroke::new(1.0, PANEL_BORDER))
-        .corner_radius(CornerRadius::same(18))
-        .inner_margin(Margin::same(16))
+        .corner_radius(CornerRadius::same(20))
+        .inner_margin(Margin::same(20))
         .shadow(soft_shadow())
 }
 
-/// Bloc de la barre supérieure et de la frise.
+/// Bloc flottant (frise, messages).
 pub fn bar_frame() -> Frame {
     Frame::new()
         .fill(BAR)
-        .stroke(Stroke::new(1.0, PANEL_BORDER))
-        .corner_radius(CornerRadius::same(16))
+        .corner_radius(CornerRadius::same(14))
         .inner_margin(Margin::same(6))
-        .shadow(soft_shadow())
 }
 
-/// Carte latérale (curseurs, boîte à outils).
+/// Petite carte (boutons du guide de rotation).
 pub fn card_frame() -> Frame {
     Frame::new()
         .fill(BAR)
         .stroke(Stroke::new(1.0, PANEL_BORDER))
-        .corner_radius(CornerRadius::same(16))
-        .inner_margin(Margin::same(6))
-        .shadow(soft_shadow())
+        .corner_radius(CornerRadius::same(14))
+        .inner_margin(Margin::same(4))
 }

@@ -1,7 +1,7 @@
 //! Contrôle segmenté : une pilule d'accent en aplat glisse sous le choix
 //! courant (choix du mode, de l'interpolation…).
 
-use egui::{Color32, CornerRadius, FontId, Rect, Response, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
+use egui::{Color32, CornerRadius, FontId, Rect, Response, Sense, Ui, pos2, vec2};
 
 use crate::theme::{ACCENT, TEXT, TEXT_DIM, TEXT_FAINT, semibold};
 
@@ -42,13 +42,8 @@ pub fn segmented(ui: &mut Ui, options: &[&str], selected: &mut usize) -> Respons
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
         let radius = CornerRadius::same((HEIGHT * 0.5) as u8);
-        painter.rect_filled(rect, radius, Color32::from_rgb(0x15, 0x15, 0x18));
-        painter.rect_stroke(
-            rect,
-            radius,
-            Stroke::new(1.0, Color32::from_white_alpha(14)),
-            StrokeKind::Inside,
-        );
+        // Piste un peu plus claire que le fond, quel qu'il soit.
+        painter.rect_filled(rect, radius, Color32::from_white_alpha(16));
 
         // Position animée de la pilule de sélection.
         let index = (*selected).min(widths.len().saturating_sub(1));

@@ -18,22 +18,16 @@ pub fn show(ctx: &egui::Context, editor: &mut Editor) -> egui::Rect {
         |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 10.0;
-                let (tile, _) = ui.allocate_exact_size(egui::vec2(48.0, 48.0), egui::Sense::hover());
-                let tone = Icon::AutoRig.tone();
-                ui.painter().rect_filled(
-                    tile,
-                    12,
-                    egui::Color32::from_rgba_unmultiplied(tone.r(), tone.g(), tone.b(), 46),
-                );
+                let (glyph, _) = ui.allocate_exact_size(egui::vec2(36.0, 48.0), egui::Sense::hover());
                 icons::paint(
                     ui.painter(),
-                    tile.shrink(9.0),
+                    egui::Rect::from_center_size(glyph.center(), egui::vec2(28.0, 28.0)),
                     Icon::AutoRig,
-                    egui::Color32::WHITE,
+                    theme::ACCENT,
                 );
                 ui.vertical(|ui| {
                     ui.spacing_mut().item_spacing.y = 2.0;
-                    ui.label(egui::RichText::new("Auto-rig").font(theme::semibold(17.0)));
+                    ui.label(egui::RichText::new("Auto-rig").font(theme::semibold(20.0)));
                     ui.label(
                         egui::RichText::new(
                             "1. Place the markers (front view)  2. Set the options  3. Generate",

@@ -1,69 +1,115 @@
-//! Blocs du haut. À gauche, comme Procreate : « Galerie » puis les menus de
-//! scène et les réglages. À droite, comme Nomad Sculpt : le mode de travail.
+//! Barre du haut, pleine largeur comme dans Procreate. À gauche :
+//! « Gallery », puis les menus dans des puits ronds (Actions, Vue, Os,
+//! Réglages) et le nom du document. À droite : les outils du mode courant
+//! (glyphes bleus quand actifs) et le choix du mode.
 
-use bones_core::{Editor, Mode};
+use bones_core::{EditTool, Editor, Mode, PoseTool};
 use bones_ui::icons::Icon;
 use bones_ui::{theme, widgets};
 
-use super::{EDGE, Popover, UiState, block};
+use super::{BAR_H, Popover, UiState};
 
-pub fn left(ctx: &egui::Context, editor: &mut Editor, state: &mut UiState) -> egui::Rect {
-    block(
-        ctx,
-        "top-left",
-        egui::Align2::LEFT_TOP,
-        [EDGE, EDGE],
-        theme::bar_frame(),
-        |ui| {
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 4.0;
-                let open = state.popover;
-                if widgets::text_button(ui, "Gallery", open == Some(Popover::Gallery)).clicked() {
-                    state.toggle(Popover::Gallery);
-                }
-                widgets::separator_dot(ui);
-                for (icon, popover, hint) in [
-                    (Icon::Actions, Popover::Actions, "Actions"),
-                    (Icon::Eye, Popover::View, "View"),
-                    (Icon::Hierarchy, Popover::Outliner, "Bones"),
-                    (Icon::Settings, Popover::Settings, "Settings"),
-                ] {
-                    if widgets::tool_button(ui, icon, open == Some(popover), hint).clicked() {
-                        state.toggle(popover);
-                    }
-                }
-                widgets::separator_dot(ui);
-                ui.add_space(4.0);
-                ui.label(
-                    egui::RichText::new(&editor.rig.name)
-                        .font(theme::semibold(14.0))
-                        .color(theme::TEXT_DIM),
-                );
-                ui.add_space(8.0);
-            });
-        },
-    )
+pub fn show(ctx: &egui::Context, editor: &mut Editor, state: &mut UiState) -> egui::Rect {
+    let screen = ctx.content_rect();
+    let rect = egui::Rect::from_min_size(screen.min, egui::vec2(screen.width(), BAR_H));
+    egui::Area::new(egui::Id::unique("top-bar"))
+        .fixed_pos(rect.min)
+        .order(egui::Order::Foreground)
+        .show(ctx, |ui| {
+            ui.painter().rect_filled(rect, 0, theme::BAR);
+            ui.allocate_rect(rect, egui::Sense::hover());
+            let inner = rect.shrink2(egui::vec2(10.0, 0.0));
+            let mut left = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(inner)
+                    .layout(egui::Layout::left_to_right(egui::Align::Center)),
+            );
+            menus(&mut left, editor, state);
+            let mut right = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(inner)
+                    .layout(egui::Layout::right_to_left(egui::Align::Center)),
+            );
+            modes(&mut right, editor);
+            right.add_space(12.0);
+            tools(&mut right, editor);
+        });
+    rect
 }
 
-pub fn right(ctx: &egui::Context, editor: &mut Editor, _state: &mut UiState) -> egui::Rect {
-    block(
-        ctx,
-        "top-right",
-        egui::Align2::RIGHT_TOP,
-        [-EDGE, EDGE],
-        theme::bar_frame(),
-        |ui| {
-            // Même hauteur que le bloc de gauche (boutons de 44 pt).
-            ui.vertical(|ui| {
-                ui.spacing_mut().item_spacing.y = 0.0;
-                const MODES: [Mode; 3] = [Mode::Pose, Mode::Edit, Mode::AutoRig];
-                let mut index = MODES.iter().position(|m| *m == editor.mode).unwrap_or(0);
-                ui.add_space(4.0);
-                if widgets::segmented(ui, &["Pose", "Edit", "Auto-Rig"], &mut index).changed() {
-                    editor.set_mode(MODES[index]);
+fn menus(ui: &mut egui::Ui, editor: &Editor, state: &mut UiState) {
+    ui.spacing_mut().item_spacing.x = 4.0;
+    let open = state.popover;
+    let gallery = widgets::text_button(ui, "Gallery", open == Some(Popover::Gallery));
+    if gallery.clicked() {
+        state.toggle(Popover::Gallery, gallery.rect.center().x);
+    }
+    ui.add_space(8.0);
+    for (icon, popover, hint) in [
+        (Icon::Actions, Popover::Actions, "Actions"),
+        (Icon::Eye, Popover::View, "View"),
+        (Icon::Bone, Popover::Outliner, "Bones"),
+        (Icon::Settings, Popover::Settings, "Settings"),
+    ] {
+        let button = widgets::well_button(ui, icon, open == Some(popover), hint);
+        if button.clicked() {
+            state.toggle(popover, button.rect.center().x);
+        }
+    }
+    ui.add_space(14.0);
+    ui.label(
+        egui::RichText::new(&editor.rig.name)
+            .size(15.0)
+            .color(theme::TEXT_DIM),
+    );
+}
+
+/// Outils du mode, de droite à gauche (la mise en page est inversée).
+fn tools(ui: &mut egui::Ui, editor: &mut Editor) {
+    ui.spacing_mut().item_spacing.x = 4.0;
+    match editor.mode {
+        Mode::Pose => {
+            let tools = [
+                (PoseTool::Move, Icon::Move, "Move (IK)"),
+                (PoseTool::Rotate, Icon::Rotate, "Rotate"),
+                (PoseTool::Pin, Icon::Pin, "Pin"),
+            ];
+            for (tool, icon, hint) in tools.into_iter().rev() {
+                if widgets::bar_tool(ui, icon, editor.pose_tool == tool, hint).clicked() {
+                    editor.pose_tool = tool;
                 }
-                ui.add_space(4.0);
-            });
-        },
-    )
+            }
+        }
+        Mode::Edit => {
+            let tools = [
+                (EditTool::Select, Icon::Select, "Adjust: drag a tail"),
+                (EditTool::AddBone, Icon::BoneAdd, "Add: drag out a new bone"),
+                (EditTool::MoveHead, Icon::BoneHead, "Head: drag a head"),
+                (EditTool::MoveBone, Icon::Move, "Move: drag a whole bone"),
+                (EditTool::Roll, Icon::Rotate, "Roll: twist around the bone axis"),
+                (
+                    EditTool::Reparent,
+                    Icon::Hierarchy,
+                    "Parent: tap a bone, then its new parent",
+                ),
+            ];
+            for (tool, icon, hint) in tools.into_iter().rev() {
+                if widgets::bar_tool(ui, icon, editor.edit_tool == tool, hint).clicked() {
+                    editor.edit_tool = tool;
+                }
+            }
+        }
+        Mode::AutoRig => {
+            widgets::bar_tool(ui, Icon::Marker, true, "Markers: drag them onto the model");
+        }
+    }
+}
+
+fn modes(ui: &mut egui::Ui, editor: &mut Editor) {
+    const MODES: [Mode; 3] = [Mode::Pose, Mode::Edit, Mode::AutoRig];
+    let mut index = MODES.iter().position(|m| *m == editor.mode).unwrap_or(0);
+    // Le contrôle dessine ses segments de gauche à droite dans sa zone.
+    if widgets::segmented(ui, &["Pose", "Edit", "Auto-Rig"], &mut index).changed() {
+        editor.set_mode(MODES[index]);
+    }
 }

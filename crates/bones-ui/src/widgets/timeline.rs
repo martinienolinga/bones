@@ -1,5 +1,5 @@
 //! Frise de clés (timeline) : piste creusée, graduations, losanges de clés
-//! jaunes, tête de lecture à pastille d'accent (aplats). Un tap ou un
+//! gris clair (la courante en bleu), tête de lecture à pastille d'accent. Un tap ou un
 //! glissement déplace l'image courante.
 
 use egui::{
@@ -11,7 +11,7 @@ use crate::theme::{ACCENT, TEXT_DIM, semibold};
 const PAD: f32 = 16.0;
 /// Pas majeurs possibles, en images.
 const STEPS: [u32; 12] = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
-const KEY: Color32 = Color32::from_rgb(0xff, 0xd6, 0x0a);
+const KEY: Color32 = Color32::from_rgb(0xd1, 0xd1, 0xd6);
 
 /// Image entière sous l'abscisse `x` d'une frise commençant en `left`.
 pub(crate) fn frame_at(x: f32, left: f32, width: f32, count: u32) -> f32 {
@@ -97,21 +97,13 @@ pub fn key_strip(ui: &mut Ui, frame: &mut f32, frame_count: u32, keys: &[u32], h
         Stroke::new(1.0, Color32::from_white_alpha(14)),
     );
 
-    // Clés en losanges jaunes.
+    // Clés en losanges gris clair ; la clé courante en bleu.
     let current = frame.round() as u32;
     for &k in keys.iter().filter(|k| **k < count) {
         let c = pos2(x_of(k as f32), mid);
         let on = k == current;
-        let stroke = if on {
-            Stroke::new(1.6, Color32::WHITE)
-        } else {
-            Stroke::new(1.0, Color32::from_rgb(0x8a, 0x5a, 0x00))
-        };
-        painter.add(Shape::convex_polygon(
-            diamond(c, if on { 7.5 } else { 6.5 }),
-            KEY,
-            stroke,
-        ));
+        let (fill, r) = if on { (ACCENT, 7.0) } else { (KEY, 6.0) };
+        painter.add(Shape::convex_polygon(diamond(c, r), fill, Stroke::NONE));
     }
 
     // Tête de lecture et son numéro.

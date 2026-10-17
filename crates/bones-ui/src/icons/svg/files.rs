@@ -1,14 +1,13 @@
 //! Fichiers : galerie, import, export, enregistrement, dossiers.
 //!
-//! Fragments SVG plats (viewBox 32 × 32) ; `@p`, `@s`, `@d` sont les
-//! teintes de la famille (voir `icons::hue`).
+//! Glyphes SVG monochromes (viewBox 32 × 32), dessinés en blanc.
 
-pub const GALLERY: &str = r##"<rect x="4.5" y="4.5" width="10" height="10" rx="2.8" fill="@p"/><rect x="17.5" y="4.5" width="10" height="10" rx="2.8" fill="@s"/><rect x="4.5" y="17.5" width="10" height="10" rx="2.8" fill="@s"/><rect x="17.5" y="17.5" width="10" height="10" rx="2.8" fill="@p"/>"##;
+pub const GALLERY: &str = r##"<rect x="5" y="5" width="9.4" height="9.4" rx="2.6" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><rect x="17.6" y="5" width="9.4" height="9.4" rx="2.6" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><rect x="5" y="17.6" width="9.4" height="9.4" rx="2.6" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><rect x="17.6" y="17.6" width="9.4" height="9.4" rx="2.6" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>"##;
 
-pub const EXPORT: &str = r##"<path d="M5.4 18.4V23.6A3 3 0 0 0 8.4 26.6H23.6A3 3 0 0 0 26.6 23.6V18.4" stroke="@s" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M16 19.8V6.4M10.6 11.2 16 5.4 21.4 11.2" stroke="@p" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>"##;
+pub const EXPORT: &str = r##"<path d="M6 18.4V23.8A2.8 2.8 0 0 0 8.8 26.6H23.2A2.8 2.8 0 0 0 26 23.8V18.4" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M16 19.4V5.6M11 10.6 16 5.6 21 10.6" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>"##;
 
-pub const IMPORT: &str = r##"<path d="M5.4 18.4V23.6A3 3 0 0 0 8.4 26.6H23.6A3 3 0 0 0 26.6 23.6V18.4" stroke="@s" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M16 4.6V18.2M10.6 13.2 16 19 21.4 13.2" stroke="@p" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>"##;
+pub const IMPORT: &str = r##"<path d="M6 18.4V23.8A2.8 2.8 0 0 0 8.8 26.6H23.2A2.8 2.8 0 0 0 26 23.8V18.4" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M16 5V18.8M11 13.8 16 18.8 21 13.8" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>"##;
 
-pub const SAVE: &str = r##"<path d="M5 8A3 3 0 0 1 8 5H21.6L27 10.4V24A3 3 0 0 1 24 27H8A3 3 0 0 1 5 24Z" fill="@p"/><rect x="10" y="5" width="10" height="6.6" rx="1" fill="@s"/><rect x="16.2" y="6.2" width="2.2" height="4.2" rx=".6" fill="@d"/><rect x="9" y="16.4" width="14" height="8.4" rx="1.6" fill="#fff"/><path d="M11.6 19.4H20.4M11.6 22H17.6" stroke="@p" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>"##;
+pub const SAVE: &str = r##"<path d="M6 8.6A2.6 2.6 0 0 1 8.6 6H21.4L26 10.6V23.4A2.6 2.6 0 0 1 23.4 26H8.6A2.6 2.6 0 0 1 6 23.4Z" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M11 6.4V10.6H19V6.4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M10.4 25.6V19.4A1.2 1.2 0 0 1 11.6 18.2H20.4A1.2 1.2 0 0 1 21.6 19.4V25.6" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>"##;
 
-pub const FOLDER: &str = r##"<path d="M4 9.6A3 3 0 0 1 7 6.6H12.4L15 9.2H25A3 3 0 0 1 28 12.2V23.4A3 3 0 0 1 25 26.4H7A3 3 0 0 1 4 23.4Z" fill="@d"/><path d="M4 13.6H28V23.4A3 3 0 0 1 25 26.4H7A3 3 0 0 1 4 23.4Z" fill="@p"/>"##;
+pub const FOLDER: &str = r##"<path d="M4.6 10A2.8 2.8 0 0 1 7.4 7.2H12.6L15.2 9.8H24.6A2.8 2.8 0 0 1 27.4 12.6V22.8A2.8 2.8 0 0 1 24.6 25.6H7.4A2.8 2.8 0 0 1 4.6 22.8Z" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M4.6 13.8H27.4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>"##;

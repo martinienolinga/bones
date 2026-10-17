@@ -1,16 +1,24 @@
 //! Informations dessinées sur la vue 3D : statistiques (coin haut gauche,
-//! comme Nomad Sculpt), étiquettes des marqueurs, message temporaire animé
-//! et indicateur de calcul.
+//! comme Nomad Sculpt), étiquettes des marqueurs, message temporaire animé,
+//! indicateur de calcul et consigne de l'outil « Parent ».
 
 use bones_core::{Editor, Handle, Mode, Viewport};
+use bones_ui::icons::{self, Icon};
 use bones_ui::theme;
 
-use super::{Busy, COLUMN_TOP, UiState};
+use super::{BAR_H, Busy, EDGE, UiState};
 
 const TOAST_SECONDS: f64 = 2.6;
 const FADE: f64 = 0.18;
 
-pub fn show(ctx: &egui::Context, editor: &Editor, state: &mut UiState, viewport: &Viewport, busy: Busy) {
+/// Retourne la zone de la consigne, s'il y en a une (elle est touchable).
+pub fn show(
+    ctx: &egui::Context,
+    editor: &Editor,
+    state: &mut UiState,
+    viewport: &Viewport,
+    busy: Busy,
+) -> Option<egui::Rect> {
     let painter = ctx.layer_painter(egui::LayerId::background());
     let ppp = ctx.pixels_per_point();
     stats(&painter, editor);
@@ -25,7 +33,7 @@ pub fn show(ctx: &egui::Context, editor: &Editor, state: &mut UiState, viewport:
             "Working…"
         };
         egui::Area::new(egui::Id::unique("busy"))
-            .anchor(egui::Align2::CENTER_TOP, [0.0, 74.0])
+            .anchor(egui::Align2::CENTER_TOP, [0.0, BAR_H + 12.0])
             .interactable(false)
             .show(ctx, |ui| {
                 theme::bar_frame().show(ui, |ui| {
@@ -38,6 +46,7 @@ pub fn show(ctx: &egui::Context, editor: &Editor, state: &mut UiState, viewport:
                 });
             });
     }
+    hint(ctx, editor, state)
 }
 
 fn stats(painter: &egui::Painter, editor: &Editor) {
@@ -54,7 +63,7 @@ fn stats(painter: &egui::Painter, editor: &Editor) {
         let b = rig.skeleton.bone(bone);
         lines.push(format!("Bone: {}  ·  {:.3} m", b.name, b.length));
     }
-    let origin = egui::pos2(78.0, COLUMN_TOP + 2.0);
+    let origin = egui::pos2(16.0, BAR_H + 12.0);
     for (i, line) in lines.iter().enumerate() {
         let (font, color) = if i == 2 {
             (theme::semibold(13.0), theme::BONE_SELECTED)
@@ -113,7 +122,10 @@ fn toast(ctx: &egui::Context, state: &mut UiState) {
     let alpha = (age / FADE).min((TOAST_SECONDS - age) / FADE).clamp(0.0, 1.0) as f32;
     let message = message.clone();
     egui::Area::new(egui::Id::unique("toast"))
-        .anchor(egui::Align2::CENTER_TOP, [0.0, 118.0 - 10.0 * (1.0 - alpha)])
+        .anchor(
+            egui::Align2::CENTER_TOP,
+            [0.0, BAR_H + 60.0 - 10.0 * (1.0 - alpha)],
+        )
         .interactable(false)
         .order(egui::Order::Tooltip)
         .show(ctx, |ui| {
@@ -129,4 +141,33 @@ fn toast(ctx: &egui::Context, state: &mut UiState) {
                 });
         });
     ctx.request_repaint();
+}
+
+/// Consigne de l'outil « Parent », en pastille au bas de l'écran.
+fn hint(ctx: &egui::Context, editor: &Editor, state: &UiState) -> Option<egui::Rect> {
+    let reparenting = editor.mode == Mode::Edit && editor.edit_tool == bones_core::EditTool::Reparent;
+    if !reparenting {
+        return None;
+    }
+    let text = state
+        .hint
+        .as_deref()
+        .unwrap_or("Tap a bone, then its new parent (or empty space for none)");
+    let area = egui::Area::new(egui::Id::unique("reparent-hint"))
+        .anchor(egui::Align2::CENTER_BOTTOM, [0.0, -EDGE - 14.0])
+        .order(egui::Order::Foreground)
+        .show(ctx, |ui| {
+            theme::bar_frame()
+                .corner_radius(22)
+                .inner_margin(egui::Margin::symmetric(18, 12))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        let (glyph, _) = ui.allocate_exact_size(egui::vec2(20.0, 20.0), egui::Sense::hover());
+                        icons::paint(ui.painter(), glyph, Icon::Hierarchy, theme::ACCENT);
+                        ui.add_space(4.0);
+                        ui.label(egui::RichText::new(text).size(15.0).color(theme::TEXT));
+                    });
+                });
+        });
+    Some(area.response.rect)
 }

@@ -1,12 +1,9 @@
-//! Icônes plates en couleur, dessinées en SVG (aplats, sans dégradé) et
-//! rastérisées une seule fois par `resvg` dans un atlas de textures egui.
-//!
-//! Chaque famille d'outils a sa teinte (voir [`hue`]) : os en orange, IK en
-//! bleu, rotation en violet, épingles en vert, animation en jaune, physique
-//! en sarcelle, fichiers en bleu ciel, affichage en indigo.
+//! Icônes monochromes à la Procreate (glyphes SVG d'une seule couleur),
+//! rastérisées une seule fois en blanc par `resvg` dans un atlas de textures
+//! egui, puis teintées au dessin : gris clair au repos, gris foncé quand
+//! elles sont désactivées, bleu d'accent pour l'outil actif.
 
 mod atlas;
-pub mod hue;
 mod svg;
 
 use egui::{Color32, Painter, Rect};
@@ -65,9 +62,15 @@ pub enum Icon {
     Lock,
     Home,
     Ortho,
+    BoneHead,
+    Duplicate,
+    Subdivide,
+    Flip,
+    XMirror,
+    Plus,
 }
 
-const ALL: [Icon; 48] = [
+const ALL: [Icon; 54] = [
     Icon::Gallery,
     Icon::Actions,
     Icon::Adjust,
@@ -116,6 +119,12 @@ const ALL: [Icon; 48] = [
     Icon::Lock,
     Icon::Home,
     Icon::Ortho,
+    Icon::BoneHead,
+    Icon::Duplicate,
+    Icon::Subdivide,
+    Icon::Flip,
+    Icon::XMirror,
+    Icon::Plus,
 ];
 
 /// Toutes les icônes (aperçus, tests).
@@ -124,21 +133,18 @@ pub fn all() -> &'static [Icon] {
 }
 
 impl Icon {
-    /// Document SVG complet de l'icône.
+    /// Document SVG complet de l'icône (glyphe blanc).
     pub fn svg(self) -> String {
-        let (body, hue) = svg::source(self);
-        hue::document(hue, body)
-    }
-
-    /// Couleur de base de la famille (états actifs).
-    pub fn tone(self) -> Color32 {
-        let (_, hue) = svg::source(self);
-        parse_hex(hue.base)
+        format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">{}</svg>"#,
+            svg::source(self)
+        )
     }
 }
 
-/// Dessine `icon` dans le carré inscrit dans `rect`. `tint` multiplie les
-/// couleurs : blanc pour l'icône d'origine, blanc translucide pour atténuer.
+/// Dessine `icon` dans le carré inscrit dans `rect`, de la couleur `tint`
+/// (voir [`crate::theme::ICON`], [`crate::theme::ICON_DIM`],
+/// [`crate::theme::ACCENT`]).
 pub fn paint(painter: &Painter, rect: Rect, icon: Icon, tint: Color32) {
     atlas::paint(painter, rect, icon, tint);
 }
@@ -147,9 +153,4 @@ pub fn paint(painter: &Painter, rect: Rect, icon: Icon, tint: Color32) {
 /// est créé au premier dessin).
 pub fn install(ctx: &egui::Context) {
     atlas::prepare(ctx);
-}
-
-fn parse_hex(hex: &str) -> Color32 {
-    let v = u32::from_str_radix(hex.trim_start_matches('#'), 16).unwrap_or(0xffffff);
-    Color32::from_rgb((v >> 16) as u8, (v >> 8) as u8, v as u8)
 }
