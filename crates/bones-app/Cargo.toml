@@ -1,0 +1,29 @@
+[package]
+name = "bones-app"
+description = "Application iPad PaintSharp Bones (winit + wgpu + egui), aussi lançable sur macOS/Linux pour le développement."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "bones"
+path = "src/main.rs"
+
+[dependencies]
+bones-core.workspace = true
+bones-render.workspace = true
+bones-ui.workspace = true
+egui.workspace = true
+egui-wgpu.workspace = true
+egui-winit.workspace = true
+glam.workspace = true
+log.workspace = true
+pollster.workspace = true
+rayon.workspace = true
+wgpu.workspace = true
+winit.workspace = true
+
+[target.'cfg(not(target_os = "ios"))'.dependencies]
+env_logger.workspace = true

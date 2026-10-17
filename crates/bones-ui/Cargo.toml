@@ -1,0 +1,11 @@
+[package]
+name = "bones-ui"
+description = "Kit d'interface de PaintSharp Bones (egui) : thème, icônes vectorielles et widgets tactiles inspirés de Procreate et Nomad Sculpt."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+egui.workspace = true
