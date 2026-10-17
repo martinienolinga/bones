@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
+use winit::event::{ElementState, Force, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
 use winit::window::{Window, WindowId};
 
@@ -72,7 +72,17 @@ impl ApplicationHandler<UserEvent> for App {
             WindowEvent::Touch(t) => {
                 let pos = glam::Vec2::new(t.location.x as f32, t.location.y as f32);
                 match t.phase {
-                    TouchPhase::Started => r.touch_start(t.id, pos),
+                    TouchPhase::Started => {
+                        // Seul l'Apple Pencil fournit un angle d'inclinaison.
+                        let pencil = matches!(
+                            t.force,
+                            Some(Force::Calibrated {
+                                altitude_angle: Some(_),
+                                ..
+                            })
+                        );
+                        r.touch_start(t.id, pos, pencil);
+                    }
                     TouchPhase::Moved => r.touch_move(t.id, pos),
                     TouchPhase::Ended => r.touch_end(t.id, false),
                     TouchPhase::Cancelled => r.touch_end(t.id, true),

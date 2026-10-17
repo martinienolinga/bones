@@ -50,6 +50,8 @@ pub struct UiState {
     pub docs_dir: PathBuf,
     /// Rayon de sélection tactile (points).
     pub pick_radius: f32,
+    /// Seul l'Apple Pencil manipule les os ; les doigts naviguent.
+    pub pencil_only: bool,
     rename: String,
     toast: Option<(String, f64)>,
     files: Option<(Vec<FileEntry>, Vec<FileEntry>)>,
@@ -62,6 +64,7 @@ impl UiState {
             popover: None,
             docs_dir,
             pick_radius: 22.0,
+            pencil_only: false,
             rename: String::new(),
             toast: None,
             files: None,

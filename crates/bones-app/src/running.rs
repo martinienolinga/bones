@@ -114,12 +114,13 @@ impl Running {
             pick_radius: self.ui.pick_radius * ppp,
             tap_slop: 12.0 * ppp,
             over_ui: &over_ui,
+            pencil_only: self.ui.pencil_only,
         };
         f(&mut self.gestures, cx)
     }
 
-    pub fn touch_start(&mut self, id: u64, pos: Vec2) {
-        self.with_input(|g, cx| g.touch_start(id, pos, cx));
+    pub fn touch_start(&mut self, id: u64, pos: Vec2, pencil: bool) {
+        self.with_input(|g, cx| g.touch_start(id, pos, pencil, cx));
     }
 
     pub fn touch_move(&mut self, id: u64, pos: Vec2) {

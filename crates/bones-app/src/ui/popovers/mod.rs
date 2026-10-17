@@ -59,7 +59,7 @@ pub fn show(
             ui.separator();
             match popover {
                 Popover::Gallery => gallery::show(ui, editor, state, actions),
-                Popover::Actions => actions::show(ui, editor, actions),
+                Popover::Actions => actions::show(ui, editor, state, actions),
                 Popover::View => view::show(ui, editor),
                 Popover::Outliner => outliner::show(ui, editor, state),
             }

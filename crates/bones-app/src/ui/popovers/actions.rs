@@ -3,9 +3,16 @@
 use bones_core::{BindMethod, Editor};
 use bones_ui::{theme, widgets};
 
-use super::{UiAction, row_button};
+use super::{UiAction, UiState, row_button};
 
-pub fn show(ui: &mut egui::Ui, editor: &mut Editor, actions: &mut Vec<UiAction>) {
+pub fn show(ui: &mut egui::Ui, editor: &mut Editor, state: &mut UiState, actions: &mut Vec<UiAction>) {
+    ui.label(egui::RichText::new("Saisie").strong());
+    ui.checkbox(
+        &mut state.pencil_only,
+        "Apple Pencil pour manipuler (les doigts naviguent)",
+    );
+    ui.add_space(10.0);
+
     ui.label(egui::RichText::new("Poids automatiques").strong());
     let methods = [BindMethod::Heat, BindMethod::Envelope];
     let mut index = methods.iter().position(|m| *m == editor.bind_method).unwrap_or(0);

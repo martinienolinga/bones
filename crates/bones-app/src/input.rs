@@ -4,8 +4,11 @@
 //! - deux doigts : pincer pour zoomer, glisser pour déplacer la vue ;
 //! - tape à deux doigts : annuler ; tape à trois doigts : rétablir.
 //!
+//! Option « Apple Pencil pour manipuler » (comme Procreate) : les doigts ne
+//! font plus que naviguer, seul le crayon agit sur les os.
+//!
 //! La souris (développement sur ordinateur) suit les mêmes règles :
-//! clic gauche = doigt, clic droit / molette = déplacement / zoom.
+//! clic gauche = crayon, clic droit / molette = déplacement / zoom.
 
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -53,6 +56,8 @@ pub struct InputContext<'a> {
     pub tap_slop: f32,
     /// Vrai si le point est sur un élément d'interface.
     pub over_ui: &'a dyn Fn(Vec2) -> bool,
+    /// Seul l'Apple Pencil manipule les os ; les doigts naviguent.
+    pub pencil_only: bool,
 }
 
 pub struct Gestures {
@@ -88,7 +93,8 @@ impl Gestures {
     // ------------------------------------------------------------------
     // Tactile
 
-    pub fn touch_start(&mut self, id: u64, pos: Vec2, cx: InputContext) {
+    /// Début d'un contact ; `pencil` est vrai pour l'Apple Pencil.
+    pub fn touch_start(&mut self, id: u64, pos: Vec2, pencil: bool, cx: InputContext) {
         if self.touches.is_empty() {
             self.max_touches = 0;
             self.moved = false;
@@ -102,7 +108,7 @@ impl Gestures {
             (_, Mode::Ui) => {}
             (1, _) => {
                 self.primary = Some(id);
-                self.mode = self.begin_single(pos, cx);
+                self.mode = self.begin_single(pos, pencil, cx);
             }
             (2, _) => {
                 if self.mode == Mode::Editor {
@@ -176,10 +182,11 @@ impl Gestures {
         action
     }
 
-    fn begin_single(&mut self, pos: Vec2, cx: InputContext) -> Mode {
+    fn begin_single(&mut self, pos: Vec2, pencil: bool, cx: InputContext) -> Mode {
+        let may_edit = pencil || !cx.pencil_only;
         if (cx.over_ui)(pos) {
             Mode::Ui
-        } else if cx.editor.pointer_down(pos, &cx.viewport, cx.pick_radius) {
+        } else if may_edit && cx.editor.pointer_down(pos, &cx.viewport, cx.pick_radius) {
             Mode::Editor
         } else {
             Mode::Orbit
@@ -229,7 +236,7 @@ impl Gestures {
         } else if pan {
             Mode::Pan
         } else {
-            self.begin_single(pos, cx)
+            self.begin_single(pos, true, cx)
         };
     }
 
