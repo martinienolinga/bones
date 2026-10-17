@@ -182,6 +182,26 @@ L'identité se trouve avec `security find-identity -v -p codesigning` ; le profi
 | Glisser à deux doigts | déplacer la vue |
 | Toucher à deux doigts | annuler |
 | Toucher à trois doigts | rétablir |
+| Glisser sur le guide de rotation | tourner la vue |
+| Toucher un axe ou une face du guide | aligner la vue (face, profil, dessus…) avec transition |
+
+### Guide de rotation 3D
+
+En haut à droite, comme dans Blender et Nomad Sculpt, au choix dans les réglages :
+
+- **axes** : pastilles X (rouge), Y (vert), Z (bleu), axes négatifs en cercles creux ;
+- **cube de vue** aux arêtes et coins arrondis : faces Dessus / Avant / Droite… colorées, libellés
+  inclinés avec la face.
+
+Quatre boutons l'accompagnent : **verrou de rotation**, **vue orthographique** (vues de face ou de
+profil exactes, idéales pour placer les marqueurs d'auto-rig), **cadrer** et **vue d'accueil**.
+
+### Réglages
+
+- **Apple Pencil uniquement**, tâche par tâche (poser, épingler, éditer le squelette, placer les
+  marqueurs) : pour une tâche réservée au crayon, les doigts ne font que naviguer.
+- Style du guide de rotation, rayon de sélection tactile.
+- Les réglages sont conservés d'une session à l'autre.
 
 Sur poste : clic gauche (manipuler / tourner), clic droit ou du milieu (déplacer), molette (zoomer).
 

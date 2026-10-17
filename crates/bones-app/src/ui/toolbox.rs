@@ -1,27 +1,40 @@
 //! Boîte à outils de droite, à la Nomad Sculpt : une colonne de cellules
-//! (icône + étiquette) qui dépend du mode courant.
+//! (icône en couleur + étiquette) qui dépend du mode courant, en groupes
+//! séparés par de fins traits.
 
 use bones_core::{EditTool, Editor, Mode, PoseTool, Side};
 use bones_ui::icons::Icon;
 use bones_ui::{theme, widgets};
 
-use super::{UiState, block};
+use super::{COLUMN_TOP, EDGE, UiState, block};
 
 pub fn show(ctx: &egui::Context, editor: &mut Editor, _state: &mut UiState) -> egui::Rect {
     block(
         ctx,
         "toolbox",
         egui::Align2::RIGHT_TOP,
-        [0.0, 76.0],
+        [-EDGE, COLUMN_TOP],
         theme::card_frame(),
         |ui| {
-            ui.vertical_centered(|ui| match editor.mode {
-                Mode::Pose => pose_tools(ui, editor),
-                Mode::Edit => edit_tools(ui, editor),
-                Mode::AutoRig => autorig_tools(ui, editor),
+            ui.vertical_centered(|ui| {
+                ui.spacing_mut().item_spacing.y = 4.0;
+                match editor.mode {
+                    Mode::Pose => pose_tools(ui, editor),
+                    Mode::Edit => edit_tools(ui, editor),
+                    Mode::AutoRig => autorig_tools(ui, editor),
+                }
             });
         },
     )
+}
+
+/// Trait de séparation discret entre deux groupes d'outils.
+fn divider(ui: &mut egui::Ui) {
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(40.0, 9.0), egui::Sense::hover());
+    ui.painter().line_segment(
+        [rect.left_center(), rect.right_center()],
+        egui::Stroke::new(1.0, egui::Color32::from_white_alpha(22)),
+    );
 }
 
 fn pose_tools(ui: &mut egui::Ui, editor: &mut Editor) {
@@ -34,7 +47,7 @@ fn pose_tools(ui: &mut egui::Ui, editor: &mut Editor) {
             editor.pose_tool = tool;
         }
     }
-    ui.separator();
+    divider(ui);
     if widgets::tool_cell(ui, Icon::Mirror, "Miroir", false).clicked() {
         editor.mirror_pose();
     }
@@ -45,7 +58,7 @@ fn pose_tools(ui: &mut egui::Ui, editor: &mut Editor) {
     if !editor.rig.pins.is_empty() && widgets::tool_cell(ui, Icon::Close, "Épingles", false).clicked() {
         editor.clear_pins();
     }
-    ui.separator();
+    divider(ui);
     let view = &mut editor.view;
     toggle(ui, Icon::Trajectory, "Trajet", &mut view.trajectory);
     toggle(ui, Icon::Ghost, "Fantômes", &mut view.ghosts);
@@ -61,7 +74,7 @@ fn edit_tools(ui: &mut egui::Ui, editor: &mut Editor) {
             editor.edit_tool = tool;
         }
     }
-    ui.separator();
+    divider(ui);
     let has_selection = editor.selected.is_some();
     if ui
         .add_enabled_ui(has_selection, |ui| {
@@ -75,10 +88,10 @@ fn edit_tools(ui: &mut egui::Ui, editor: &mut Editor) {
     if widgets::tool_cell(ui, Icon::Symmetrize, "G → D", false).clicked() {
         editor.symmetrize(Side::Left);
     }
-    if widgets::tool_cell(ui, Icon::Symmetrize, "D → G", false).clicked() {
+    if widgets::tool_cell(ui, Icon::Mirror, "D → G", false).clicked() {
         editor.symmetrize(Side::Right);
     }
-    ui.separator();
+    divider(ui);
     if widgets::tool_cell(ui, Icon::Weights, "Lier", false).clicked() {
         editor.request_rebind();
     }
@@ -89,7 +102,7 @@ fn autorig_tools(ui: &mut egui::Ui, editor: &mut Editor) {
     if widgets::tool_cell(ui, Icon::Reset, "Estimer", false).clicked() {
         editor.guess_markers();
     }
-    ui.separator();
+    divider(ui);
     if widgets::tool_cell(ui, Icon::AutoRig, "Générer", false).clicked() {
         editor.generate_rig();
     }

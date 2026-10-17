@@ -7,11 +7,13 @@ mod app;
 mod clip;
 mod files;
 mod frame;
+mod gizmo;
 mod gpu;
 mod input;
 mod jobs;
 mod running;
 mod scene;
+mod settings;
 mod ui;
 
 use winit::event_loop::EventLoop;

@@ -1,20 +1,15 @@
-//! Actions : saisie, liaison des poids, animation, export.
+//! Actions : liaison des poids, animation, export (comme le menu
+//! « Partager » de Procreate, un format par ligne).
 
 use bones_core::io::Format;
 use bones_core::{BindMethod, Editor};
+use bones_ui::icons::Icon;
 use bones_ui::{theme, widgets};
 
-use super::{UiAction, UiState, row_button};
+use super::UiAction;
 
-pub fn show(ui: &mut egui::Ui, editor: &mut Editor, state: &mut UiState, actions: &mut Vec<UiAction>) {
-    ui.label(egui::RichText::new("Saisie").strong());
-    ui.checkbox(
-        &mut state.pencil_only,
-        "Apple Pencil pour manipuler (les doigts naviguent)",
-    );
-    ui.add_space(10.0);
-
-    ui.label(egui::RichText::new("Poids automatiques").strong());
+pub fn show(ui: &mut egui::Ui, editor: &mut Editor, actions: &mut Vec<UiAction>) {
+    widgets::section_title(ui, "Poids automatiques");
     let methods = [BindMethod::Heat, BindMethod::Envelope];
     let mut index = methods.iter().position(|m| *m == editor.bind_method).unwrap_or(0);
     if widgets::segmented(ui, &["Diffusion de chaleur", "Enveloppes"], &mut index).changed() {
@@ -26,34 +21,36 @@ pub fn show(ui: &mut egui::Ui, editor: &mut Editor, state: &mut UiState, actions
             BindMethod::Heat => "Qualité (Baran & Popović 2007), calculé en tâche de fond.",
             BindMethod::Envelope => "Instantané, selon la distance aux os.",
         })
-        .small()
+        .size(12.0)
         .color(theme::TEXT_DIM),
     );
-    if row_button(ui, "Recalculer les poids").clicked() {
+    if widgets::pill_button(ui, Some(Icon::Weights), "Recalculer les poids", false).clicked() {
         editor.request_rebind();
     }
 
-    ui.add_space(10.0);
-    ui.label(egui::RichText::new("Animation").strong());
+    ui.add_space(8.0);
+    widgets::section_title(ui, "Animation");
     ui.horizontal(|ui| {
         ui.label("Images par seconde");
-        let clip = &editor.rig.clip;
-        let mut fps = clip.fps;
-        if ui
-            .add(egui::DragValue::new(&mut fps).range(1.0..=120.0))
-            .changed()
-        {
-            editor.rig.clip_mut().fps = fps;
-        }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let mut fps = editor.rig.clip.fps;
+            if ui
+                .add_sized([72.0, 32.0], egui::DragValue::new(&mut fps).range(1.0..=120.0))
+                .changed()
+            {
+                editor.rig.clip_mut().fps = fps;
+            }
+        });
     });
 
-    ui.add_space(10.0);
+    ui.add_space(8.0);
     export(ui, actions);
 }
 
-/// Partage façon Procreate : un bouton par format, avec ce qu'il emporte.
+/// Un format par ligne, avec ce qu'il emporte.
 fn export(ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
-    ui.label(egui::RichText::new("Exporter").strong());
+    widgets::section_title(ui, "Exporter");
+    ui.spacing_mut().item_spacing.y = 4.0;
     for format in Format::exportable().filter(|f| *f != Format::Bones) {
         let mut contents = vec!["maillage"];
         if format.supports_textures() {
@@ -65,15 +62,23 @@ fn export(ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         if format.exports_animation() {
             contents.push("animation");
         }
-        let text = format!(".{}  —  {}", format.extension(), format.label());
-        let hint = format!("Contient : {}", contents.join(", "));
-        if row_button(ui, &text).on_hover_text(hint).clicked() {
+        // « glTF binaire (Blender, Unity…) » : titre court, détails dessous.
+        let label = format.label();
+        let (title, detail) = label.split_once(" (").unwrap_or((label, ""));
+        let mut subtitle = contents.join(" · ");
+        if !detail.is_empty() {
+            subtitle = format!("{} — {subtitle}", detail.trim_end_matches(')'));
+        }
+        let badge = format!(".{}", format.extension());
+        let row =
+            widgets::list_row(ui, Icon::Export, title, Some(&subtitle), Some(&badge)).on_hover_text(label);
+        if row.clicked() {
             actions.push(UiAction::Export(format));
         }
     }
     ui.label(
         egui::RichText::new("Les formats sans squelette (OBJ, STL, PLY) exportent la pose courante.")
-            .small()
+            .size(12.0)
             .color(theme::TEXT_DIM),
     );
 }

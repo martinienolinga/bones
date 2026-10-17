@@ -6,35 +6,38 @@ use bones_core::{Editor, Interpolation};
 use bones_ui::icons::Icon;
 use bones_ui::{theme, widgets};
 
-use super::block;
+use super::{EDGE, block};
 
 const INTERPOLATIONS: [Interpolation; 3] =
     [Interpolation::Step, Interpolation::Linear, Interpolation::Smooth];
+/// Largeur réservée aux commandes de droite (clés, interpolation…).
+const RIGHT: f32 = 360.0;
 
 pub fn show(ctx: &egui::Context, editor: &mut Editor) -> egui::Rect {
-    let width = (ctx.content_rect().width() - 140.0).max(320.0);
+    let width = (ctx.content_rect().width() - 2.0 * EDGE - 160.0).max(420.0);
     block(
         ctx,
         "timeline",
         egui::Align2::CENTER_BOTTOM,
-        [0.0, -8.0],
+        [0.0, -EDGE],
         theme::bar_frame(),
         |ui| {
             ui.set_width(width);
             ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.0;
                 transport(ui, editor);
-                ui.add_space(8.0);
+                ui.add_space(6.0);
                 let keys: Vec<u32> = editor.rig.clip.keys().iter().map(|k| k.frame).collect();
                 let mut frame = editor.frame;
-                let strip_width = (ui.available_width() - 330.0).max(120.0);
-                ui.allocate_ui(egui::vec2(strip_width, 48.0), |ui| {
-                    if widgets::key_strip(ui, &mut frame, editor.rig.clip.frame_count, &keys, 44.0).changed()
+                let strip_width = (ui.available_width() - RIGHT).max(140.0);
+                ui.allocate_ui(egui::vec2(strip_width, 50.0), |ui| {
+                    if widgets::key_strip(ui, &mut frame, editor.rig.clip.frame_count, &keys, 50.0).changed()
                     {
                         editor.playing = false;
                         editor.set_frame(frame);
                     }
                 });
-                ui.add_space(8.0);
+                ui.add_space(6.0);
                 keys_and_interpolation(ui, editor);
             });
         },
@@ -56,14 +59,11 @@ fn transport(ui: &mut egui::Ui, editor: &mut Editor) {
     if widgets::tool_button(ui, Icon::NextKey, false, "Clé suivante").clicked() {
         editor.jump_key(true);
     }
-    ui.label(
-        egui::RichText::new(format!(
-            "{:>3} / {}",
-            editor.current_frame(),
-            editor.rig.clip.frame_count
-        ))
-        .monospace()
-        .color(theme::TEXT_DIM),
+    // Compteur d'images, chiffres à chasse fixe pour ne pas trembler.
+    let text = format!("{:>3}/{}", editor.current_frame(), editor.rig.clip.frame_count);
+    ui.add_sized(
+        [64.0, 44.0],
+        egui::Label::new(egui::RichText::new(text).monospace().color(theme::TEXT_DIM)),
     );
 }
 
@@ -83,9 +83,12 @@ fn keys_and_interpolation(ui: &mut egui::Ui, editor: &mut Editor) {
     }
     if let Some(current) = editor.interpolation() {
         let mut index = INTERPOLATIONS.iter().position(|i| *i == current).unwrap_or(2);
-        if widgets::segmented(ui, &["Palier", "Linéaire", "Doux"], &mut index).changed() {
-            editor.set_interpolation(INTERPOLATIONS[index]);
-        }
+        ui.vertical(|ui| {
+            ui.add_space(4.0);
+            if widgets::segmented(ui, &["Palier", "Linéaire", "Doux"], &mut index).changed() {
+                editor.set_interpolation(INTERPOLATIONS[index]);
+            }
+        });
     }
     if widgets::tool_button(
         ui,
@@ -98,8 +101,16 @@ fn keys_and_interpolation(ui: &mut egui::Ui, editor: &mut Editor) {
         editor.bake_ballistic();
     }
     let mut count = editor.rig.clip.frame_count;
-    let response = ui.add(egui::DragValue::new(&mut count).range(2..=100_000).suffix(" im."));
-    if response.changed() {
-        editor.set_frame_count(count);
-    }
+    ui.vertical(|ui| {
+        ui.add_space(6.0);
+        let response = ui
+            .add_sized(
+                [72.0, 32.0],
+                egui::DragValue::new(&mut count).range(2..=100_000).suffix(" im."),
+            )
+            .on_hover_text("Nombre d'images");
+        if response.changed() {
+            editor.set_frame_count(count);
+        }
+    });
 }

@@ -4,8 +4,8 @@
 //! - deux doigts : pincer pour zoomer, glisser pour déplacer la vue ;
 //! - tape à deux doigts : annuler ; tape à trois doigts : rétablir.
 //!
-//! Option « Apple Pencil pour manipuler » (comme Procreate) : les doigts ne
-//! font plus que naviguer, seul le crayon agit sur les os.
+//! Réglages « Apple Pencil uniquement » par tâche (comme Procreate) : pour
+//! une tâche réservée au crayon, les doigts ne font que naviguer.
 //!
 //! La souris (développement sur ordinateur) suit les mêmes règles :
 //! clic gauche = crayon, clic droit / molette = déplacement / zoom.
@@ -56,8 +56,11 @@ pub struct InputContext<'a> {
     pub tap_slop: f32,
     /// Vrai si le point est sur un élément d'interface.
     pub over_ui: &'a dyn Fn(Vec2) -> bool,
-    /// Seul l'Apple Pencil manipule les os ; les doigts naviguent.
-    pub pencil_only: bool,
+    /// La tâche courante est réservée à l'Apple Pencil.
+    pub pencil_required: bool,
+    /// Densité de l'écran : les rotations se mesurent en points, pour
+    /// une sensibilité identique sur tous les écrans.
+    pub pixels_per_point: f32,
 }
 
 pub struct Gestures {
@@ -132,7 +135,10 @@ impl Gestures {
         }
         match self.mode {
             Mode::Editor if self.primary == Some(id) => cx.editor.pointer_move(pos, &cx.viewport),
-            Mode::Orbit if self.primary == Some(id) => cx.editor.camera.orbit(delta.x, delta.y),
+            Mode::Orbit if self.primary == Some(id) => {
+                let d = delta / cx.pixels_per_point;
+                cx.editor.camera.orbit(d.x, d.y);
+            }
             Mode::TwoFinger { center, distance } => {
                 let (new_center, new_distance) = self.two_finger_state();
                 let d = new_center - center;
@@ -183,7 +189,7 @@ impl Gestures {
     }
 
     fn begin_single(&mut self, pos: Vec2, pencil: bool, cx: InputContext) -> Mode {
-        let may_edit = pencil || !cx.pencil_only;
+        let may_edit = pencil || !cx.pencil_required;
         if (cx.over_ui)(pos) {
             Mode::Ui
         } else if may_edit && cx.editor.pointer_down(pos, &cx.viewport, cx.pick_radius) {
@@ -216,7 +222,10 @@ impl Gestures {
         }
         match self.mode {
             Mode::Editor => cx.editor.pointer_move(pos, &cx.viewport),
-            Mode::Orbit => cx.editor.camera.orbit(delta.x, delta.y),
+            Mode::Orbit => {
+                let d = delta / cx.pixels_per_point;
+                cx.editor.camera.orbit(d.x, d.y);
+            }
             Mode::Pan => cx.editor.camera.pan(delta.x, delta.y, &cx.viewport),
             _ => {}
         }
@@ -256,3 +265,6 @@ impl Gestures {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

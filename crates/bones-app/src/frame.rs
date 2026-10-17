@@ -41,6 +41,11 @@ impl Running {
         for action in actions {
             self.apply(action);
         }
+        // Réglages enregistrés une fois le geste terminé (pas à chaque image
+        // pendant qu'un curseur glisse).
+        if !self.egui_ctx.input(|i| i.pointer.any_down()) {
+            self.persist_settings();
+        }
         self.repaint_at = output
             .viewport_output
             .get(&egui::ViewportId::ROOT)

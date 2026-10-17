@@ -1,13 +1,18 @@
-//! Frise de clés (timeline) : graduations, losanges de clés, tête de
-//! lecture ; un tap ou un glissement déplace l'image courante.
+//! Frise de clés (timeline) : piste creusée, graduations, losanges de clés
+//! dorés avec halo, tête de lecture à pastille en dégradé d'accent. Un tap
+//! ou un glissement déplace l'image courante.
 
-use egui::{Align2, Color32, CornerRadius, FontId, Pos2, Response, Sense, Shape, Stroke, Ui, pos2, vec2};
+use egui::{
+    Align2, Color32, CornerRadius, FontId, Pos2, Response, Sense, Shape, Stroke, StrokeKind, Ui, pos2, vec2,
+};
 
-use crate::theme::{ACCENT, TEXT, TEXT_DIM, WIDGET};
+use crate::draw;
+use crate::theme::{TEXT_DIM, semibold};
 
-const PAD: f32 = 14.0;
+const PAD: f32 = 16.0;
 /// Pas majeurs possibles, en images.
 const STEPS: [u32; 12] = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
+const KEY: Color32 = Color32::from_rgb(0xff, 0xd6, 0x0a);
 
 /// Image entière sous l'abscisse `x` d'une frise commençant en `left`.
 pub(crate) fn frame_at(x: f32, left: f32, width: f32, count: u32) -> f32 {
@@ -54,19 +59,25 @@ pub fn key_strip(ui: &mut Ui, frame: &mut f32, frame_count: u32, keys: &[u32], h
     }
     let painter = ui.painter();
     let x_of = |f: f32| left + f / last * span;
-    painter.rect_filled(rect, CornerRadius::same(8), WIDGET);
+    let radius = CornerRadius::same(12);
+    painter.rect_filled(rect, radius, Color32::from_rgb(0x12, 0x12, 0x15));
+    painter.rect_stroke(
+        rect,
+        radius,
+        Stroke::new(1.0, Color32::from_white_alpha(16)),
+        StrokeKind::Inside,
+    );
 
     // Graduations et numéros d'image.
     let (major, minor) = tick_steps(span / last);
     let step = minor.unwrap_or(major);
-    let (tick_top, mid) = (rect.top() + 20.0, rect.center().y + 6.0);
-    let grid = Color32::from_white_alpha(46);
+    let (tick_top, mid) = (rect.top() + 19.0, rect.center().y + 7.0);
     for f in (0..count).step_by(step as usize) {
         let x = x_of(f as f32);
         if f % major == 0 {
             painter.line_segment(
-                [pos2(x, tick_top), pos2(x, rect.bottom() - 6.0)],
-                Stroke::new(1.0, grid),
+                [pos2(x, tick_top), pos2(x, rect.bottom() - 7.0)],
+                Stroke::new(1.0, Color32::from_white_alpha(34)),
             );
             painter.text(
                 pos2(x, rect.top() + 4.0),
@@ -76,31 +87,50 @@ pub fn key_strip(ui: &mut Ui, frame: &mut f32, frame_count: u32, keys: &[u32], h
                 TEXT_DIM,
             );
         } else {
-            painter.line_segment([pos2(x, mid - 4.0), pos2(x, mid + 4.0)], Stroke::new(1.0, grid));
+            painter.line_segment(
+                [pos2(x, mid - 3.5), pos2(x, mid + 3.5)],
+                Stroke::new(1.0, Color32::from_white_alpha(22)),
+            );
         }
     }
+    painter.line_segment(
+        [pos2(left, mid), pos2(left + span, mid)],
+        Stroke::new(1.0, Color32::from_white_alpha(14)),
+    );
 
-    // Clés en losanges.
+    // Clés en losanges dorés avec halo.
     let current = frame.round() as u32;
     for &k in keys.iter().filter(|k| **k < count) {
         let c = pos2(x_of(k as f32), mid);
-        let stroke = if k == current {
-            Stroke::new(1.5, Color32::WHITE)
+        let on = k == current;
+        draw::glow(
+            painter,
+            c,
+            if on { 18.0 } else { 12.0 },
+            KEY.gamma_multiply(if on { 0.5 } else { 0.28 }),
+        );
+        let stroke = if on {
+            Stroke::new(1.6, Color32::WHITE)
         } else {
-            Stroke::NONE
+            Stroke::new(1.0, Color32::from_rgb(0x8a, 0x5a, 0x00))
         };
-        painter.add(Shape::convex_polygon(diamond(c, 6.5), ACCENT, stroke));
+        painter.add(Shape::convex_polygon(
+            diamond(c, if on { 7.5 } else { 6.5 }),
+            KEY,
+            stroke,
+        ));
     }
 
     // Tête de lecture et son numéro.
     let x = x_of(frame.clamp(0.0, last));
     painter.line_segment(
-        [pos2(x, tick_top - 2.0), pos2(x, rect.bottom())],
-        Stroke::new(2.0, TEXT),
+        [pos2(x, tick_top - 1.0), pos2(x, rect.bottom() - 4.0)],
+        Stroke::new(2.0, Color32::WHITE),
     );
-    let label = painter.layout_no_wrap(format!("{current}"), FontId::proportional(11.0), Color32::WHITE);
-    let pill = Align2::CENTER_BOTTOM.anchor_size(pos2(x, tick_top), label.size() + vec2(10.0, 4.0));
-    painter.rect_filled(pill, CornerRadius::same(6), ACCENT);
+    painter.circle_filled(pos2(x, rect.bottom() - 4.0), 2.2, Color32::WHITE);
+    let label = painter.layout_no_wrap(format!("{current}"), semibold(11.0), Color32::WHITE);
+    let pill = Align2::CENTER_BOTTOM.anchor_size(pos2(x, tick_top + 1.0), label.size() + vec2(12.0, 5.0));
+    draw::accent_fill(painter, pill, CornerRadius::same(8), 1.0);
     painter.galley(pill.center() - label.size() * 0.5, label, Color32::WHITE);
     response
 }

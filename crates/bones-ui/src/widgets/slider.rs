@@ -1,5 +1,5 @@
-//! Curseur vertical de la barre latérale, façon Procreate : glissement
-//! relatif (le pouce ne saute pas sous le doigt) et bulle de valeur.
+//! Curseurs : vertical façon Procreate (glissement relatif, bulle de
+//! valeur) et horizontal pour les réglages.
 
 use std::ops::RangeInclusive;
 
@@ -8,13 +8,14 @@ use egui::{
     pos2, vec2,
 };
 
+use super::anim;
+use crate::draw;
 use crate::icons::{self, Icon};
-use crate::theme::{ACCENT, PANEL, PANEL_BORDER, TEXT, THUMB, WIDGET};
+use crate::theme::{PANEL, TEXT, TEXT_DIM, THUMB, semibold, soft_shadow};
 
-const WIDTH: f32 = 36.0;
-const HEIGHT: f32 = 160.0;
-const ICON_SPACE: f32 = 30.0;
-const THUMB_SIZE: egui::Vec2 = egui::Vec2::new(30.0, 16.0);
+const WIDTH: f32 = 38.0;
+const HEIGHT: f32 = 168.0;
+const ICON_SPACE: f32 = 32.0;
 
 /// Nouvelle valeur après un glissement de `delta_up` points vers le haut sur
 /// une piste de `height` points couvrant `range`.
@@ -39,13 +40,21 @@ pub(crate) fn format_value(value: f32, range: &RangeInclusive<f32>) -> String {
     }
 }
 
-/// Curseur vertical 36 × 160 pt (remplissage depuis le bas).
+fn fraction(value: f32, range: &RangeInclusive<f32>) -> f32 {
+    let (lo, hi) = (*range.start(), *range.end());
+    if hi > lo {
+        ((value - lo) / (hi - lo)).clamp(0.0, 1.0)
+    } else {
+        0.0
+    }
+}
+
+/// Curseur vertical 38 × 168 pt, rempli depuis le bas.
 pub fn vertical_slider(ui: &mut Ui, value: &mut f32, range: RangeInclusive<f32>, hint: &str) -> Response {
     slider(ui, value, range, None, hint)
 }
 
-/// Variante surmontée d'une icône, comme les curseurs rayon / intensité de
-/// Nomad Sculpt.
+/// Variante surmontée d'une icône (curseurs rayon / intensité de Nomad).
 pub fn vertical_slider_with_icon(
     ui: &mut Ui,
     value: &mut f32,
@@ -66,7 +75,7 @@ fn slider(
     let extra = if icon.is_some() { ICON_SPACE } else { 0.0 };
     let (rect, mut response) = ui.allocate_exact_size(vec2(WIDTH, HEIGHT + extra), Sense::drag());
     let track = Rect::from_min_max(pos2(rect.left(), rect.top() + extra), rect.max);
-    let usable = track.height() - THUMB_SIZE.y - 8.0;
+    let usable = track.height() - 26.0;
 
     if response.dragged() {
         let new = apply_drag(*value, -response.drag_delta().y, usable, &range);
@@ -78,54 +87,131 @@ fn slider(
 
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
+        let grab = anim(ui, response.id.with("grab"), response.dragged());
         if let Some(icon) = icon {
             let r = Rect::from_center_size(
-                pos2(rect.center().x, rect.top() + ICON_SPACE * 0.45),
+                pos2(rect.center().x, rect.top() + ICON_SPACE * 0.42),
                 vec2(22.0, 22.0),
             );
-            icons::paint(painter, r, icon, TEXT);
+            icons::paint(painter, r, icon, Color32::WHITE);
         }
-        let radius = CornerRadius::same(10);
-        painter.rect_filled(track, radius, WIDGET);
-        let t = {
-            let (lo, hi) = (*range.start(), *range.end());
-            if hi > lo {
-                ((*value - lo) / (hi - lo)).clamp(0.0, 1.0)
-            } else {
-                0.0
-            }
-        };
-        let thumb_y = track.bottom() - 4.0 - THUMB_SIZE.y * 0.5 - t * usable;
-        let filled = Rect::from_min_max(pos2(track.left(), thumb_y), track.max);
-        painter.rect_filled(filled, radius, ACCENT.gamma_multiply(0.6));
-        painter.rect_stroke(track, radius, Stroke::new(1.0, PANEL_BORDER), StrokeKind::Inside);
-        let thumb = Rect::from_center_size(pos2(track.center().x, thumb_y), THUMB_SIZE);
-        let thumb_color = if response.dragged() { Color32::WHITE } else { THUMB };
-        painter.rect_filled(thumb, CornerRadius::same(8), thumb_color);
+        let radius = CornerRadius::same((WIDTH * 0.5) as u8);
+        painter.rect_filled(track, radius, Color32::from_rgb(0x12, 0x12, 0x15));
+        let t = fraction(*value, &range);
+        let thumb_y = track.bottom() - 13.0 - t * usable;
+        let filled = Rect::from_min_max(pos2(track.left(), thumb_y - 6.0), track.max);
+        draw::accent_fill(
+            painter,
+            filled.shrink(2.0),
+            CornerRadius::same((WIDTH * 0.5 - 2.0) as u8),
+            0.55 + 0.45 * grab,
+        );
+        painter.rect_stroke(
+            track,
+            radius,
+            Stroke::new(1.0, Color32::from_white_alpha(20)),
+            StrokeKind::Inside,
+        );
+
+        let size = vec2(30.0 + 4.0 * grab, 14.0 + 4.0 * grab);
+        let thumb = Rect::from_center_size(pos2(track.center().x, thumb_y), size);
+        painter.add(soft_shadow().as_shape(thumb, CornerRadius::same(8)));
+        painter.rect_filled(thumb, CornerRadius::same(8), THUMB);
+        draw::sheen(painter, thumb, CornerRadius::same(8));
     }
 
     if response.dragged() {
-        bubble(
-            ui,
-            response.id,
-            rect,
-            &format!("{hint} · {}", format_value(*value, &range)),
-        );
+        bubble(ui, response.id, rect, hint, &format_value(*value, &range));
     }
     response.on_hover_text(hint)
 }
 
 /// Bulle de valeur affichée à droite du curseur pendant le glissement.
-fn bubble(ui: &Ui, id: Id, slider: Rect, text: &str) {
+fn bubble(ui: &Ui, id: Id, slider: Rect, label: &str, value: &str) {
     let painter = ui
         .ctx()
         .layer_painter(LayerId::new(Order::Tooltip, id.with("bubble")));
-    let galley = painter.layout_no_wrap(text.to_owned(), FontId::proportional(14.0), TEXT);
-    let size = galley.size() + vec2(20.0, 12.0);
-    let anchor = pos2(slider.right() + 12.0, slider.center().y);
-    let rect = Align2::LEFT_CENTER.anchor_size(anchor, size);
-    painter.rect_filled(rect, CornerRadius::same(8), PANEL);
-    painter.galley(rect.center() - galley.size() * 0.5, galley, TEXT);
+    let big = painter.layout_no_wrap(value.to_owned(), semibold(20.0), TEXT);
+    let small = painter.layout_no_wrap(label.to_owned(), FontId::proportional(12.0), TEXT_DIM);
+    let size = vec2(
+        big.size().x.max(small.size().x) + 28.0,
+        big.size().y + small.size().y + 18.0,
+    );
+    let rect = Align2::LEFT_CENTER.anchor_size(pos2(slider.right() + 14.0, slider.center().y), size);
+    painter.add(soft_shadow().as_shape(rect, CornerRadius::same(14)));
+    painter.rect_filled(rect, CornerRadius::same(14), PANEL);
+    painter.rect_stroke(
+        rect,
+        CornerRadius::same(14),
+        Stroke::new(1.0, Color32::from_white_alpha(18)),
+        StrokeKind::Inside,
+    );
+    let top = rect.top() + 9.0;
+    painter.galley(pos2(rect.center().x - big.size().x * 0.5, top), big.clone(), TEXT);
+    painter.galley(
+        pos2(rect.center().x - small.size().x * 0.5, top + big.size().y),
+        small,
+        TEXT_DIM,
+    );
+}
+
+/// Curseur horizontal avec libellé et valeur (fenêtres de réglages). Un
+/// toucher sur la piste place directement la valeur.
+pub fn slider_row(
+    ui: &mut Ui,
+    value: &mut f32,
+    range: RangeInclusive<f32>,
+    label: &str,
+    unit: &str,
+) -> Response {
+    let width = ui.available_width().max(160.0);
+    let (rect, mut response) = ui.allocate_exact_size(vec2(width, 54.0), Sense::click_and_drag());
+    let track = Rect::from_min_size(
+        pos2(rect.left() + 11.0, rect.bottom() - 17.0),
+        vec2(width - 22.0, 6.0),
+    );
+    if let Some(pos) = response.interact_pointer_pos()
+        && (response.dragged() || response.clicked())
+    {
+        let t = ((pos.x - track.left()) / track.width()).clamp(0.0, 1.0);
+        let new = *range.start() + t * (*range.end() - *range.start());
+        if new != *value {
+            *value = new;
+            response.mark_changed();
+        }
+    }
+    if ui.is_rect_visible(rect) {
+        let painter = ui.painter();
+        painter.text(
+            rect.left_top() + vec2(2.0, 2.0),
+            Align2::LEFT_TOP,
+            label,
+            FontId::proportional(15.0),
+            TEXT,
+        );
+        let shown = format!("{} {unit}", format_value(*value, &range));
+        painter.text(
+            rect.right_top() + vec2(-2.0, 2.0),
+            Align2::RIGHT_TOP,
+            shown.trim(),
+            semibold(15.0),
+            TEXT_DIM,
+        );
+        painter.rect_filled(track, CornerRadius::same(3), Color32::from_white_alpha(26));
+        let t = fraction(*value, &range);
+        let x = track.left() + t * track.width();
+        draw::accent_fill(
+            painter,
+            Rect::from_min_max(track.min, pos2(x, track.bottom())),
+            CornerRadius::same(3),
+            1.0,
+        );
+        let grab = anim(ui, response.id.with("grab"), response.dragged());
+        let knob = Rect::from_center_size(pos2(x, track.center().y), vec2(24.0, 24.0) * (1.0 + 0.1 * grab));
+        painter.add(soft_shadow().as_shape(knob, CornerRadius::same(12)));
+        painter.circle_filled(knob.center(), knob.width() * 0.5, Color32::WHITE);
+    }
+    response
 }
 
 #[cfg(test)]

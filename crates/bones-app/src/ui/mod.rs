@@ -1,7 +1,7 @@
 //! Interface tactile inspirée de Procreate et Nomad Sculpt : la vue 3D occupe
 //! tout l'écran, les commandes sont regroupées en blocs posés sur les bords.
 //!
-//! - en haut à gauche : Galerie, Actions, Vue, Os ([`top`]) ;
+//! - en haut à gauche : Galerie, Actions, Vue, Os, Réglages ([`top`]) ;
 //! - en haut à droite : modes Pose / Édition / Auto-Rig ([`top`]) ;
 //! - à gauche : curseurs verticaux et annuler/rétablir ([`sidebar`]) ;
 //! - à droite : boîte à outils du mode courant ([`toolbox`]) ;
@@ -26,6 +26,7 @@ use bones_core::{Editor, Mode, Viewport};
 pub use popovers::Popover;
 
 use crate::files::{self, FileEntry};
+use crate::settings::Settings;
 
 /// Demandes de l'interface qui passent par l'application (fichiers, tâches).
 pub enum UiAction {
@@ -49,10 +50,10 @@ pub struct UiState {
     pub rects: Vec<egui::Rect>,
     pub popover: Option<Popover>,
     pub docs_dir: PathBuf,
-    /// Rayon de sélection tactile (points).
-    pub pick_radius: f32,
-    /// Seul l'Apple Pencil manipule les os ; les doigts naviguent.
-    pub pencil_only: bool,
+    /// Réglages persistants (Apple Pencil, rayon de sélection).
+    pub settings: Settings,
+    /// Vrai quand un réglage a changé et doit être enregistré.
+    pub settings_dirty: bool,
     rename: String,
     toast: Option<(String, f64)>,
     /// Documents `.bones` et fichiers importables du dossier Documents.
@@ -60,13 +61,13 @@ pub struct UiState {
 }
 
 impl UiState {
-    pub fn new(docs_dir: PathBuf) -> Self {
+    pub fn new(docs_dir: PathBuf, settings: Settings) -> Self {
         Self {
             rects: Vec::new(),
             popover: None,
             docs_dir,
-            pick_radius: 22.0,
-            pencil_only: false,
+            settings,
+            settings_dirty: false,
             rename: String::new(),
             toast: None,
             files: None,
@@ -124,6 +125,7 @@ pub fn show(
     rects.push(top::right(ctx, editor, state));
     rects.extend(sidebar::show(ctx, editor, state));
     rects.push(toolbox::show(ctx, editor, state));
+    rects.extend(crate::gizmo::show(ctx, editor, state.settings.gizmo));
     match editor.mode {
         Mode::Pose => rects.push(timeline::show(ctx, editor)),
         Mode::AutoRig => rects.push(autorig_panel::show(ctx, editor)),
@@ -137,6 +139,11 @@ pub fn show(
     state.rects = rects;
     actions
 }
+
+/// Marge entre les blocs et les bords de l'écran.
+const EDGE: f32 = 10.0;
+/// Haut des colonnes latérales (sous la barre supérieure).
+const COLUMN_TOP: f32 = 76.0;
 
 /// Bloc flottant ancré sur un bord de l'écran ; retourne sa zone.
 fn block(

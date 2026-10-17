@@ -3,31 +3,36 @@
 //! ouvrir et modèles 3D à importer, quel que soit leur format.
 
 use bones_core::Editor;
-use bones_ui::theme;
+use bones_core::io::Format;
+use bones_ui::icons::Icon;
+use bones_ui::{theme, widgets};
 
-use super::{UiAction, UiState, row_button};
+use super::{UiAction, UiState};
 use crate::files::FileEntry;
 
 pub fn show(ui: &mut egui::Ui, editor: &mut Editor, state: &mut UiState, actions: &mut Vec<UiAction>) {
-    ui.horizontal(|ui| {
-        ui.label("Nom");
-        ui.text_edit_singleline(&mut editor.rig.name);
-    });
+    ui.add(
+        egui::TextEdit::singleline(&mut editor.rig.name)
+            .hint_text("Nom du document")
+            .desired_width(f32::INFINITY)
+            .margin(egui::Margin::symmetric(12, 10)),
+    );
     ui.add_space(4.0);
-    ui.columns(2, |cols| {
-        if cols[0].button("Nouveau mannequin").clicked() {
+    ui.horizontal(|ui| {
+        if widgets::pill_button(ui, Some(Icon::Pose), "Nouveau mannequin", false).clicked() {
             actions.push(UiAction::NewDemo);
         }
-        if cols[1].button("Enregistrer").clicked() {
+        if widgets::pill_button(ui, Some(Icon::Save), "Enregistrer", true).clicked() {
             actions.push(UiAction::Save);
         }
     });
-    ui.add_space(8.0);
+    ui.add_space(6.0);
 
     let (documents, models) = state.files().clone();
-    egui::ScrollArea::vertical().max_height(440.0).show(ui, |ui| {
+    egui::ScrollArea::vertical().max_height(430.0).show(ui, |ui| {
+        ui.spacing_mut().item_spacing.y = 4.0;
         section(ui, "Documents", &documents, actions);
-        ui.add_space(8.0);
+        ui.add_space(6.0);
         section(ui, "Modèles et animations à importer", &models, actions);
     });
     ui.add_space(6.0);
@@ -36,19 +41,24 @@ pub fn show(ui: &mut egui::Ui, editor: &mut Editor, state: &mut UiState, actions
             "Déposez vos fichiers (glTF, GLB, FBX, OBJ + MTL, STL, PLY, BVH) et leurs textures dans \
              « Sur mon iPad › Bones » depuis l'app Fichiers. Les exports sont rangés dans « Exports ».",
         )
-        .small()
+        .size(12.0)
         .color(theme::TEXT_DIM),
     );
 }
 
 fn section(ui: &mut egui::Ui, title: &str, files: &[FileEntry], actions: &mut Vec<UiAction>) {
-    ui.label(egui::RichText::new(title).strong());
+    widgets::section_title(ui, title);
     if files.is_empty() {
-        ui.label(egui::RichText::new("Aucun fichier").color(theme::TEXT_DIM));
+        ui.label(egui::RichText::new("Aucun fichier").color(theme::TEXT_FAINT));
     }
     for file in files {
-        let text = format!("{}   ·   {}", file.name, file.format.extension().to_uppercase());
-        if row_button(ui, &text).on_hover_text(file.format.label()).clicked() {
+        let icon = match file.format {
+            Format::Bones => Icon::Bone,
+            Format::Bvh => Icon::Trajectory,
+            _ => Icon::Import,
+        };
+        let badge = file.format.extension().to_uppercase();
+        if widgets::list_row(ui, icon, &file.name, Some(file.format.label()), Some(&badge)).clicked() {
             actions.push(UiAction::Import(file.path.clone()));
         }
     }

@@ -1,13 +1,14 @@
 //! Informations dessinées sur la vue 3D : statistiques (coin haut gauche,
-//! comme Nomad Sculpt), étiquettes des marqueurs, message temporaire et
-//! indicateur de calcul.
+//! comme Nomad Sculpt), étiquettes des marqueurs, message temporaire animé
+//! et indicateur de calcul.
 
 use bones_core::{Editor, Handle, Mode, Viewport};
-use bones_ui::theme;
+use bones_ui::{draw, theme};
 
-use super::{Busy, UiState};
+use super::{Busy, COLUMN_TOP, UiState};
 
-const TOAST_SECONDS: f64 = 2.5;
+const TOAST_SECONDS: f64 = 2.6;
+const FADE: f64 = 0.18;
 
 pub fn show(ctx: &egui::Context, editor: &Editor, state: &mut UiState, viewport: &Viewport, busy: Busy) {
     let painter = ctx.layer_painter(egui::LayerId::background());
@@ -24,13 +25,15 @@ pub fn show(ctx: &egui::Context, editor: &Editor, state: &mut UiState, viewport:
             "Traitement…"
         };
         egui::Area::new(egui::Id::unique("busy"))
-            .anchor(egui::Align2::CENTER_TOP, [0.0, 64.0])
+            .anchor(egui::Align2::CENTER_TOP, [0.0, 74.0])
             .interactable(false)
             .show(ctx, |ui| {
                 theme::bar_frame().show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        ui.spinner();
-                        ui.label(text);
+                        ui.add_space(6.0);
+                        ui.add(egui::Spinner::new().size(18.0).color(theme::ACCENT));
+                        ui.label(egui::RichText::new(text).font(theme::semibold(14.0)));
+                        ui.add_space(6.0);
                     });
                 });
             });
@@ -49,23 +52,27 @@ fn stats(painter: &egui::Painter, editor: &Editor) {
     ];
     if let Some(bone) = editor.selected {
         let b = rig.skeleton.bone(bone);
-        lines.push(format!("Os : {}  ({:.3} m)", b.name, b.length));
+        lines.push(format!("{}  ·  {:.3} m", b.name, b.length));
     }
-    let origin = egui::pos2(64.0, 70.0);
-    let font = egui::FontId::proportional(12.0);
+    let origin = egui::pos2(78.0, COLUMN_TOP + 2.0);
     for (i, line) in lines.iter().enumerate() {
+        let (font, color) = if i == 2 {
+            (theme::semibold(13.0), theme::BONE_SELECTED)
+        } else {
+            (egui::FontId::proportional(12.0), theme::TEXT_DIM)
+        };
         painter.text(
-            origin + egui::vec2(0.0, i as f32 * 16.0),
+            origin + egui::vec2(0.0, i as f32 * 17.0),
             egui::Align2::LEFT_TOP,
             line,
-            font.clone(),
-            theme::TEXT_DIM,
+            font,
+            color,
         );
     }
 }
 
 fn marker_labels(painter: &egui::Painter, editor: &Editor, viewport: &Viewport, ppp: f32) {
-    let font = egui::FontId::proportional(13.0);
+    let font = theme::semibold(12.0);
     for (handle, p) in editor.handles() {
         let Handle::Marker(kind, mirrored) = handle else {
             continue;
@@ -74,14 +81,17 @@ fn marker_labels(painter: &egui::Painter, editor: &Editor, viewport: &Viewport, 
             continue;
         }
         if let Some(s) = editor.camera.project(p, viewport) {
-            let pos = egui::pos2(s.x / ppp + 14.0, s.y / ppp - 8.0);
-            painter.text(
-                pos,
-                egui::Align2::LEFT_TOP,
-                kind.label(),
-                font.clone(),
-                theme::TEXT,
+            let galley = painter.layout_no_wrap(kind.label().to_owned(), font.clone(), theme::TEXT);
+            let pos = egui::pos2(s.x / ppp + 14.0, s.y / ppp - galley.size().y * 0.5 - 3.0);
+            let pill = egui::Rect::from_min_size(pos, galley.size() + egui::vec2(14.0, 6.0));
+            painter.rect_filled(pill, 8, egui::Color32::from_black_alpha(150));
+            painter.rect_stroke(
+                pill,
+                8,
+                egui::Stroke::new(1.0, theme::MARKER.gamma_multiply(0.6)),
+                egui::StrokeKind::Inside,
             );
+            painter.galley(pill.min + egui::vec2(7.0, 3.0), galley, theme::TEXT);
         }
     }
 }
@@ -94,17 +104,30 @@ fn toast(ctx: &egui::Context, state: &mut UiState) {
     if shown.is_nan() {
         *shown = now;
     }
-    if now - *shown > TOAST_SECONDS {
+    let age = now - *shown;
+    if age > TOAST_SECONDS {
         state.toast = None;
         return;
     }
+    // Apparition et disparition en fondu, avec un léger glissement.
+    let alpha = (age / FADE).min((TOAST_SECONDS - age) / FADE).clamp(0.0, 1.0) as f32;
     let message = message.clone();
     egui::Area::new(egui::Id::unique("toast"))
-        .anchor(egui::Align2::CENTER_TOP, [0.0, 110.0])
+        .anchor(egui::Align2::CENTER_TOP, [0.0, 118.0 - 10.0 * (1.0 - alpha)])
         .interactable(false)
         .order(egui::Order::Tooltip)
         .show(ctx, |ui| {
-            theme::panel_frame().show(ui, |ui| ui.label(message));
+            ui.set_opacity(alpha);
+            theme::bar_frame()
+                .inner_margin(egui::Margin::symmetric(16, 10))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        let (dot, _) = ui.allocate_exact_size(egui::vec2(10.0, 18.0), egui::Sense::hover());
+                        draw::glow(ui.painter(), dot.center(), 9.0, theme::ACCENT.gamma_multiply(0.6));
+                        ui.painter().circle_filled(dot.center(), 3.5, theme::ACCENT);
+                        ui.label(egui::RichText::new(message).font(theme::semibold(14.0)));
+                    });
+                });
         });
-    ctx.request_repaint_after(std::time::Duration::from_millis(200));
+    ctx.request_repaint();
 }

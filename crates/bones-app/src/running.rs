@@ -18,6 +18,7 @@ use crate::gpu::Gpu;
 use crate::input::{GestureAction, Gestures, InputContext};
 use crate::jobs::{JobResult, Jobs};
 use crate::scene::SceneBuilder;
+use crate::settings::Settings;
 use crate::ui::{UiAction, UiState};
 
 const AUTOSAVE: &str = "Session";
@@ -73,7 +74,7 @@ impl Running {
             egui_state,
             egui_renderer,
             editor: Editor::new(Rig::demo()),
-            ui: UiState::new(docs),
+            ui: UiState::new(docs.clone(), Settings::load(&docs)),
             gestures: Gestures::default(),
             scene: SceneBuilder::default(),
             jobs,
@@ -106,16 +107,18 @@ impl Running {
 
     fn with_input<R>(&mut self, f: impl FnOnce(&mut Gestures, InputContext) -> R) -> R {
         let ppp = self.egui_ctx.pixels_per_point();
+        let pencil_required = self.ui.settings.pencil.requires_pencil(&self.editor);
         let rects = &self.ui.rects;
         let over_ui = |p: Vec2| rects.iter().any(|r| r.contains(egui::pos2(p.x / ppp, p.y / ppp)));
         let [w, h] = self.gpu.size();
         let cx = InputContext {
             editor: &mut self.editor,
             viewport: Viewport::new(w as f32, h as f32),
-            pick_radius: self.ui.pick_radius * ppp,
+            pick_radius: self.ui.settings.pick_radius * ppp,
             tap_slop: 12.0 * ppp,
             over_ui: &over_ui,
-            pencil_only: self.ui.pencil_only,
+            pencil_required,
+            pixels_per_point: ppp,
         };
         f(&mut self.gestures, cx)
     }
@@ -224,8 +227,17 @@ impl Running {
         }
     }
 
+    /// Enregistre les réglages s'ils ont changé.
+    pub fn persist_settings(&mut self) {
+        if self.ui.settings_dirty {
+            self.ui.settings.save(&self.ui.docs_dir);
+            self.ui.settings_dirty = false;
+        }
+    }
+
     /// Sauvegarde synchrone de la session (passage en arrière-plan, fermeture).
     pub fn autosave(&mut self) {
+        self.persist_settings();
         let path = session_path(&self.ui.docs_dir);
         let result = std::fs::File::create(&path)
             .map_err(|e| e.to_string())

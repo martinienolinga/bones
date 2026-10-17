@@ -28,6 +28,8 @@ egui = { version = "0.37", features = ["default_fonts", "rayon"] }
 egui-wgpu = "0.37"
 egui-winit = { version = "0.37", default-features = false, features = ["links"] }
 env_logger = "0.11"
+# Icônes vectorielles de l'interface (rendu SVG pur Rust).
+resvg = { version = "0.48", default-features = false }
 # Formats 3D (import/export) et textures.
 gltf = { version = "1.4", default-features = false, features = ["utils", "names"] }
 tobj = { version = "4", default-features = false }
