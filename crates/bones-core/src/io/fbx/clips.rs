@@ -13,6 +13,8 @@ use crate::io::rigging::build_skeleton;
 use crate::{Clip, Skeleton};
 
 /// Squelette et animations nommées.
+// Utilisé par l'import de préréglages, encore en pause (wip/LISEZMOI.md).
+#[allow(dead_code)]
 pub(crate) fn animations(bytes: &[u8]) -> Result<(Skeleton, Vec<(String, Clip)>), IoError> {
     if bytes.starts_with(b"; FBX") {
         return Err(IoError::Unsupported("ASCII FBX (re-export it as binary)".into()));

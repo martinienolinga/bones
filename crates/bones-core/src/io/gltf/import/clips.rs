@@ -11,6 +11,8 @@ use crate::io::rigging::{Joint, build_skeleton};
 use crate::{Clip, Skeleton};
 
 /// Squelette et animations nommées.
+// Utilisé par l'import de préréglages, encore en pause (wip/LISEZMOI.md).
+#[allow(dead_code)]
 pub(crate) fn animations(
     bytes: &[u8],
     base: Option<&Path>,

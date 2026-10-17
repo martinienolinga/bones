@@ -113,6 +113,8 @@ pub(super) fn sample(
 }
 
 /// Toutes les animations du fichier, avec leur nom.
+// Utilisé par l'import de préréglages, encore en pause (wip/LISEZMOI.md).
+#[allow(dead_code)]
 pub(super) fn sample_all(
     doc: &gltf::Document,
     buffers: &[Arc<[u8]>],

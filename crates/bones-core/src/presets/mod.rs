@@ -1,4 +1,8 @@
 //! Préréglages d'animation 3D (humains, animaux, végétaux, créatures).
+//!
+//! Moteur encore en pause (voir wip/LISEZMOI.md) : certaines parties ne sont
+//! pas encore reliées, d'où les tolérances ci-dessous, à retirer à la reprise.
+#![allow(dead_code, clippy::type_complexity, clippy::wrong_self_convention)]
 
 pub mod apply;
 pub mod create;

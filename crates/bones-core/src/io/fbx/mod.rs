@@ -21,6 +21,8 @@ use std::path::Path;
 use fbxcel::tree::any::AnyTree;
 use glam::{DMat3, DMat4, DVec3};
 
+// Réexporté pour l'import de préréglages, encore en pause (wip/LISEZMOI.md).
+#[allow(unused_imports)]
 pub(crate) use clips::animations;
 use document::Document;
 use models::Models;

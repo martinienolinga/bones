@@ -11,6 +11,11 @@ Terminer chaque chantier ci-dessous, puis vérifier : `cargo fmt --all --check`,
 `cargo check -p bones-app --target aarch64-apple-ios`. Supprimer ce dossier `wip/` quand
 tout est vert.
 
+Pour garder la CI verte, le code encore non relié de ces chantiers porte des
+tolérances temporaires (`#[allow(dead_code)]` et un `#![allow(...)]` en tête de
+`presets/mod.rs`, repérables par le commentaire « en pause (wip/LISEZMOI.md) »).
+Les retirer à la reprise, une fois chaque partie branchée et utilisée.
+
 ## Chantiers inachevés (106 fichiers)
 
 1. **Moteur de presets d'animation** (`crates/bones-core/src/presets/**`, `editor/presets.rs`,

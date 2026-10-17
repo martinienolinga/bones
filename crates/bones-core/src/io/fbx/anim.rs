@@ -85,6 +85,8 @@ pub(super) fn sample(
 }
 
 /// Toutes les piles d'animation (prises Maya, clips Mixamo…) avec leur nom.
+// Utilisé par l'import de préréglages, encore en pause (wip/LISEZMOI.md).
+#[allow(dead_code)]
 pub(super) fn sample_all(
     doc: &Document,
     models: &Models,

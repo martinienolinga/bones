@@ -5,6 +5,8 @@ use glam::{Vec2, Vec3};
 
 use super::surface::Surface;
 
+// Outils de recalage prévus pour le rig facial, encore en pause (wip/LISEZMOI.md).
+#[allow(dead_code)]
 impl Surface<'_> {
     /// Segments de la coupe par le plan (`point`, `normal`), sans les
     /// regrouper en contours.
