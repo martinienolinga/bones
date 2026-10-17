@@ -29,8 +29,22 @@ impl RenderTargets {
         }
     }
 
-    /// Vues pour une cible de taille `size`, recréées si la taille change.
-    pub fn views(&mut self, device: &wgpu::Device, size: [u32; 2]) -> &Views {
+    pub fn format(&self) -> wgpu::TextureFormat {
+        self.format
+    }
+
+    pub fn samples(&self) -> u32 {
+        self.samples
+    }
+
+    /// Vues créées par le dernier [`Self::ensure`].
+    pub fn views(&self) -> &Views {
+        self.views.as_ref().expect("RenderTargets::ensure appelé avant")
+    }
+
+    /// Crée (ou recrée si la taille a changé) les vues pour une cible de
+    /// taille `size`.
+    pub fn ensure(&mut self, device: &wgpu::Device, size: [u32; 2]) {
         let size = [size[0].max(1), size[1].max(1)];
         if self.size != size || self.views.is_none() {
             self.size = size;
@@ -58,7 +72,6 @@ impl RenderTargets {
                 msaa: (self.samples > 1).then(|| create("msaa-color", self.format)),
             });
         }
-        self.views.as_ref().expect("vues créées ci-dessus")
     }
 }
 

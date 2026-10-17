@@ -1,13 +1,13 @@
-//! Tâches de fond : tout ce qui peut prendre plus d'une image (liaison des
-//! poids, lecture/écriture de fichiers, import, export) tourne hors du fil
-//! principal pour garder l'interface fluide. Chaque tâche réveille la boucle
-//! d'événements quand elle se termine.
+//! Tâches de fond de l'éditeur : liaison des poids et export tournent hors
+//! du fil principal pour garder l'interface fluide. Chaque tâche réveille la
+//! boucle d'événements quand elle se termine. (Les accès aux projets ont
+//! leur propre fil : voir `crate::projects`.)
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender, channel};
 
 use bones_core::editor::BindJob;
-use bones_core::io::{Format, Imported};
+use bones_core::io::Format;
 use bones_core::{Rig, Skin};
 use winit::event_loop::EventLoopProxy;
 
@@ -15,8 +15,6 @@ use crate::UserEvent;
 
 pub enum JobResult {
     Bound(Skin, (u64, u64)),
-    Imported(Result<Imported, String>),
-    Saved(Result<PathBuf, String>),
     /// Fichiers écrits (le principal en premier).
     Exported(Result<Vec<PathBuf>, String>),
 }
@@ -68,20 +66,6 @@ impl Jobs {
         });
     }
 
-    /// Ouvre un document `.bones` ou importe un fichier 3D (format déduit
-    /// de l'extension, textures cherchées à côté du fichier).
-    pub fn import(&mut self, path: PathBuf) {
-        self.spawn(move || JobResult::Imported(bones_core::io::import(&path).map_err(|e| e.to_string())));
-    }
-
-    /// Enregistre une copie du document (clone peu coûteux grâce aux `Arc`).
-    pub fn save(&mut self, rig: Rig, path: PathBuf) {
-        self.spawn(move || {
-            let result = write_atomically(&path, |f| rig.save(f).map_err(|e| e.to_string()));
-            JobResult::Saved(result.map(|_| path))
-        });
-    }
-
     pub fn export(&mut self, rig: Rig, format: Format, path: PathBuf) {
         self.spawn(move || {
             JobResult::Exported(bones_core::io::export(&rig, format, &path).map_err(|e| e.to_string()))
@@ -97,16 +81,4 @@ impl Jobs {
         }
         results
     }
-}
-
-/// Écrit dans un fichier temporaire puis le renomme : un document n'est
-/// jamais laissé à moitié écrit.
-fn write_atomically(
-    path: &Path,
-    write: impl FnOnce(std::fs::File) -> Result<(), String>,
-) -> Result<(), String> {
-    let tmp = path.with_extension("tmp");
-    let file = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
-    write(file)?;
-    std::fs::rename(&tmp, path).map_err(|e| e.to_string())
 }

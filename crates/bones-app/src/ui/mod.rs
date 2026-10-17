@@ -30,15 +30,12 @@ use bones_core::{EditTool, Editor, Mode, Viewport};
 
 pub use popovers::Popover;
 
-use crate::files::{self, FileEntry};
 use crate::settings::Settings;
 
 /// Demandes de l'interface qui passent par l'application (fichiers, tâches).
 pub enum UiAction {
-    NewDemo,
-    /// Ouvre un `.bones` ou importe un fichier 3D.
-    Import(PathBuf),
-    Save,
+    /// Retour à la galerie des projets (le projet est enregistré).
+    Gallery,
     Export(Format),
 }
 
@@ -75,8 +72,8 @@ pub struct UiState {
     transform: transform_bar::BarState,
     rename: String,
     toast: Option<(String, f64)>,
-    /// Documents `.bones` et fichiers importables du dossier Documents.
-    files: Option<(Vec<FileEntry>, Vec<FileEntry>)>,
+    /// Bouton « Gallery » touché à cette image.
+    gallery_requested: bool,
 }
 
 impl UiState {
@@ -97,7 +94,7 @@ impl UiState {
             transform: transform_bar::BarState::default(),
             rename: String::new(),
             toast: None,
-            files: None,
+            gallery_requested: false,
         }
     }
 
@@ -106,19 +103,11 @@ impl UiState {
         self.toast = Some((message.into(), f64::NAN));
     }
 
-    /// La liste des fichiers sera relue à la prochaine ouverture de la galerie.
-    pub fn refresh_files(&mut self) {
-        self.files = None;
-    }
-
-    fn files(&mut self) -> &(Vec<FileEntry>, Vec<FileEntry>) {
-        let dir = &self.docs_dir;
-        self.files.get_or_insert_with(|| {
-            (
-                files::list(dir, |f| f == Format::Bones),
-                files::list(dir, |f| f != Format::Bones && f.can_import()),
-            )
-        })
+    /// Projet ouvert ou refermé : fenêtres fermées, consignes effacées.
+    pub fn reset_for_project(&mut self) {
+        self.popover = None;
+        self.hint = None;
+        self.gallery_requested = false;
     }
 
     /// Ouvre ou ferme une fenêtre ; `anchor_x` est le centre du bouton.
@@ -129,10 +118,8 @@ impl UiState {
             Some(popover)
         };
         self.popover_anchor = anchor_x;
-        match self.popover {
-            Some(Popover::Gallery) => self.refresh_files(),
-            Some(Popover::Settings) => self.settings_backup = self.settings,
-            _ => {}
+        if self.popover == Some(Popover::Settings) {
+            self.settings_backup = self.settings;
         }
     }
 }
@@ -152,6 +139,9 @@ pub fn show(
     shortcuts::handle(ctx, editor, state);
 
     rects.push(top::show(ctx, editor, state));
+    if std::mem::take(&mut state.gallery_requested) {
+        actions.push(UiAction::Gallery);
+    }
     rects.push(sidebar::show(ctx, editor, state));
     rects.push(toolbox::show(ctx, editor, state));
     rects.extend(crate::gizmo::show(ctx, editor, state.settings.gizmo));
@@ -197,6 +187,11 @@ fn store_manipulator(editor: &Editor, state: &mut UiState) {
         state.settings.manipulator = current;
         state.settings_dirty = true;
     }
+}
+
+/// Message temporaire seul (galerie).
+pub fn show_toast(ctx: &egui::Context, state: &mut UiState) {
+    overlay::toast(ctx, state);
 }
 
 /// Messages de l'éditeur : ceux de l'outil « Parent » restent affichés en

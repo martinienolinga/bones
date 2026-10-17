@@ -1,12 +1,11 @@
 //! État de l'application une fois la fenêtre créée : éditeur, GPU,
-//! interface, gestes et tâches de fond.
+//! interface, gestes, tâches de fond, galerie et projets ([`Session`]).
 
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
-use bones_core::io::{Format, Imported};
-use bones_core::{Editor, Rig, Viewport};
+use bones_core::{Editor, Mesh, Rig, Viewport};
 use glam::Vec2;
 use winit::event::WindowEvent;
 use winit::event_loop::EventLoopProxy;
@@ -18,10 +17,9 @@ use crate::gpu::Gpu;
 use crate::input::{GestureAction, Gestures, InputContext};
 use crate::jobs::{JobResult, Jobs};
 use crate::scene::SceneBuilder;
+use crate::session::{Screen, Session};
 use crate::settings::Settings;
 use crate::ui::{UiAction, UiState};
-
-const AUTOSAVE: &str = "Session";
 
 pub struct Running {
     pub window: Arc<Window>,
@@ -37,6 +35,7 @@ pub struct Running {
     pub(crate) gestures: Gestures,
     pub(crate) scene: SceneBuilder,
     pub(crate) jobs: Jobs,
+    pub(crate) session: Session,
     pub(crate) last_frame: Instant,
     pub(crate) repaint_at: Option<Instant>,
 }
@@ -64,11 +63,7 @@ impl Running {
         let glass = crate::glass::Glass::new(&gpu.device, gpu.config.format, copyable);
 
         let docs = files::documents_dir();
-        let mut jobs = Jobs::new(proxy);
-        let session = session_path(&docs);
-        if session.exists() {
-            jobs.import(session);
-        }
+        let session = Session::new(&docs, proxy.clone());
 
         Self {
             window,
@@ -78,11 +73,14 @@ impl Running {
             egui_state,
             egui_renderer,
             glass,
-            editor: Editor::new(Rig::demo()),
+            // Éditeur vide en attendant l'ouverture d'un projet : l'app
+            // démarre toujours sur la galerie.
+            editor: Editor::new(Rig::new("", Mesh::default())),
             ui: UiState::new(docs.clone(), Settings::load(&docs)),
             gestures: Gestures::default(),
             scene: SceneBuilder::default(),
-            jobs,
+            jobs: Jobs::new(proxy),
+            session,
             last_frame: Instant::now(),
             repaint_at: None,
         }
@@ -100,17 +98,27 @@ impl Running {
 
     /// Lecture en cours, geste actif ou tâches : on redessine en continu.
     pub fn wants_continuous_redraw(&self) -> bool {
-        self.editor.playing || self.gestures.is_active() || self.jobs.running() > 0
+        let editing = self.session.screen == Screen::Editor;
+        editing && (self.editor.playing || self.gestures.is_active()) || self.jobs.running() > 0
     }
 
+    /// Prochaine image demandée (egui, enregistrement automatique).
     pub fn next_repaint(&self) -> Option<Instant> {
-        self.repaint_at
+        self.repaint_at.into_iter().chain(self.session.deadline()).min()
+    }
+
+    /// Les gestes ne pilotent la vue 3D que dans l'éditeur.
+    fn editing(&self) -> bool {
+        self.session.screen == Screen::Editor
     }
 
     // ------------------------------------------------------------------
     // Gestes
 
-    fn with_input<R>(&mut self, f: impl FnOnce(&mut Gestures, InputContext) -> R) -> R {
+    fn with_input<R: Default>(&mut self, f: impl FnOnce(&mut Gestures, InputContext) -> R) -> R {
+        if !self.editing() {
+            return R::default();
+        }
         let ppp = self.egui_ctx.pixels_per_point();
         let pencil_required = self.ui.settings.pencil.requires_pencil(&self.editor);
         let rects = &self.ui.rects;
@@ -172,15 +180,7 @@ impl Running {
     pub fn apply(&mut self, action: UiAction) {
         let docs = self.ui.docs_dir.clone();
         match action {
-            UiAction::NewDemo => {
-                self.editor.open(Rig::demo());
-                self.ui.notify("New mannequin");
-            }
-            UiAction::Import(path) => self.jobs.import(path),
-            UiAction::Save => {
-                let path = files::free_path(&docs, &self.editor.rig.name, Format::Bones.extension());
-                self.jobs.save(self.editor.rig.clone(), path);
-            }
+            UiAction::Gallery => self.leave_editor(),
             UiAction::Export(format) => {
                 let dir = docs.join(files::EXPORTS);
                 if let Err(e) = std::fs::create_dir_all(&dir) {
@@ -197,25 +197,6 @@ impl Running {
         for result in self.jobs.poll() {
             match result {
                 JobResult::Bound(skin, key) => self.editor.finish_bind(skin, key),
-                JobResult::Imported(Ok(Imported::Rig(rig))) => {
-                    let message = format!(
-                        "\"{}\" opened: {} bones, {} vertices, {} keys",
-                        rig.name,
-                        rig.skeleton.len(),
-                        rig.mesh.vertex_count(),
-                        rig.clip.keys().len()
-                    );
-                    self.editor.open(rig);
-                    self.ui.notify(message);
-                }
-                JobResult::Imported(Ok(Imported::Mesh(mesh))) => {
-                    let (v, t, m) = (mesh.vertex_count(), mesh.triangle_count(), mesh.materials.len());
-                    self.editor.import_mesh(mesh);
-                    self.ui.notify(format!(
-                        "Model imported: {v} vertices, {t} triangles, {m} materials"
-                    ));
-                }
-                JobResult::Saved(Ok(path)) => self.ui.notify(format!("Saved: {}", file_name(&path))),
                 JobResult::Exported(Ok(files)) => {
                     let main = files.first().map(|p| file_name(p)).unwrap_or_default();
                     let extra = files.len().saturating_sub(1);
@@ -224,11 +205,8 @@ impl Running {
                         n => format!("Exported to {}: {main} (+{n} files)", files::EXPORTS),
                     });
                 }
-                JobResult::Imported(Err(e)) | JobResult::Saved(Err(e)) | JobResult::Exported(Err(e)) => {
-                    self.ui.notify(format!("Error: {e}"))
-                }
+                JobResult::Exported(Err(e)) => self.ui.notify(format!("Error: {e}")),
             }
-            self.ui.refresh_files();
         }
     }
 
@@ -239,22 +217,6 @@ impl Running {
             self.ui.settings_dirty = false;
         }
     }
-
-    /// Sauvegarde synchrone de la session (passage en arrière-plan, fermeture).
-    pub fn autosave(&mut self) {
-        self.persist_settings();
-        let path = session_path(&self.ui.docs_dir);
-        let result = std::fs::File::create(&path)
-            .map_err(|e| e.to_string())
-            .and_then(|f| self.editor.rig.save(f).map_err(|e| e.to_string()));
-        if let Err(e) = result {
-            log::warn!("sauvegarde automatique impossible : {e}");
-        }
-    }
-}
-
-fn session_path(docs: &std::path::Path) -> PathBuf {
-    docs.join(format!("{AUTOSAVE}.{}", Format::Bones.extension()))
 }
 
 fn file_name(path: &std::path::Path) -> String {

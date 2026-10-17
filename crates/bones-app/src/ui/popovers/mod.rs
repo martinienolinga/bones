@@ -1,12 +1,11 @@
 //! Fenêtres contextuelles ouvertes depuis la barre du haut, comme celles de
 //! Procreate : panneau #2C2C2E aux coins de 20 pt, large ombre légère et
-//! encoche pointée vers le bouton d'origine. Galerie, Actions et Vue se
+//! encoche pointée vers le bouton d'origine. Actions et Vue se
 //! ferment d'un toucher à l'extérieur ; Réglages et Os sont des « studios »
 //! (navigation à gauche, valeurs à droite) fermés par leurs boutons.
 
 mod actions;
 mod bones;
-mod gallery;
 mod settings;
 mod studio;
 mod view;
@@ -19,7 +18,6 @@ use super::{BAR_H, EDGE, UiAction, UiState};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Popover {
-    Gallery,
     Actions,
     View,
     Outliner,
@@ -32,7 +30,7 @@ impl Popover {
             Popover::Outliner => 720.0,
             Popover::Settings => 640.0,
             Popover::Actions => 420.0,
-            Popover::Gallery | Popover::View => 400.0,
+            Popover::View => 400.0,
         }
     }
 
@@ -76,7 +74,6 @@ pub fn show(
                 // pourraient jamais grandir.
                 ui.set_max_height(max_height - 2.0 * margin as f32);
                 match popover {
-                    Popover::Gallery => gallery::show(ui, editor, state, actions, max_height),
                     Popover::Actions => actions::show(ui, editor, state, actions, max_height),
                     Popover::View => view::show(ui, editor, max_height),
                     Popover::Outliner => close = bones::show(ui, editor, state, studio_height(max_height)),
@@ -106,9 +103,7 @@ pub fn show(
                 .interact_pos()
                 .is_some_and(|p| !rect.contains(p) && p.y > BAR_H)
     });
-    let picked = actions
-        .iter()
-        .any(|a| matches!(a, UiAction::Import(_) | UiAction::Export(_)));
+    let picked = actions.iter().any(|a| matches!(a, UiAction::Export(_)));
     if close || picked || (tapped_outside && !popover.is_studio()) {
         state.popover = None;
     }

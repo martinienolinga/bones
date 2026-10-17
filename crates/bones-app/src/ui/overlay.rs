@@ -105,7 +105,7 @@ fn marker_labels(painter: &egui::Painter, editor: &Editor, viewport: &Viewport, 
     }
 }
 
-fn toast(ctx: &egui::Context, state: &mut UiState) {
+pub(super) fn toast(ctx: &egui::Context, state: &mut UiState) {
     let now = ctx.input(|i| i.time);
     let Some((message, shown)) = &mut state.toast else {
         return;

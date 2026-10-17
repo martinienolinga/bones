@@ -7,15 +7,19 @@ mod app;
 mod clip;
 mod files;
 mod frame;
+mod gallery;
 mod gizmo;
 mod glass;
 mod gpu;
 mod input;
 mod jobs;
 mod manipulator;
+mod projects;
 mod running;
 mod scene;
+mod session;
 mod settings;
+mod thumbnail;
 mod ui;
 
 use winit::event_loop::EventLoop;
@@ -23,7 +27,8 @@ use winit::event_loop::EventLoop;
 /// Événements envoyés à la boucle principale depuis les tâches de fond.
 #[derive(Debug)]
 pub enum UserEvent {
-    /// Une tâche de fond est terminée : il faut relever les résultats.
+    /// Une tâche de fond (liaison, export, projets, vignettes) est
+    /// terminée : il faut relever les résultats.
     JobDone,
 }
 

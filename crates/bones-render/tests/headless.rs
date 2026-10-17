@@ -56,7 +56,7 @@ fn renders_demo_rig_with_and_without_msaa() {
         renderer.set_mesh(&device, &queue, &rig.mesh, 1);
         renderer.set_skin(&device, &queue, &rig.skin, 1);
         let data = common::render(&device, &queue, &mut renderer, &scene);
-        common::dump(&data, &format!("demo-msaa{samples}"));
+        common::dump(&data, SIZE, &format!("demo-msaa{samples}"));
         let pixels = common::pixels(&data);
         let background = [26u8, 26, 26];
         let corner = &pixels[0][..3];

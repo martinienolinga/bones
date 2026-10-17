@@ -1,12 +1,14 @@
 //! Widgets tactiles à la Procreate : boutons et outils à glyphes
 //! monochromes, puits ronds de la barre, contrôle segmenté, curseurs,
-//! interrupteurs, listes groupées, studio de réglages et frise de clés.
+//! interrupteurs, listes groupées, studio de réglages, frise de clés et
+//! commandes de la galerie (capsule, bouton rond, pastille de sélection).
 //!
 //! Toutes les transitions (survol, pression, activation) sont animées par
 //! egui, qui ne redemande un rendu que pendant l'animation.
 
 mod bar;
 mod buttons;
+mod capsule;
 mod group;
 mod rows;
 mod segmented;
@@ -18,6 +20,7 @@ mod timeline;
 
 pub use bar::{bar_tab, bar_tool, square_button, tab, well_button};
 pub use buttons::{pill_button, separator_dot, text_button, tool_button, tool_cell};
+pub use capsule::{CapsuleItem, CapsuleResponse, CapsuleTone, capsule, check_badge, round_button};
 pub use group::{Group, group};
 pub use rows::{list_row, note, section_title};
 pub use segmented::segmented;

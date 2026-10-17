@@ -82,8 +82,12 @@ fn magenta_pixels(mesh: &Mesh, textured: bool) -> Option<usize> {
     renderer.set_mesh(&device, &queue, mesh, 1);
     renderer.set_skin(&device, &queue, &skin, 1);
     let data = common::render(&device, &queue, &mut renderer, &scene);
-    common::dump(&data, &format!("quad-textured-{textured}-uv-{}", mesh.has_uvs()));
-    // BGRA : rouge et bleu forts, vert faible.
+    common::dump(
+        &data,
+        SIZE,
+        &format!("quad-textured-{textured}-uv-{}", mesh.has_uvs()),
+    );
+    // Rouge et bleu forts, vert faible.
     Some(
         common::pixels(&data)
             .iter()

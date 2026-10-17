@@ -2,6 +2,7 @@
 //! surcouche « rayons X » (os, poignées, trajectoires).
 
 use crate::renderer::Renderer;
+use crate::targets::Views;
 
 /// Partage de la plage de profondeur : la scène (grille, maillage) occupe
 /// [SPLIT, 1] et la surcouche « rayons X » (os, poignées) [0, SPLIT]. La
@@ -19,7 +20,19 @@ impl Renderer {
         target: &wgpu::TextureView,
         size: [u32; 2],
     ) {
-        let views = self.targets.views(device, size);
+        self.targets.ensure(device, size);
+        self.draw(encoder, self.targets.views(), target, size);
+    }
+
+    /// Passe de rendu de la scène préparée, avec les attachements `views`
+    /// (profondeur, couleur multi-échantillonnée) de la taille de `target`.
+    pub(crate) fn draw(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        views: &Views,
+        target: &wgpu::TextureView,
+        size: [u32; 2],
+    ) {
         let f = &self.frame;
         let [x, y, w, h] = clamp_viewport(f.viewport, size);
         let [r, g, b] = f.background;

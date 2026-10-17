@@ -1,6 +1,6 @@
 //! Barre du haut, pleine largeur comme dans Procreate. À gauche :
-//! « Gallery », puis les menus dans des puits ronds (Actions, Vue, Os,
-//! Réglages) et le nom du document. À droite : les outils du mode courant
+//! « Gallery » (retour à la galerie des projets), puis les menus dans des
+//! puits ronds (Actions, Vue, Os, Réglages) et le nom du projet. À droite : les outils du mode courant
 //! (glyphes bleus quand actifs) et le choix du mode.
 
 use bones_core::{EditTool, Editor, Mode, PoseTool};
@@ -40,9 +40,8 @@ pub fn show(ctx: &egui::Context, editor: &mut Editor, state: &mut UiState) -> eg
 fn menus(ui: &mut egui::Ui, editor: &Editor, state: &mut UiState) {
     ui.spacing_mut().item_spacing.x = 4.0;
     let open = state.popover;
-    let gallery = widgets::text_button(ui, "Gallery", open == Some(Popover::Gallery));
-    if gallery.clicked() {
-        state.toggle(Popover::Gallery, gallery.rect.center().x);
+    if widgets::text_button(ui, "Gallery", false).clicked() {
+        state.gallery_requested = true;
     }
     ui.add_space(8.0);
     for (icon, popover, hint) in [

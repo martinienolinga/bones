@@ -40,7 +40,10 @@ fn window_attributes() -> winit::window::WindowAttributes {
 
 impl ApplicationHandler<UserEvent> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.running.is_some() {
+        if let Some(r) = &mut self.running {
+            // Retour au premier plan : des fichiers ont pu arriver (app
+            // Fichiers, « Ouvrir dans… »).
+            r.refresh_projects();
             return;
         }
         let window = Arc::new(
@@ -64,7 +67,7 @@ impl ApplicationHandler<UserEvent> for App {
 
         match event {
             WindowEvent::CloseRequested => {
-                r.autosave();
+                r.save_and_wait();
                 event_loop.exit();
             }
             WindowEvent::Resized(size) => r.gpu.resize(size.width, size.height),
@@ -122,9 +125,25 @@ impl ApplicationHandler<UserEvent> for App {
     }
 
     fn suspended(&mut self, _: &ActiveEventLoop) {
-        // Passage en arrière-plan sur iPad : on sauvegarde le travail.
+        // iPad : winit 0.30 l'appelle à `applicationWillResignActive` (centre
+        // de contrôle, sélecteur d'apps, passage en arrière-plan). Le GPU
+        // est encore utilisable : le projet est enregistré avec sa vignette,
+        // et l'on attend la fin des écritures avant d'être suspendu.
         if let Some(r) = &mut self.running {
-            r.autosave();
+            r.save_and_wait();
+        }
+    }
+
+    fn memory_warning(&mut self, _: &ActiveEventLoop) {
+        if let Some(r) = &mut self.running {
+            r.release_memory();
+        }
+    }
+
+    fn exiting(&mut self, _: &ActiveEventLoop) {
+        // iPad : `applicationWillTerminate`.
+        if let Some(r) = &mut self.running {
+            r.save_and_wait();
         }
     }
 }
