@@ -10,6 +10,7 @@
 //! Couleurs : X rouge, Y vert, Z bleu ; anneau de vue gris.
 
 pub mod drag;
+mod drag_begin;
 pub mod geometry;
 pub mod pick;
 mod projector;

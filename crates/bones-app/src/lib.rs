@@ -11,6 +11,7 @@ mod gizmo;
 mod gpu;
 mod input;
 mod jobs;
+mod manipulator;
 mod running;
 mod scene;
 mod settings;

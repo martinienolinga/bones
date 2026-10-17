@@ -104,15 +104,6 @@ impl<'a> Builder<'a> {
         move |offset| p.project(o + offset * rw)
     }
 
-    /// +1 si l'axe pointe vers l'observateur, −1 sinon.
-    fn facing(&self, axis: Axis) -> f32 {
-        if self.frame.axis(axis).dot(self.to_eye) >= 0.0 {
-            1.0
-        } else {
-            -1.0
-        }
-    }
-
     fn circle(&mut self, k: f32, part: Option<Part>, tint: Tint, kind: Kind) -> &mut Element {
         let (c, r) = (self.c, k * self.rpx);
         let points = (0..CIRCLE_STEPS).map(move |i| {
@@ -179,15 +170,14 @@ impl<'a> Builder<'a> {
         }
     }
 
-    /// Carrés de plan, placés dans le quadrant tourné vers l'observateur.
+    /// Carrés de plan, entre les flèches positives de leurs deux axes.
     fn planes(&mut self, offset: f32) {
         for axis in Axis::ALL {
             if self.frame.axis(axis).dot(self.to_eye).abs() < 0.2 {
                 continue; // plan vu par la tranche
             }
             let (a, b) = axis.others();
-            let u = self.frame.axis(a) * self.facing(a);
-            let v = self.frame.axis(b) * self.facing(b);
+            let (u, v) = (self.frame.axis(a), self.frame.axis(b));
             let (q, h) = ((u + v) * offset, 0.075);
             let corners = [(-h, -h), (h, -h), (h, h), (-h, h)].map(|(x, y)| self.world(q + u * x + v * y));
             self.g
@@ -254,11 +244,10 @@ impl<'a> Builder<'a> {
             .push(Some(Part::Ring(axis)), Tint::Axis(axis), Kind::Fill, tri);
     }
 
-    /// Quart d'anneau entre les deux autres axes, côté observateur.
+    /// Quart d'anneau entre les flèches positives des deux autres axes.
     fn arc(&mut self, axis: Axis, k: f32) {
         let (a, b) = axis.others();
-        let u = self.frame.axis(a) * self.facing(a);
-        let v = self.frame.axis(b) * self.facing(b);
+        let (u, v) = (self.frame.axis(a), self.frame.axis(b));
         let (margin, screen) = (0.1, self.screen());
         let points = (0..=ARC_STEPS).map(move |i| {
             let t = margin + i as f32 / ARC_STEPS as f32 * (FRAC_PI_2 - 2.0 * margin);

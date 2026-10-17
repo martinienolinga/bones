@@ -1,16 +1,78 @@
-//! Application d'un glissement du manipulateur, toujours à partir de l'état
-//! du début du geste : delta de pose (mode Pose), os de repos (mode
-//! Édition) ou modèle entier.
+//! Geste sur le manipulateur : préparation (comment l'os suit), application
+//! de chaque glissement, toujours à partir de l'état du début du geste
+//! (delta de pose en mode Pose, os de repos en mode Édition, ou modèle
+//! entier), puis fin du geste.
 
-use glam::Vec2;
+use glam::{Quat, Vec2};
 
 use super::manipulate::{Follow, ManipGesture, Target};
 use super::{Editor, Mode};
 use crate::ik::{IkSettings, solve_fabrik};
-use crate::manipulator::{Frame, ManipDelta};
-use crate::{BoneId, Transform};
+use crate::manipulator::{Frame, ManipDelta, ManipDrag};
+use crate::{BoneId, LimbMode, Transform, Viewport};
 
 impl Editor {
+    pub(super) fn start_gesture(&self, drag: ManipDrag, target: Target, viewport: Viewport) -> ManipGesture {
+        let skeleton = &self.rig.skeleton;
+        let mut gesture = ManipGesture {
+            drag,
+            target,
+            start_pose: Transform::IDENTITY,
+            start_head: drag.frame.origin,
+            start_len: 0.0,
+            start_rot: Quat::IDENTITY,
+            follow: Follow::Delta,
+            viewport,
+        };
+        let Target::Bone(bone) = target else {
+            return gesture;
+        };
+        gesture.start_pose = self.rig.pose.get(bone);
+        gesture.start_len = skeleton.bone(bone).length;
+        gesture.start_rot = skeleton.rest_world_rotation(bone);
+        if self.mode == Mode::Pose && drag.part.is_translation() {
+            // Main ou pied d'un membre IK : sa tête est la cible du membre,
+            // qui la suit exactement.
+            let limb = self
+                .rig
+                .limbs
+                .iter()
+                .position(|l| l.mode == LimbMode::Ik && l.end == Some(bone) && l.is_valid(skeleton));
+            gesture.follow = match (limb, skeleton.bone(bone).parent()) {
+                (Some(i), _) => Follow::Limb(i, self.rig.limbs[i].target),
+                (None, Some(parent)) if skeleton.is_connected(bone) => {
+                    Follow::Chain(skeleton.chain(parent, self.chain_len))
+                }
+                _ => Follow::Delta,
+            };
+        }
+        gesture
+    }
+
+    /// Fin de geste. Un simple toucher sans effet ne crée pas d'étape
+    /// d'annulation et sélectionne l'os éventuellement situé dessous.
+    pub(super) fn manipulator_up(&mut self, gesture: &ManipGesture) {
+        let tap = gesture.drag.travel() < 6.0 * self.pixels_per_point.max(0.25);
+        if !self.drag_moved || (tap && gesture.drag.last.is_identity()) {
+            self.drop_checkpoint(true);
+            let (at, radius) = (gesture.drag.last_pos, 12.0 * self.pixels_per_point);
+            if let Some(bone) = self.pick(at, &gesture.viewport, radius) {
+                self.selected = Some(bone);
+            }
+            return;
+        }
+        match (self.mode, gesture.target) {
+            (Mode::Pose, _) => {
+                self.snap_limbs();
+                self.store_key_if_any();
+            }
+            // Les marqueurs d'auto-rig ne correspondent plus au modèle : ils
+            // seront de nouveau estimés.
+            (_, Target::Model) => self.markers = None,
+            _ => {}
+        }
+    }
+
     pub(super) fn manipulator_move(&mut self, gesture: &mut ManipGesture, pos: Vec2) {
         let delta = gesture.drag.update(pos, self.manipulator.active_snap());
         match (gesture.target, self.mode) {

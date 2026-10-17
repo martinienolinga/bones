@@ -2,6 +2,7 @@
 
 use std::time::{Duration, Instant};
 
+use crate::manipulator;
 use crate::running::Running;
 use crate::ui::{self, Busy};
 
@@ -35,6 +36,7 @@ impl Running {
         let mut actions = Vec::new();
         let mut output = self.egui_ctx.run_pass(raw, |ctx| {
             actions = ui::show(ctx, &mut self.editor, &mut self.ui, &viewport, busy);
+            manipulator::paint(ctx, &mut self.editor, &viewport);
         });
         self.egui_state
             .handle_platform_output(&self.window, output.platform_output);
