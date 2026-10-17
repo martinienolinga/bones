@@ -1,0 +1,2431 @@
+diff --git a/crates/bones-app/src/frame.rs b/crates/bones-app/src/frame.rs
+index a089229..200edb2 100644
+--- a/crates/bones-app/src/frame.rs
++++ b/crates/bones-app/src/frame.rs
+@@ -43,6 +43,7 @@ impl Running {
+         };
+         let raw = self.egui_state.take_egui_input(&self.window);
+         self.glass.publish(&self.egui_ctx);
++        self.showcase.publish(&self.egui_ctx);
+         let mut actions: Vec<UiAction> = Vec::new();
+         let mut gallery_actions: Vec<GalleryAction> = Vec::new();
+         let mut output = self.egui_ctx.run_pass(raw, |ctx| {
+@@ -103,6 +104,10 @@ impl Running {
+             );
+         }
+ 
++        // Vignettes des galeries de préréglages, soumises avant l'image.
++        self.showcase
++            .render(&self.egui_ctx, device, queue, &mut self.egui_renderer);
++
+         // Interface par-dessus (sur fond effacé dans la galerie).
+         let ppp = output.pixels_per_point;
+         let primitives = self.egui_ctx.tessellate(output.shapes, ppp);
+diff --git a/crates/bones-app/src/lib.rs b/crates/bones-app/src/lib.rs
+index 936e7bc..19a9caf 100644
+--- a/crates/bones-app/src/lib.rs
++++ b/crates/bones-app/src/lib.rs
+@@ -19,6 +19,7 @@ mod running;
+ mod scene;
+ mod session;
+ mod settings;
++mod showcase;
+ mod thumbnail;
+ mod ui;
+ 
+diff --git a/crates/bones-app/src/running.rs b/crates/bones-app/src/running.rs
+index 453fe00..def5d0d 100644
+--- a/crates/bones-app/src/running.rs
++++ b/crates/bones-app/src/running.rs
+@@ -30,6 +30,8 @@ pub struct Running {
+     pub(crate) egui_renderer: egui_wgpu::Renderer,
+     /// Flou des panneaux en verre dépoli.
+     pub(crate) glass: crate::glass::Glass,
++    /// Vignettes 3D des galeries de préréglages (mannequin).
++    pub(crate) showcase: crate::showcase::Showcase,
+     pub(crate) editor: Editor,
+     pub(crate) ui: UiState,
+     pub(crate) gestures: Gestures,
+@@ -61,6 +63,7 @@ impl Running {
+         );
+         let copyable = gpu.config.usage.contains(wgpu::TextureUsages::COPY_SRC);
+         let glass = crate::glass::Glass::new(&gpu.device, gpu.config.format, copyable);
++        let showcase = crate::showcase::Showcase::new(gpu.config.format);
+ 
+         let docs = files::documents_dir();
+         let session = Session::new(&docs, proxy.clone());
+@@ -73,6 +76,7 @@ impl Running {
+             egui_state,
+             egui_renderer,
+             glass,
++            showcase,
+             // Éditeur vide en attendant l'ouverture d'un projet : l'app
+             // démarre toujours sur la galerie.
+             editor: Editor::new(Rig::new("", Mesh::default())),
+diff --git a/crates/bones-app/src/session/mod.rs b/crates/bones-app/src/session/mod.rs
+index 0c4715b..180e71e 100644
+--- a/crates/bones-app/src/session/mod.rs
++++ b/crates/bones-app/src/session/mod.rs
+@@ -191,6 +191,7 @@ impl Running {
+     /// Alerte mémoire d'iOS : sur la galerie, le projet quitté (déjà
+     /// enregistré) n'est plus gardé en mémoire, ni ses tampons GPU.
+     pub fn release_memory(&mut self) {
++        self.showcase.release(&mut self.egui_renderer);
+         let saved = self
+             .session
+             .current
+diff --git a/crates/bones-app/src/showcase/mod.rs b/crates/bones-app/src/showcase/mod.rs
+new file mode 100644
+index 0000000..a15b964
+--- /dev/null
++++ b/crates/bones-app/src/showcase/mod.rs
+@@ -0,0 +1,150 @@
++//! Vignettes 3D des galeries de préréglages : le mannequin de l'app joue
++//! chaque préréglage, rendu sur le GPU directement dans une texture native
++//! d'egui (aucune relecture des pixels).
++//!
++//! Déroulement d'une image, comme pour le verre dépoli :
++//! 1. [`Showcase::publish`] avant l'interface : textures egui disponibles,
++//!    par emplacement ;
++//! 2. l'interface demande une vignette par carte visible ([`request`]), avec
++//!    les matrices des os et la caméra ;
++//! 3. [`Showcase::render`] après l'interface, avant la passe d'egui : les
++//!    vignettes dont le contenu a changé sont rendues dans leurs textures
++//!    (une expression n'est rendue qu'une fois, une animation à chaque
++//!    nouvelle image de son cycle).
++//!
++//! Le moteur de rendu des vignettes est distinct de celui de la vue 3D (il
++//! garde le maillage du mannequin, sans toucher à celui du projet) ; il est
++//! créé à la première vignette. Les textures sont libérées quand plus
++//! aucune vignette n'est demandée pendant quelques secondes, le moteur
++//! lui-même lors d'une alerte mémoire.
++
++mod requests;
++
++use std::time::{Duration, Instant};
++
++use bones_render::{Renderer, Scene, Tiles};
++
++pub use requests::{TileRequest, request};
++
++/// Délai sans demande après lequel les textures des vignettes sont libérées.
++const IDLE: Duration = Duration::from_secs(3);
++
++pub struct Showcase {
++    format: wgpu::TextureFormat,
++    renderer: Option<Renderer>,
++    tiles: Tiles,
++    /// Texture egui et génération de la texture GPU, par emplacement.
++    textures: Vec<Option<(egui::TextureId, u64)>>,
++    /// Clé du contenu rendu, par emplacement.
++    keys: Vec<Option<u64>>,
++    last_request: Option<Instant>,
++}
++
++impl Showcase {
++    pub fn new(format: wgpu::TextureFormat) -> Self {
++        Self {
++            format,
++            renderer: None,
++            tiles: Tiles::new(),
++            textures: Vec::new(),
++            keys: Vec::new(),
++            last_request: None,
++        }
++    }
++
++    /// Avant l'interface : textures disponibles.
++    pub fn publish(&self, ctx: &egui::Context) {
++        requests::publish(ctx, self.textures.iter().map(|t| t.map(|(id, _)| id)).collect());
++    }
++
++    /// Après l'interface, avant la passe d'egui : rend les vignettes
++    /// demandées à cette image.
++    pub fn render(
++        &mut self,
++        ctx: &egui::Context,
++        device: &wgpu::Device,
++        queue: &wgpu::Queue,
++        egui_renderer: &mut egui_wgpu::Renderer,
++    ) {
++        let batch = requests::take(ctx);
++        let (Some(model), false) = (batch.model, batch.requests.is_empty()) else {
++            if self.last_request.is_some_and(|t| t.elapsed() > IDLE) {
++                self.release_tiles(egui_renderer);
++            }
++            return;
++        };
++        self.last_request = Some(Instant::now());
++        let renderer = self
++            .renderer
++            .get_or_insert_with(|| Renderer::new(device, self.format));
++        let revisions = model.revisions();
++        renderer.set_mesh(device, queue, &model.mesh, revisions.mesh);
++        renderer.set_skin(device, queue, &model.skin, revisions.skin);
++        let count = batch.requests.len();
++        self.keys.resize(self.keys.len().max(count), None);
++        self.textures.resize(self.textures.len().max(count), None);
++        for (slot, tile) in batch.requests.iter().enumerate() {
++            let fresh = self.keys[slot] == Some(tile.key) && self.tiles.size(slot) == Some(tile.size);
++            if fresh {
++                continue;
++            }
++            let [w, h] = tile.size;
++            let scene = Scene {
++                view_proj: tile.view_proj,
++                eye: tile.eye,
++                viewport: [0.0, 0.0, w as f32, h as f32],
++                background: [0.0; 3],
++                joints: &tile.joints,
++                show_mesh: true,
++                textured: true,
++                weights: None,
++                lines: &[],
++                bones: &[],
++                overlay_lines: &[],
++            };
++            self.tiles.render(renderer, device, queue, &scene, slot, tile.size);
++            self.keys[slot] = Some(tile.key);
++            self.register(slot, device, egui_renderer);
++        }
++    }
++
++    /// Enregistre (ou met à jour) la texture egui d'un emplacement.
++    fn register(&mut self, slot: usize, device: &wgpu::Device, egui_renderer: &mut egui_wgpu::Renderer) {
++        let Some((view, generation)) = self.tiles.view(slot) else {
++            return;
++        };
++        let filter = wgpu::FilterMode::Linear;
++        self.textures[slot] = Some(match self.textures[slot] {
++            Some((id, old)) if old == generation => (id, old),
++            Some((id, _)) => {
++                egui_renderer.update_egui_texture_from_wgpu_texture(device, view, filter, id);
++                (id, generation)
++            }
++            None => (egui_renderer.register_native_texture(device, view, filter), generation),
++        });
++    }
++
++    /// Libère les textures des vignettes (galerie refermée). Le moteur de
++    /// rendu et le maillage du mannequin restent prêts pour la réouverture.
++    fn release_tiles(&mut self, egui_renderer: &mut egui_wgpu::Renderer) {
++        for (id, _) in self.textures.drain(..).flatten() {
++            egui_renderer.free_texture(&id);
++        }
++        self.keys.clear();
++        self.tiles.truncate(0);
++        self.last_request = None;
++    }
++
++    /// Alerte mémoire : tout est libéré, moteur de rendu compris.
++    pub fn release(&mut self, egui_renderer: &mut egui_wgpu::Renderer) {
++        self.release_tiles(egui_renderer);
++        self.renderer = None;
++    }
++}
++
++/// Clés des vignettes demandées à cette image (vidées), pour les tests
++/// d'interface sans GPU.
++#[cfg(test)]
++pub fn take_keys(ctx: &egui::Context) -> Vec<u64> {
++    requests::take(ctx).requests.iter().map(|r| r.key).collect()
++}
+diff --git a/crates/bones-app/src/showcase/requests.rs b/crates/bones-app/src/showcase/requests.rs
+new file mode 100644
+index 0000000..9b94a26
+--- /dev/null
++++ b/crates/bones-app/src/showcase/requests.rs
+@@ -0,0 +1,70 @@
++//! Échange entre l'interface et le rendu des vignettes, par les données
++//! temporaires du contexte egui (comme `bones_ui::glass`) : avant
++//! l'interface, les textures disponibles par emplacement ; pendant, les
++//! vignettes demandées par les cartes visibles, dans l'ordre.
++
++use std::sync::Arc;
++
++use bones_core::Rig;
++use glam::{Mat4, Vec3};
++
++/// Vignette demandée par une carte.
++#[derive(Clone)]
++pub struct TileRequest {
++    /// Identifie le contenu (préréglage, image, taille) : une vignette déjà
++    /// rendue avec la même clé n'est pas redessinée.
++    pub key: u64,
++    /// Taille en pixels physiques.
++    pub size: [u32; 2],
++    /// Matrices de skinning du modèle.
++    pub joints: Arc<[Mat4]>,
++    pub view_proj: Mat4,
++    pub eye: Vec3,
++}
++
++/// Demandes d'une image : le modèle (maillage et poids) et les vignettes.
++#[derive(Clone, Default)]
++pub(super) struct Batch {
++    pub model: Option<Arc<Rig>>,
++    pub requests: Vec<TileRequest>,
++}
++
++/// Textures egui des emplacements, publiées avant l'interface.
++#[derive(Clone, Default)]
++struct Published {
++    textures: Vec<Option<egui::TextureId>>,
++}
++
++fn batch_id() -> egui::Id {
++    egui::Id::new("bones-showcase-batch")
++}
++
++fn published_id() -> egui::Id {
++    egui::Id::new("bones-showcase-published")
++}
++
++/// Avant l'interface : textures disponibles par emplacement.
++pub(super) fn publish(ctx: &egui::Context, textures: Vec<Option<egui::TextureId>>) {
++    ctx.data_mut(|d| d.insert_temp(published_id(), Published { textures }));
++}
++
++/// Demande une vignette de `model` ; retourne la texture où elle sera
++/// rendue avant l'affichage de cette image, ou `None` si son emplacement
++/// n'existe pas encore (il sera prêt à l'image suivante).
++pub fn request(ctx: &egui::Context, model: &Arc<Rig>, tile: TileRequest) -> Option<egui::TextureId> {
++    ctx.data_mut(|d| {
++        let batch = d.get_temp_mut_or_default::<Batch>(batch_id());
++        if !batch.model.as_ref().is_some_and(|m| Arc::ptr_eq(m, model)) {
++            batch.model = Some(model.clone());
++        }
++        let slot = batch.requests.len();
++        batch.requests.push(tile);
++        let published = d.get_temp::<Published>(published_id()).unwrap_or_default();
++        published.textures.get(slot).copied().flatten()
++    })
++}
++
++/// Après l'interface : demandes de l'image (vidées).
++pub(super) fn take(ctx: &egui::Context) -> Batch {
++    ctx.data_mut(|d| d.remove_temp::<Batch>(batch_id()).unwrap_or_default())
++}
+diff --git a/crates/bones-app/src/ui/popovers/presets/apply.rs b/crates/bones-app/src/ui/popovers/presets/apply.rs
+index 0bc8ca5..806eb87 100644
+--- a/crates/bones-app/src/ui/popovers/presets/apply.rs
++++ b/crates/bones-app/src/ui/popovers/presets/apply.rs
+@@ -1,13 +1,17 @@
+-//! Feuille d'application d'un préréglage : aperçu animé en bandeau, réglages
++//! Feuille d'application d'un préréglage : aperçu en bandeau (le mannequin
++//! en grand), réglages
+ //! ([`ApplyOptions`] pour une animation ; intensité / miroir / additif /
+ //! « as key » pour une expression), bouton « Apply » et compte rendu
+ //! ([`ApplyReport`] : os non reconnus).
+ 
++use std::time::Duration;
++
+ use bones_core::Editor;
+-use bones_core::presets::{ApplyMode, ApplyOptions};
++use bones_core::presets::{ApplyMode, ApplyOptions, shot_for};
+ use bones_ui::icons::Icon;
+ use bones_ui::{theme, widgets};
+ 
++use super::card::Look;
+ use super::library::Entry;
+ use super::{Kind, PresetsState};
+ 
+@@ -48,14 +52,15 @@ pub fn show(
+     kind: Kind,
+     body: f32,
+ ) {
+-    let time = ui.input(|i| i.time) as f32;
+-    ui.ctx().request_repaint();
++    let look = Look::of(kind, ui.input(|i| i.time) as f32);
+     egui::ScrollArea::vertical()
+         .id_salt("preset-apply")
+         .auto_shrink([false, false])
+         .max_height(body)
+         .show(ui, |ui| {
+-            banner(ui, p, entry, time);
++            if let Some(delay) = banner(ui, p, entry, look) {
++                ui.ctx().request_repaint_after(delay);
++            }
+             ui.add_space(10.0);
+             let info = p.library.info(entry);
+             if !info.description.trim().is_empty() {
+@@ -83,17 +88,29 @@ pub fn show(
+         });
+ }
+ 
+-/// Bandeau d'aperçu animé en tête de la feuille.
+-fn banner(ui: &mut egui::Ui, p: &mut PresetsState, entry: Entry, time: f32) {
+-    let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 150.0), egui::Sense::hover());
++/// Bandeau d'aperçu en tête de la feuille : le mannequin en grand (ou le
++/// squelette d'un préréglage d'animal). Retourne le délai avant la
++/// prochaine image voulue.
++fn banner(ui: &mut egui::Ui, p: &mut PresetsState, entry: Entry, look: Look) -> Option<Duration> {
++    let preset = p.library.preset(entry);
++    let staged = shot_for(preset).is_some();
++    let height = if staged { BANNER } else { 150.0 };
++    let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), height), egui::Sense::hover());
+     ui.painter()
+         .rect_filled(rect, egui::CornerRadius::same(14), theme::WIDGET);
+-    let preset = p.library.preset(entry);
+-    p.previews.warm(std::slice::from_ref(&preset), 1);
+-    let painter = ui.painter().with_clip_rect(rect);
+-    p.previews.draw(&painter, rect, preset, time);
++    if !staged {
++        p.previews.warm(std::slice::from_ref(&preset), 1);
++    }
++    let look = Look {
++        margin: look.margin + 0.04,
++        ..look
++    };
++    super::card::thumbnail(ui, p, entry, rect.size(), rect, look)
+ }
+ 
++/// Hauteur du bandeau quand le mannequin joue le préréglage.
++const BANNER: f32 = 300.0;
++
+ /// Métadonnées : images, fréquence, boucle.
+ fn meta(ui: &mut egui::Ui, info: &bones_core::presets::PresetInfo) {
+     let mut parts = Vec::new();
+diff --git a/crates/bones-app/src/ui/popovers/presets/card.rs b/crates/bones-app/src/ui/popovers/presets/card.rs
+index 03dbd6b..9dfc052 100644
+--- a/crates/bones-app/src/ui/popovers/presets/card.rs
++++ b/crates/bones-app/src/ui/popovers/presets/card.rs
+@@ -1,23 +1,64 @@
+-//! Carte d'un préréglage : vignette carrée (squelette animé en boucle, dessin
+-//! d'aplats) surmontant le nom et un sous-titre. Toucher ouvre la feuille
+-//! d'application ; appui long sur un préréglage utilisateur, son menu.
++//! Carte d'un préréglage : vignette (le mannequin qui joue l'animation en
++//! boucle, ou son visage pour une expression ; squelette en bâtons pour un
++//! préréglage d'animal ou de végétal) surmontant le nom et un sous-titre.
++//! Toucher ouvre la feuille d'application ; appui long sur un préréglage
++//! utilisateur, son menu.
+ 
++use std::time::Duration;
++
++use bones_core::presets::Preset;
+ use bones_ui::icons::{self, Icon};
+ use bones_ui::theme;
+ use egui::{Align2, Color32, CornerRadius, FontId, Rect, Sense, Stroke, StrokeKind, Vec2, pos2, vec2};
+ 
+ use super::library::Entry;
+-use super::{PresetsState, View, grid};
++use super::stage::Tile;
++use super::{Kind, PresetsState, View, grid};
++
++/// Cadence des vignettes animées (le cycle est cuit à 30 images/s).
++pub const FRAME: Duration = Duration::from_millis(33);
++/// Délai de relève des vignettes en préparation.
++const POLL: Duration = Duration::from_millis(60);
++
++/// Présentation des cartes d'une galerie.
++#[derive(Clone, Copy)]
++pub struct Look {
++    /// Hauteur de la vignette rapportée à sa largeur.
++    pub ratio: f32,
++    /// Marge autour du cadrage du mannequin.
++    pub margin: f32,
++    pub time: f32,
++    pub fallback: Icon,
++}
++
++impl Look {
++    /// Cartes d'une galerie : portrait pour un corps entier, carré pour un
++    /// visage.
++    pub fn of(kind: Kind, time: f32) -> Self {
++        let (ratio, margin) = match kind {
++            Kind::Animations => (1.22, 0.07),
++            Kind::Expressions => (1.0, 0.05),
++        };
++        Self {
++            ratio,
++            margin,
++            time,
++            fallback: super::fallback_icon(kind),
++        }
++    }
++}
+ 
+ /// Durée d'appui qui ouvre le menu de la carte.
+ const LONG_PRESS: f64 = 0.5;
+ 
+-pub fn show(ui: &mut egui::Ui, p: &mut PresetsState, entry: Entry, cell: Vec2, time: f32, fallback: Icon) {
++/// Dessine la carte ; retourne le délai avant la prochaine image voulue
++/// (vignette animée ou en préparation), `None` si elle est fixe ou cachée.
++pub fn show(ui: &mut egui::Ui, p: &mut PresetsState, entry: Entry, cell: Vec2, look: Look) -> Option<Duration> {
+     let (rect, response) = ui.allocate_exact_size(cell, Sense::click());
+     let is_user = matches!(entry, Entry::User(_));
+     interact(ui, p, entry, is_user, &response);
+     if !ui.is_rect_visible(rect) {
+-        return;
++        return None;
+     }
+ 
+     let press = ui.ctx().animate_bool_with_time(
+@@ -29,24 +70,18 @@ pub fn show(ui: &mut egui::Ui, p: &mut PresetsState, entry: Entry, cell: Vec2, t
+         .ctx()
+         .animate_bool_with_time(response.id.with("hover"), response.hovered(), 0.14);
+ 
+-    let thumb = Rect::from_min_size(rect.min, vec2(rect.width(), rect.width() * 0.78));
+-    let thumb = scale(thumb, 1.0 - 0.03 * press);
++    let full = Rect::from_min_size(rect.min, vec2(rect.width(), rect.width() * look.ratio));
++    let thumb = scale(full, 1.0 - 0.03 * press);
+     let radius = CornerRadius::same(12);
+     let bg = theme::mix(theme::WIDGET, theme::WIDGET_HOVER, hover.max(press));
+     ui.painter().rect_filled(thumb, radius, bg);
+ 
+-    // Vignette animée (squelette) ; repli sur un glyphe tant qu'elle cuit.
++    // Vignette rendue (mannequin), sinon squelette ; repli sur un glyphe
++    // tant qu'elle se prépare.
+     let preset = p.library.preset(entry);
+     let name = preset.info.name.clone();
+     let subtitle = subtitle(&preset.info);
+-    let drawn = {
+-        let painter = ui.painter().with_clip_rect(thumb);
+-        p.previews.draw(&painter, thumb, preset, time)
+-    };
+-    if !drawn {
+-        let g = Rect::from_center_size(thumb.center(), vec2(26.0, 26.0));
+-        icons::paint(ui.painter(), g, fallback, theme::TEXT_FAINT);
+-    }
++    let wait = thumbnail(ui, p, entry, full.size(), thumb, look);
+     // Pastille des préréglages utilisateur (coin haut droit).
+     if is_user {
+         ui.painter()
+@@ -65,17 +100,60 @@ pub fn show(ui: &mut egui::Ui, p: &mut PresetsState, entry: Entry, cell: Vec2, t
+         );
+     }
+ 
+-    // Nom (blanc) et sous-titre (gris) sous la vignette.
++    // Nom (blanc) et sous-titre (gris) sous la vignette, alignés sur la
++    // vignette au repos (ils ne suivent pas l'enfoncement).
+     let painter = ui.painter();
+     let name_galley = painter.layout_no_wrap(name, theme::semibold(13.0), theme::TEXT);
+-    painter.galley(pos2(thumb.left(), thumb.bottom() + 5.0), name_galley, theme::TEXT);
++    painter.galley(pos2(full.left(), full.bottom() + 5.0), name_galley, theme::TEXT);
+     painter.text(
+-        pos2(thumb.left(), thumb.bottom() + 22.0),
++        pos2(full.left(), full.bottom() + 22.0),
+         Align2::LEFT_TOP,
+         subtitle,
+         FontId::proportional(11.0),
+         theme::TEXT_DIM,
+     );
++    wait
++}
++
++/// Vignette d'un préréglage dans `thumb` (rendue à la taille `size` de la
++/// vignette au repos, pour ne pas la redessiner pendant l'enfoncement).
++/// Retourne le délai avant la prochaine image voulue.
++pub fn thumbnail(
++    ui: &egui::Ui,
++    p: &mut PresetsState,
++    entry: Entry,
++    size: Vec2,
++    thumb: Rect,
++    look: Look,
++) -> Option<Duration> {
++    let preset: &Preset = p.library.preset(entry);
++    match p.stage.tile(ui.ctx(), preset, size, look.time, look.margin) {
++        Tile::Texture(texture) => {
++            egui::Image::from_texture((texture, size))
++                .corner_radius(CornerRadius::same(12))
++                .paint_at(ui, thumb);
++            p.stage.animated(preset).then_some(FRAME)
++        }
++        Tile::Pending => {
++            placeholder(ui, thumb, look.fallback);
++            Some(POLL)
++        }
++        Tile::Unsupported => {
++            let painter = ui.painter().with_clip_rect(thumb);
++            if p.previews.draw(&painter, thumb, preset, look.time) {
++                Some(FRAME)
++            } else {
++                placeholder(ui, thumb, look.fallback);
++                Some(POLL)
++            }
++        }
++    }
++}
++
++/// Repère d'une vignette en préparation : glyphe estompé au centre.
++fn placeholder(ui: &egui::Ui, thumb: Rect, fallback: Icon) {
++    let g = Rect::from_center_size(thumb.center(), vec2(26.0, 26.0));
++    icons::paint(ui.painter(), g, fallback, theme::TEXT_FAINT);
+ }
+ 
+ /// Toucher (ouvre la feuille) et appui long (menu d'un préréglage utilisateur).
+diff --git a/crates/bones-app/src/ui/popovers/presets/grid.rs b/crates/bones-app/src/ui/popovers/presets/grid.rs
+index b301c6a..3fe3db4 100644
+--- a/crates/bones-app/src/ui/popovers/presets/grid.rs
++++ b/crates/bones-app/src/ui/popovers/presets/grid.rs
+@@ -1,12 +1,16 @@
+ //! Vue en grille : catégories de la navigation, champ de recherche, grille de
+-//! cartes à vignette animée, et pour les animations les boutons « + » (créer)
+-//! et « Import ».
++//! cartes à vignette (le mannequin qui joue le préréglage), et pour les
++//! animations les boutons « + » (créer) et « Import ». Seules les cartes
++//! visibles demandent une vignette.
+ 
+-use bones_core::presets::Section;
++use std::time::Duration;
++
++use bones_core::presets::{Section, shot_for};
+ use bones_ui::icons::{self, Icon};
+ use bones_ui::{theme, widgets};
+ use egui::vec2;
+ 
++use super::card::Look;
+ use super::library::{Entry, Library};
+ use super::{Kind, Menu, PresetsState, View, card};
+ 
+@@ -97,36 +101,50 @@ pub fn show(ui: &mut egui::Ui, p: &mut PresetsState, kind: Kind, body: f32) {
+         empty_state(ui, kind, body);
+         return;
+     }
+-    let time = ui.input(|i| i.time) as f32;
+-    // Les vignettes jouent en continu tant que la galerie est ouverte.
+-    ui.ctx().request_repaint();
++    let look = Look::of(kind, ui.input(|i| i.time) as f32);
+     egui::ScrollArea::vertical()
+         .id_salt(("presets-grid", p.section))
+         .auto_shrink([false, false])
+         .max_height(body - 48.0)
+         .show(ui, |ui| {
+-            let fallback = super::fallback_icon(kind);
+             const COLS: usize = 3;
+             const GAP: f32 = 12.0;
+             let w = ((ui.available_width() - GAP * (COLS as f32 - 1.0)) / COLS as f32).max(120.0);
+-            let cell = vec2(w, w * 0.78 + 34.0);
+-            // Cuisson paresseuse des aperçus visibles (budget par image).
+-            let presets: Vec<_> = list.iter().map(|e| p.library.preset(*e)).collect();
+-            if p.previews.warm(&presets, 3) {
+-                ui.ctx().request_repaint();
+-            }
++            let cell = vec2(w, w * look.ratio + 34.0);
++            // Aperçus en bâtons (préréglages d'animaux, de végétaux…) cuits
++            // paresseusement ; les autres sont joués par le mannequin.
++            let sticks: Vec<_> = list
++                .iter()
++                .map(|e| p.library.preset(*e))
++                .filter(|preset| shot_for(preset).is_none())
++                .collect();
++            let mut wait = p.previews.warm(&sticks, 3).then_some(card::FRAME);
+             for row in list.chunks(COLS) {
+                 ui.horizontal(|ui| {
+                     ui.spacing_mut().item_spacing.x = GAP;
+                     for &entry in row {
+-                        card::show(ui, p, entry, cell, time, fallback);
++                        wait = soonest(wait, card::show(ui, p, entry, cell, look));
+                     }
+                 });
+                 ui.add_space(GAP);
+             }
++            // Seules les vignettes animées ou en préparation redemandent une
++            // image (au plus 30 par seconde) ; une grille d'expressions
++            // prêtes ne redessine plus rien.
++            if let Some(delay) = wait {
++                ui.ctx().request_repaint_after(delay);
++            }
+         });
+ }
+ 
++/// Le plus court de deux délais facultatifs.
++pub(super) fn soonest(a: Option<Duration>, b: Option<Duration>) -> Option<Duration> {
++    match (a, b) {
++        (Some(a), Some(b)) => Some(a.min(b)),
++        (a, b) => a.or(b),
++    }
++}
++
+ /// Ligne du haut : recherche à gauche ; pour les animations, « + » et
+ /// « Import » à droite.
+ fn toolbar(ui: &mut egui::Ui, p: &mut PresetsState, kind: Kind) {
+diff --git a/crates/bones-app/src/ui/popovers/presets/mod.rs b/crates/bones-app/src/ui/popovers/presets/mod.rs
+index 1ac8323..591adff 100644
+--- a/crates/bones-app/src/ui/popovers/presets/mod.rs
++++ b/crates/bones-app/src/ui/popovers/presets/mod.rs
+@@ -1,7 +1,7 @@
+ //! Galerie de préréglages, dans l'esprit de la Brush Library de Procreate :
+ //! une colonne de navigation à gauche (catégories), et à droite un champ de
+-//! recherche puis une grille de cartes à vignette animée (squelette joué en
+-//! boucle). Toucher une carte ouvre la feuille d'application ; « + » crée un
++//! recherche puis une grille de cartes à vignette 3D : le mannequin de l'app
++//! joue l'animation en boucle ou montre l'expression ([`stage`]). Toucher une carte ouvre la feuille d'application ; « + » crée un
+ //! préréglage depuis l'animation, « Import » liste les fichiers importables,
+ //! un appui long sur un préréglage utilisateur ouvre son menu.
+ //!
+@@ -16,6 +16,9 @@ mod grid;
+ mod library;
+ mod manage;
+ mod preview;
++mod stage;
++#[cfg(test)]
++mod tests;
+ 
+ use bones_core::Editor;
+ use bones_ui::icons::Icon;
+@@ -27,6 +30,7 @@ use self::apply::{ApplyForm, Report};
+ use self::create::CreateForm;
+ use self::library::{Entry, Importable, Library};
+ use self::preview::PreviewCache;
++use self::stage::StageCache;
+ use crate::ui::UiState;
+ 
+ /// Genre de galerie ouverte.
+@@ -68,6 +72,8 @@ pub struct PresetsState {
+     view_slot: Option<View>,
+     pub(crate) library: Library,
+     previews: PreviewCache,
++    /// Vignettes jouées par le mannequin (animations humaines, expressions).
++    stage: StageCache,
+     apply: ApplyForm,
+     create: CreateForm,
+     imports: Option<Vec<Importable>>,
+@@ -109,6 +115,7 @@ impl PresetsState {
+     fn refresh(&mut self, root: &std::path::Path) {
+         self.library.refresh(&presets_dir(root));
+         self.previews.clear();
++        self.stage.clear();
+         self.imports = None;
+     }
+ }
+diff --git a/crates/bones-app/src/ui/popovers/presets/stage.rs b/crates/bones-app/src/ui/popovers/presets/stage.rs
+new file mode 100644
+index 0000000..b330acd
+--- /dev/null
++++ b/crates/bones-app/src/ui/popovers/presets/stage.rs
+@@ -0,0 +1,175 @@
++//! Vignettes des cartes rendues avec le mannequin de l'app
++//! (`samples::mannequin`) : animations humanoïdes jouées sur place, corps
++//! entier ; expressions en gros plan sur le visage.
++//!
++//! Un fil de fond charge le mannequin une fois, puis cuit chaque préréglage
++//! demandé ([`Staged`]) : le fil de l'interface ne fait que relever les
++//! résultats, calculer les matrices des os de l'image voulue (quelques
++//! microsecondes) et demander la vignette au rendu (`crate::showcase`). Les
++//! matrices d'une expression (pose fixe) sont calculées une seule fois.
++
++use std::collections::HashMap;
++use std::hash::{Hash, Hasher};
++use std::sync::Arc;
++use std::sync::mpsc::{Receiver, Sender, channel};
++
++use bones_core::presets::{Preset, StageModel, Staged, shot_for};
++use bones_core::{Rig, Transform, Viewport};
++use glam::Mat4;
++
++use crate::showcase::{self, TileRequest};
++
++/// Vignette d'une carte.
++pub enum Tile {
++    /// Texture prête à poser sur la carte.
++    Texture(egui::TextureId),
++    /// En préparation : la carte garde son repère.
++    Pending,
++    /// Préréglage sans sens sur un humain (animal, végétal…).
++    Unsupported,
++}
++
++/// Résultat du fil de fond.
++enum Done {
++    Model(Arc<Rig>, Arc<StageModel>),
++    Staged(String, Option<Staged>),
++}
++
++/// Préréglage cuit, et ses matrices s'il est fixe.
++struct Ready {
++    staged: Staged,
++    still: Option<Arc<[Mat4]>>,
++}
++
++#[derive(Default)]
++pub struct StageCache {
++    jobs: Option<Sender<Preset>>,
++    results: Option<Receiver<Done>>,
++    model: Option<(Arc<Rig>, Arc<StageModel>)>,
++    /// Par identifiant : `None` tant que la cuisson est en cours ou a échoué.
++    staged: HashMap<String, Option<Ready>>,
++    /// Cuissons demandées et pas encore revenues.
++    pending: usize,
++    world: Vec<Transform>,
++    joints: Vec<Mat4>,
++}
++
++impl StageCache {
++    /// Oublie les préréglages cuits (bibliothèque relue) ; le mannequin reste.
++    pub fn clear(&mut self) {
++        self.staged.clear();
++    }
++
++    /// Des cuissons sont en cours : l'appelant redemande une image.
++    pub fn busy(&self) -> bool {
++        self.pending > 0 || (self.jobs.is_some() && self.model.is_none())
++    }
++
++    /// Le préréglage est-il joué en boucle (vignette à redessiner) ?
++    pub fn animated(&self, preset: &Preset) -> bool {
++        self.ready(preset).is_some_and(|r| !r.staged.is_static())
++    }
++
++    fn ready(&self, preset: &Preset) -> Option<&Ready> {
++        self.staged.get(&preset.info.id)?.as_ref()
++    }
++
++    /// Vignette de `preset` dans une carte de `size` points, à l'instant
++    /// `time` (secondes), avec une marge relative `margin` autour du cadrage.
++    pub fn tile(&mut self, ctx: &egui::Context, preset: &Preset, size: egui::Vec2, time: f32, margin: f32) -> Tile {
++        if shot_for(preset).is_none() {
++            return Tile::Unsupported;
++        }
++        self.poll();
++        let id = &preset.info.id;
++        if !self.staged.contains_key(id) {
++            self.submit(preset);
++            return Tile::Pending;
++        }
++        let (Some((rig, model)), Some(Some(ready))) = (&self.model, self.staged.get(id)) else {
++            return Tile::Pending;
++        };
++        let ppp = ctx.pixels_per_point();
++        let px = [(size.x * ppp).round().max(1.0) as u32, (size.y * ppp).round().max(1.0) as u32];
++        let viewport = Viewport::new(px[0] as f32, px[1] as f32);
++        let camera = ready.staged.camera(viewport.aspect(), margin);
++        let frame = ready.staged.frame_at(time);
++        let joints = match &ready.still {
++            Some(j) => j.clone(),
++            None => {
++                ready.staged.joints(model, frame, &mut self.world, &mut self.joints);
++                Arc::from(self.joints.as_slice())
++            }
++        };
++        let mut hasher = std::collections::hash_map::DefaultHasher::new();
++        (id, frame, px, margin.to_bits()).hash(&mut hasher);
++        let request = TileRequest {
++            key: hasher.finish(),
++            size: px,
++            joints,
++            view_proj: camera.view_proj(&viewport),
++            eye: camera.eye(),
++        };
++        match showcase::request(ctx, rig, request) {
++            Some(texture) => Tile::Texture(texture),
++            None => Tile::Pending,
++        }
++    }
++
++    /// Envoie `preset` au fil de fond (lancé à la première demande).
++    fn submit(&mut self, preset: &Preset) {
++        let jobs = self.jobs.get_or_insert_with(|| {
++            let (jobs, results) = spawn();
++            self.results = Some(results);
++            jobs
++        });
++        if jobs.send(preset.clone()).is_ok() {
++            self.staged.insert(preset.info.id.clone(), None);
++            self.pending += 1;
++        }
++    }
++
++    /// Relève les résultats du fil de fond.
++    fn poll(&mut self) {
++        let Some(results) = &self.results else { return };
++        for done in results.try_iter() {
++            match done {
++                Done::Model(rig, model) => self.model = Some((rig, model)),
++                Done::Staged(id, staged) => {
++                    self.pending = self.pending.saturating_sub(1);
++                    let ready = staged.map(|staged| {
++                        let still = self.model.as_ref().filter(|_| staged.is_static()).map(|(_, m)| {
++                            staged.joints(m, 0, &mut self.world, &mut self.joints);
++                            Arc::from(self.joints.as_slice())
++                        });
++                        Ready { staged, still }
++                    });
++                    self.staged.insert(id, ready);
++                }
++            }
++        }
++    }
++}
++
++/// Fil de fond : charge le mannequin, puis cuit les préréglages reçus.
++fn spawn() -> (Sender<Preset>, Receiver<Done>) {
++    let (jobs, inbox) = channel::<Preset>();
++    let (outbox, results) = channel();
++    std::thread::Builder::new()
++        .name("preset-stage".into())
++        .spawn(move || {
++            let rig = Arc::new(bones_core::samples::mannequin());
++            let model = Arc::new(StageModel::new(&rig));
++            if outbox.send(Done::Model(rig, model.clone())).is_err() {
++                return;
++            }
++            for preset in inbox {
++                let staged = Staged::new(&preset, &model).ok();
++                if outbox.send(Done::Staged(preset.info.id.clone(), staged)).is_err() {
++                    return;
++                }
++            }
++        })
++        .expect("fil des vignettes");
++    (jobs, results)
++}
+diff --git a/crates/bones-app/src/ui/popovers/presets/tests.rs b/crates/bones-app/src/ui/popovers/presets/tests.rs
+new file mode 100644
+index 0000000..d847145
+--- /dev/null
++++ b/crates/bones-app/src/ui/popovers/presets/tests.rs
+@@ -0,0 +1,104 @@
++//! Tests des vignettes des galeries (sans GPU) : les cartes visibles
++//! demandent au rendu une vignette du mannequin — fixe pour une expression,
++//! renouvelée au fil du cycle pour une animation — et les préréglages
++//! d'animaux gardent leur aperçu en bâtons.
++
++use std::time::{Duration, Instant};
++
++use bones_core::{Editor, Mode, Rig, Viewport};
++use egui::{RawInput, Rect, pos2, vec2};
++
++use crate::settings::Settings;
++use crate::showcase;
++use crate::ui::{Busy, Popover, UiState, show};
++
++struct Gallery {
++    ctx: egui::Context,
++    editor: Editor,
++    state: UiState,
++}
++
++impl Gallery {
++    fn open(popover: Popover, name: &str) -> Self {
++        let ctx = egui::Context::default();
++        bones_ui::install(&ctx);
++        let docs = std::env::temp_dir().join(format!("bones-stage-tests-{name}"));
++        let _ = std::fs::remove_dir_all(&docs);
++        let mut editor = Editor::new(Rig::demo());
++        editor.set_mode(Mode::Pose);
++        let mut state = UiState::new(docs, Settings::default());
++        state.popover = Some(popover);
++        state.popover_anchor = 700.0;
++        Self { ctx, editor, state }
++    }
++
++    /// Une image à l'instant `time` ; retourne les clés des vignettes
++    /// demandées.
++    fn frame(&mut self, time: f64) -> Vec<u64> {
++        let input = RawInput {
++            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1366.0, 1024.0))),
++            time: Some(time),
++            ..Default::default()
++        };
++        let viewport = Viewport::new(1366.0, 1024.0);
++        let busy = Busy {
++            binding: false,
++            jobs: 0,
++        };
++        let (editor, state) = (&mut self.editor, &mut self.state);
++        let mut output = self.ctx.run_ui(input, |ui| {
++            show(ui.ctx(), editor, state, &viewport, busy);
++        });
++        output.textures_delta.clear();
++        showcase::take_keys(&self.ctx)
++    }
++
++    /// Images jusqu'à ce que les vignettes visibles soient toutes demandées
++    /// (cuisson sur le fil de fond terminée).
++    fn settle(&mut self, time: f64) -> Vec<u64> {
++        let deadline = Instant::now() + Duration::from_secs(60);
++        let mut last = Vec::new();
++        while Instant::now() < deadline {
++            let keys = self.frame(time);
++            if !keys.is_empty() && keys.len() == last.len() && !self.state.presets.stage.busy() {
++                return keys;
++            }
++            last = keys;
++            std::thread::sleep(Duration::from_millis(20));
++        }
++        last
++    }
++}
++
++#[test]
++fn expression_cards_request_still_mannequin_tiles() {
++    let mut g = Gallery::open(Popover::Expressions, "expressions");
++    let keys = g.settle(1.0);
++    // Grille de trois colonnes : au moins deux rangées visibles, jamais toute
++    // la bibliothèque (seules les cartes visibles sont rendues).
++    assert!(keys.len() >= 6, "{} vignettes", keys.len());
++    let total = super::grid::entries(&g.state.presets, super::Kind::Expressions).len();
++    assert!(keys.len() < total, "{} sur {total}", keys.len());
++    // Expression : pose fixe, même contenu d'une image à l'autre.
++    assert_eq!(g.frame(2.5), keys, "vignettes fixes");
++}
++
++#[test]
++fn human_animation_cards_play_in_a_loop() {
++    let mut g = Gallery::open(Popover::Presets, "human");
++    g.state.presets.test_section(0); // Human
++    let first = g.settle(0.0);
++    assert!(first.len() >= 3, "{} vignettes", first.len());
++    let later = g.frame(0.4);
++    assert_eq!(later.len(), first.len());
++    assert_ne!(later, first, "l'animation avance");
++}
++
++#[test]
++fn animal_cards_keep_the_stick_figure() {
++    let mut g = Gallery::open(Popover::Presets, "animals");
++    g.state.presets.test_section(1); // Animals
++    for i in 0..5 {
++        assert!(g.frame(f64::from(i) * 0.1).is_empty(), "aucune vignette du mannequin");
++    }
++}
+diff --git a/crates/bones-core/src/presets/expression/actions.rs b/crates/bones-core/src/presets/expression/actions.rs
+new file mode 100644
+index 0000000..3a5e413
+--- /dev/null
++++ b/crates/bones-core/src/presets/expression/actions.rs
+@@ -0,0 +1,179 @@
++//! Actions faciales nommées (unités d'action à la FACS, simplifiées), qui
++//! composent les expressions de la bibliothèque. Amplitudes `k` ~ [0, 1].
++//!
++//! Décalages en millimètres sur une tête de référence (voir
++//! [`Expr::shift`]) ; rotations en radians (conventions dans `builder`).
++
++use super::builder::Expr;
++use crate::autorig::face::FaceBone;
++
++impl Expr {
++    // --- Sourcils ---
++    pub fn brows_up(&mut self, k: f32) {
++        for (b, up) in [
++            (FaceBone::BrowInL, 16.0),
++            (FaceBone::BrowMidL, 18.0),
++            (FaceBone::BrowOutL, 13.0),
++        ] {
++            self.pair_rot(b, -0.30 * k, 0.0, 0.0);
++            self.pair_shift(b, 0.0, 1.0 * k, up * k);
++        }
++    }
++    pub fn brows_down(&mut self, k: f32) {
++        self.pair_rot(FaceBone::BrowInL, 0.28 * k, 0.0, 0.12 * k);
++        self.pair_rot(FaceBone::BrowMidL, 0.20 * k, 0.0, 0.0);
++        self.pair_rot(FaceBone::BrowOutL, 0.10 * k, 0.0, 0.0);
++        self.pair_shift(FaceBone::BrowInL, -7.0 * k, 3.0 * k, -13.0 * k);
++        self.pair_shift(FaceBone::BrowMidL, -3.0 * k, 1.5 * k, -9.0 * k);
++        self.pair_shift(FaceBone::BrowOutL, 0.0, 0.0, -4.0 * k);
++    }
++    /// Sourcils obliques (intérieur relevé) : tristesse, peur.
++    pub fn brows_inner_up(&mut self, k: f32) {
++        self.pair_rot(FaceBone::BrowInL, -0.30 * k, 0.0, 0.10 * k);
++        self.pair_rot(FaceBone::BrowMidL, -0.08 * k, 0.0, 0.0);
++        self.pair_rot(FaceBone::BrowOutL, 0.10 * k, 0.0, 0.0);
++        self.pair_shift(FaceBone::BrowInL, -4.0 * k, 1.5 * k, 16.0 * k);
++        self.pair_shift(FaceBone::BrowMidL, 0.0, 0.0, 5.0 * k);
++        self.pair_shift(FaceBone::BrowOutL, 0.0, 0.0, -4.0 * k);
++    }
++
++    // --- Paupières (pivot au centre du globe : la rotation suffit) ---
++    pub fn lids_widen(&mut self, k: f32) {
++        self.pair_rot(FaceBone::EyelidTopL, -0.40 * k, 0.0, 0.0);
++        self.pair_rot(FaceBone::EyelidBottomL, 0.30 * k, 0.0, 0.0);
++    }
++    pub fn lids_close(&mut self, k: f32) {
++        self.pair_rot(FaceBone::EyelidTopL, 0.85 * k, 0.0, 0.0);
++        self.pair_rot(FaceBone::EyelidBottomL, -0.25 * k, 0.0, 0.0);
++    }
++    /// Ferme une seule paupière (clin d'œil) ; `left` choisit le côté.
++    pub fn lid_close_one(&mut self, left: bool, k: f32) {
++        let (top, bot) = if left {
++            (FaceBone::EyelidTopL, FaceBone::EyelidBottomL)
++        } else {
++            (FaceBone::EyelidTopR, FaceBone::EyelidBottomR)
++        };
++        self.rot(top, 0.85 * k, 0.0, 0.0);
++        self.rot(bot, -0.25 * k, 0.0, 0.0);
++    }
++    pub fn squint(&mut self, k: f32) {
++        self.pair_rot(FaceBone::EyelidBottomL, -0.40 * k, 0.0, 0.0);
++        self.pair_rot(FaceBone::EyelidTopL, 0.20 * k, 0.0, 0.0);
++    }
++
++    // --- Bouche et mâchoire ---
++    pub fn jaw_open(&mut self, k: f32) {
++        self.rot(FaceBone::Jaw, 0.35 * k, 0.0, 0.0);
++    }
++    pub fn smile(&mut self, k: f32) {
++        self.pair_rot(FaceBone::LipCornerL, -0.35 * k, 0.0, -0.28 * k);
++        self.pair_rot(FaceBone::LipTopL, -0.12 * k, 0.0, 0.0);
++        self.pair_shift(FaceBone::LipCornerL, 10.0 * k, -4.0 * k, 12.0 * k);
++        self.pair_shift(FaceBone::LipTopL, 1.5 * k, 0.0, 2.5 * k);
++        self.pair_shift(FaceBone::LipBottomL, 1.5 * k, 0.0, 2.0 * k);
++        self.cheeks_raise(0.6 * k);
++    }
++    pub fn frown_mouth(&mut self, k: f32) {
++        self.pair_rot(FaceBone::LipCornerL, 0.32 * k, 0.0, 0.12 * k);
++        self.pair_rot(FaceBone::LipBottomL, 0.10 * k, 0.0, 0.0);
++        self.pair_shift(FaceBone::LipCornerL, 2.0 * k, -1.0 * k, -12.0 * k);
++        self.pair_shift(FaceBone::LipBottomL, 0.0, 1.5 * k, -2.5 * k);
++        self.shift(FaceBone::LipBottom, 0.0, 2.5 * k, 1.5 * k);
++    }
++    /// Un seul coin relevé (sourire en coin, mépris) ; `left` choisit le côté.
++    pub fn corner_up(&mut self, left: bool, k: f32) {
++        let (c, out, side) = if left {
++            (FaceBone::LipCornerL, -0.25 * k, 1.0)
++        } else {
++            (FaceBone::LipCornerR, 0.25 * k, -1.0)
++        };
++        self.rot(c, -0.38 * k, 0.0, out);
++        self.shift(c, side * 8.0 * k, -4.0 * k, 13.0 * k);
++    }
++    pub fn lips_part(&mut self, k: f32) {
++        self.rot(FaceBone::LipTop, -0.15 * k, 0.0, 0.0);
++        self.rot(FaceBone::LipBottom, 0.15 * k, 0.0, 0.0);
++        self.pair_rot(FaceBone::LipTopL, -0.10 * k, 0.0, 0.0);
++        self.pair_rot(FaceBone::LipBottomL, 0.10 * k, 0.0, 0.0);
++        self.shift(FaceBone::LipTop, 0.0, 0.5 * k, 5.0 * k);
++        self.shift(FaceBone::LipBottom, 0.0, 0.5 * k, -5.0 * k);
++        self.pair_shift(FaceBone::LipTopL, 0.0, 0.0, 3.5 * k);
++        self.pair_shift(FaceBone::LipBottomL, 0.0, 0.0, -3.5 * k);
++    }
++    /// Bouche en avant et resserrée (bisou, « ou »).
++    pub fn pucker(&mut self, k: f32) {
++        self.pair_rot(FaceBone::LipCornerL, 0.0, 0.0, 0.45 * k);
++        self.rot(FaceBone::LipTop, -0.10 * k, 0.0, 0.0);
++        self.rot(FaceBone::LipBottom, 0.10 * k, 0.0, 0.0);
++        self.pair_shift(FaceBone::LipCornerL, -13.0 * k, 6.0 * k, 0.0);
++        self.shift(FaceBone::LipTop, 0.0, 10.0 * k, -0.5 * k);
++        self.shift(FaceBone::LipBottom, 0.0, 10.0 * k, 0.5 * k);
++        self.pair_shift(FaceBone::LipTopL, -4.0 * k, 7.0 * k, 0.0);
++        self.pair_shift(FaceBone::LipBottomL, -4.0 * k, 7.0 * k, 0.0);
++    }
++    /// Lèvres étirées sur les côtés (« i », « e »).
++    pub fn widen_mouth(&mut self, k: f32) {
++        self.pair_rot(FaceBone::LipCornerL, 0.0, 0.0, -0.30 * k);
++        self.pair_shift(FaceBone::LipCornerL, 12.0 * k, -4.0 * k, 0.0);
++        self.pair_shift(FaceBone::LipTopL, 3.0 * k, -1.5 * k, 0.0);
++        self.pair_shift(FaceBone::LipBottomL, 3.0 * k, -1.5 * k, 0.0);
++    }
++    /// Lèvre inférieure remontée contre les dents du haut (« f », « v »).
++    pub fn lower_lip_up(&mut self, k: f32) {
++        self.rot(FaceBone::LipBottom, -0.22 * k, 0.0, 0.0);
++        self.pair_rot(FaceBone::LipBottomL, -0.18 * k, 0.0, 0.0);
++        self.rot(FaceBone::LipTop, -0.08 * k, 0.0, 0.0);
++        self.shift(FaceBone::LipBottom, 0.0, -3.5 * k, 7.0 * k);
++        self.pair_shift(FaceBone::LipBottomL, 0.0, -3.0 * k, 5.5 * k);
++        self.shift(FaceBone::LipTop, 0.0, 0.5 * k, 2.0 * k);
++    }
++    /// Lèvres pincées l'une contre l'autre (« m », « b », « p »).
++    pub fn lips_press(&mut self, k: f32) {
++        self.rot(FaceBone::LipTop, 0.10 * k, 0.0, 0.0);
++        self.rot(FaceBone::LipBottom, -0.10 * k, 0.0, 0.0);
++        self.pair_rot(FaceBone::LipTopL, 0.06 * k, 0.0, 0.0);
++        self.pair_rot(FaceBone::LipBottomL, -0.06 * k, 0.0, 0.0);
++        self.shift(FaceBone::LipTop, 0.0, -2.5 * k, -2.5 * k);
++        self.shift(FaceBone::LipBottom, 0.0, -2.5 * k, 3.0 * k);
++        self.pair_shift(FaceBone::LipTopL, 0.0, -1.5 * k, -1.5 * k);
++        self.pair_shift(FaceBone::LipBottomL, 0.0, -1.5 * k, 2.5 * k);
++        self.pair_shift(FaceBone::LipCornerL, -2.5 * k, 0.0, 0.0);
++    }
++
++    // --- Nez, joues ---
++    pub fn nose_wrinkle(&mut self, k: f32) {
++        self.rot(FaceBone::Nose, -0.22 * k, 0.0, 0.0);
++        self.pair_rot(FaceBone::NostrilL, -0.25 * k, 0.0, 0.0);
++        self.shift(FaceBone::Nose, 0.0, 0.0, 3.0 * k);
++        self.pair_shift(FaceBone::NostrilL, 2.0 * k, 0.0, 7.0 * k);
++        // Releveur de la lèvre supérieure (AU 9-10).
++        self.shift(FaceBone::LipTop, 0.0, 0.5 * k, 4.0 * k);
++        self.pair_shift(FaceBone::LipTopL, 0.0, 0.5 * k, 4.5 * k);
++    }
++    pub fn nostrils_flare(&mut self, k: f32) {
++        self.pair_rot(FaceBone::NostrilL, -0.10 * k, 0.0, 0.0);
++        self.pair_shift(FaceBone::NostrilL, 6.0 * k, 0.0, 1.5 * k);
++    }
++    pub fn cheeks_raise(&mut self, k: f32) {
++        self.pair_rot(FaceBone::CheekL, -0.30 * k, 0.0, 0.0);
++        self.pair_shift(FaceBone::CheekL, 1.5 * k, 3.0 * k, 9.0 * k);
++    }
++
++    // --- Langue (ignorée si absente) ---
++    pub fn tongue_out(&mut self, k: f32) {
++        self.rot(FaceBone::Tongue1, 0.25 * k, 0.0, 0.0);
++        self.rot(FaceBone::Tongue2, 0.22 * k, 0.0, 0.0);
++    }
++    pub fn tongue_up(&mut self, k: f32) {
++        self.rot(FaceBone::Tongue1, -0.30 * k, 0.0, 0.0);
++        self.rot(FaceBone::Tongue2, -0.18 * k, 0.0, 0.0);
++    }
++
++    // --- Oreilles (animaux) ---
++    pub fn ears_back(&mut self, k: f32) {
++        self.pair_rot(FaceBone::EarL, -0.30 * k, 0.40 * k, 0.0);
++    }
++    pub fn ears_up(&mut self, k: f32) {
++        self.pair_rot(FaceBone::EarL, 0.30 * k, -0.20 * k, 0.0);
++    }
++}
+diff --git a/crates/bones-core/src/presets/expression/apply.rs b/crates/bones-core/src/presets/expression/apply.rs
+index ebe107d..11795ae 100644
+--- a/crates/bones-core/src/presets/expression/apply.rs
++++ b/crates/bones-core/src/presets/expression/apply.rs
+@@ -37,7 +37,8 @@ pub fn present_mapped(skeleton: &Skeleton) -> Vec<(FaceBone, BoneId)> {
+ }
+ 
+ /// Pose du visage produite par l'expression sur `skeleton` : repos + deltas
+-/// mis à l'échelle (`intensity`), éventuellement retournée gauche ↔ droite.
++/// mis à l'échelle (`intensity`), décalages adaptés à la taille du visage,
++/// éventuellement retournée gauche ↔ droite.
+ /// Seuls les os du visage présents sont posés ; tout le reste reste au repos.
+ /// Retourne aussi la couverture (os appliqués / ignorés).
+ pub fn face_pose(
+@@ -47,12 +48,15 @@ pub fn face_pose(
+     mirror: bool,
+ ) -> (Pose, ExpressionReport) {
+     let present = present_mapped(skeleton);
++    let size = face_scale(skeleton, &present);
+     let mut pose = Pose::rest(skeleton);
+     let mut report = ExpressionReport::default();
+     for (name, delta) in &data.bones {
+         match present.iter().find(|(b, _)| b.name() == name) {
+             Some((_, id)) => {
+-                pose.bones[id.index()] = scaled(delta, intensity);
++                let mut t = scaled(delta, intensity);
++                t.translation *= size;
++                pose.bones[id.index()] = t;
+                 report.applied.push(name.clone());
+             }
+             None => report.skipped.push(name.clone()),
+@@ -64,6 +68,24 @@ pub fn face_pose(
+     (pose, report)
+ }
+ 
++/// Rayon des yeux de la tête de référence (mètres) : les décalages des
++/// expressions sont écrits à cette échelle.
++const REFERENCE_EYE_RADIUS: f32 = 0.013;
++
++/// Taille du visage de `skeleton` par rapport à la tête de référence,
++/// d'après la longueur des paupières (proportionnelle au rayon de l'œil,
++/// voir [`FaceLayout`]) : un modèle en centimètres reçoit des décalages
++/// cent fois plus grands. 1 si le modèle n'a pas de paupières.
++fn face_scale(skeleton: &Skeleton, present: &[(FaceBone, BoneId)]) -> f32 {
++    let reference = 1.3 * REFERENCE_EYE_RADIUS;
++    present
++        .iter()
++        .find(|(b, _)| matches!(b, FaceBone::EyelidTopL | FaceBone::EyelidTopR))
++        .map(|(_, id)| skeleton.bone(*id).length / reference)
++        .filter(|s| s.is_finite() && *s > 0.0)
++        .map_or(1.0, |s| s.clamp(1e-3, 1e3))
++}
++
+ /// Tête de référence autonome (`head.x` + os du visage, avec dents et langue)
+ /// bâtie avec des marqueurs synthétiques, sans maillage : aperçu des
+ /// expressions dans la galerie et tests. Suit les conventions de l'auto-rig.
+@@ -84,7 +106,7 @@ pub fn reference_head() -> Skeleton {
+ fn reference_markers() -> FaceMarkers {
+     FaceMarkers {
+         eye: Vec3::new(0.035, 1.62, 0.085),
+-        eye_radius: 0.013,
++        eye_radius: REFERENCE_EYE_RADIUS,
+         brow: Vec3::new(0.035, 1.66, 0.09),
+         nose_tip: Vec3::new(0.0, 1.60, 0.12),
+         lip_top: Vec3::new(0.0, 1.565, 0.11),
+diff --git a/crates/bones-core/src/presets/expression/builder.rs b/crates/bones-core/src/presets/expression/builder.rs
+index ccd6552..1b9576c 100644
+--- a/crates/bones-core/src/presets/expression/builder.rs
++++ b/crates/bones-core/src/presets/expression/builder.rs
+@@ -1,5 +1,12 @@
+-//! Petit constructeur d'expressions et actions faciales nommées, pour écrire
+-//! la bibliothèque comme des données lisibles. Amplitudes `k` ~ [0, 1].
++//! Petit constructeur d'expressions, pour écrire la bibliothèque comme des
++//! données lisibles (les actions faciales nommées sont dans `actions`).
++//!
++//! Les os de surface (sourcils, joues, nez, lèvres) sont très courts et
++//! pivotent juste sous la peau : une rotation n'y déplace presque pas la
++//! peau. Les actions les **décalent** donc ([`Expr::shift`], comme les
++//! contrôleurs du visage d'Auto-Rig Pro) ; les rotations ne servent qu'aux
++//! os à long bras de levier (mâchoire, paupières, langue, oreilles) et à
++//! incliner légèrement la peau.
+ //!
+ //! Repère local des os de surface au repos (contrat [`crate::autorig::face`]) :
+ //! X local = +X monde, Y local = +Z monde (vers l'avant), Z local = −Y monde
+@@ -19,6 +26,9 @@ use super::data::{ExpressionData, compose};
+ use crate::Transform;
+ use crate::autorig::face::FaceBone;
+ 
++/// Un millimètre (les décalages des actions sont écrits en millimètres).
++const MM: f32 = 1e-3;
++
+ pub(super) struct Expr {
+     bones: Vec<(String, Transform)>,
+ }
+@@ -40,17 +50,13 @@ impl Expr {
+         }
+     }
+ 
+-    fn rot(&mut self, b: FaceBone, x: f32, y: f32, z: f32) {
++    pub(super) fn rot(&mut self, b: FaceBone, x: f32, y: f32, z: f32) {
+         let q = Quat::from_euler(EulerRot::XYZ, x, y, z);
+         self.put(b, Transform::from_rotation_translation(q, Vec3::ZERO));
+     }
+ 
+-    fn tr(&mut self, b: FaceBone, t: Vec3) {
+-        self.put(b, Transform::from_translation(t));
+-    }
+-
+     /// Même rotation des deux côtés (reflet, sauf oreilles : delta identique).
+-    fn pair_rot(&mut self, left: FaceBone, x: f32, y: f32, z: f32) {
++    pub(super) fn pair_rot(&mut self, left: FaceBone, x: f32, y: f32, z: f32) {
+         self.rot(left, x, y, z);
+         if let Some(r) = left.mirrored() {
+             let q = Quat::from_euler(EulerRot::XYZ, x, y, z);
+@@ -63,147 +69,30 @@ impl Expr {
+         }
+     }
+ 
+-    fn pair_tr(&mut self, left: FaceBone, t: Vec3) {
+-        self.tr(left, t);
+-        if let Some(r) = left.mirrored() {
+-            let t = if is_ear(left) {
+-                t
+-            } else {
+-                Vec3::new(-t.x, t.y, t.z)
+-            };
+-            self.put(r, Transform::from_translation(t));
++    /// Décale un os de surface de quelques millimètres (tête de référence ;
++    /// [`super::apply::face_pose`] met à l'échelle du visage), dans son repère
++    /// local de repos : `side` vers +X monde, `fwd` vers l'avant, `up` vers le
++    /// haut. Ajouté directement à la translation, quel que soit l'ordre des
++    /// rotations.
++    pub(super) fn shift(&mut self, b: FaceBone, side: f32, fwd: f32, up: f32) {
++        let t = Vec3::new(side, fwd, -up) * MM;
++        match self.bones.iter_mut().find(|(n, _)| n == b.name()) {
++            Some(e) => e.1.translation += t,
++            None => self
++                .bones
++                .push((b.name().to_string(), Transform::from_translation(t))),
+         }
+     }
+ 
+-    pub fn finish(self) -> ExpressionData {
+-        ExpressionData { bones: self.bones }
+-    }
+-
+-    // --- Sourcils ---
+-    pub fn brows_up(&mut self, k: f32) {
+-        for b in [FaceBone::BrowInL, FaceBone::BrowMidL, FaceBone::BrowOutL] {
+-            self.pair_rot(b, -0.30 * k, 0.0, 0.0);
++    /// Même décalage des deux côtés ; `out` éloigne de l'axe du visage.
++    pub(super) fn pair_shift(&mut self, left: FaceBone, out: f32, fwd: f32, up: f32) {
++        self.shift(left, out, fwd, up);
++        if let Some(r) = left.mirrored() {
++            self.shift(r, -out, fwd, up);
+         }
+     }
+-    pub fn brows_down(&mut self, k: f32) {
+-        self.pair_rot(FaceBone::BrowInL, 0.28 * k, 0.0, 0.12 * k);
+-        self.pair_rot(FaceBone::BrowMidL, 0.20 * k, 0.0, 0.0);
+-        self.pair_rot(FaceBone::BrowOutL, 0.10 * k, 0.0, 0.0);
+-    }
+-    /// Sourcils obliques (intérieur relevé) : tristesse, peur.
+-    pub fn brows_inner_up(&mut self, k: f32) {
+-        self.pair_rot(FaceBone::BrowInL, -0.30 * k, 0.0, 0.10 * k);
+-        self.pair_rot(FaceBone::BrowMidL, -0.08 * k, 0.0, 0.0);
+-        self.pair_rot(FaceBone::BrowOutL, 0.10 * k, 0.0, 0.0);
+-    }
+-
+-    // --- Paupières ---
+-    pub fn lids_widen(&mut self, k: f32) {
+-        self.pair_rot(FaceBone::EyelidTopL, -0.35 * k, 0.0, 0.0);
+-        self.pair_rot(FaceBone::EyelidBottomL, 0.25 * k, 0.0, 0.0);
+-    }
+-    pub fn lids_close(&mut self, k: f32) {
+-        self.pair_rot(FaceBone::EyelidTopL, 0.85 * k, 0.0, 0.0);
+-        self.pair_rot(FaceBone::EyelidBottomL, -0.25 * k, 0.0, 0.0);
+-    }
+-    /// Ferme une seule paupière (clin d'œil) ; `left` choisit le côté.
+-    pub fn lid_close_one(&mut self, left: bool, k: f32) {
+-        let (top, bot) = if left {
+-            (FaceBone::EyelidTopL, FaceBone::EyelidBottomL)
+-        } else {
+-            (FaceBone::EyelidTopR, FaceBone::EyelidBottomR)
+-        };
+-        self.rot(top, 0.85 * k, 0.0, 0.0);
+-        self.rot(bot, -0.25 * k, 0.0, 0.0);
+-    }
+-    pub fn squint(&mut self, k: f32) {
+-        self.pair_rot(FaceBone::EyelidBottomL, -0.40 * k, 0.0, 0.0);
+-        self.pair_rot(FaceBone::EyelidTopL, 0.20 * k, 0.0, 0.0);
+-    }
+ 
+-    // --- Bouche et mâchoire ---
+-    pub fn jaw_open(&mut self, k: f32) {
+-        self.rot(FaceBone::Jaw, 0.35 * k, 0.0, 0.0);
+-    }
+-    pub fn smile(&mut self, k: f32) {
+-        self.pair_rot(FaceBone::LipCornerL, -0.35 * k, 0.0, -0.28 * k);
+-        self.pair_rot(FaceBone::LipTopL, -0.12 * k, 0.0, 0.0);
+-        self.cheeks_raise(0.6 * k);
+-    }
+-    pub fn frown_mouth(&mut self, k: f32) {
+-        self.pair_rot(FaceBone::LipCornerL, 0.32 * k, 0.0, 0.12 * k);
+-        self.pair_rot(FaceBone::LipBottomL, 0.10 * k, 0.0, 0.0);
+-    }
+-    /// Un seul coin relevé (sourire en coin, mépris) ; `left` choisit le côté.
+-    pub fn corner_up(&mut self, left: bool, k: f32) {
+-        let (c, out) = if left {
+-            (FaceBone::LipCornerL, -0.25 * k)
+-        } else {
+-            (FaceBone::LipCornerR, 0.25 * k)
+-        };
+-        self.rot(c, -0.38 * k, 0.0, out);
+-    }
+-    pub fn lips_part(&mut self, k: f32) {
+-        self.rot(FaceBone::LipTop, -0.15 * k, 0.0, 0.0);
+-        self.rot(FaceBone::LipBottom, 0.15 * k, 0.0, 0.0);
+-        self.pair_rot(FaceBone::LipTopL, -0.10 * k, 0.0, 0.0);
+-        self.pair_rot(FaceBone::LipBottomL, 0.10 * k, 0.0, 0.0);
+-    }
+-    /// Bouche en avant et resserrée (bisou, « ou »).
+-    pub fn pucker(&mut self, k: f32) {
+-        self.pair_rot(FaceBone::LipCornerL, 0.0, 0.0, 0.45 * k);
+-        self.pair_tr(FaceBone::LipCornerL, Vec3::new(-0.002 * k, 0.003 * k, 0.0));
+-        self.tr(FaceBone::LipTop, Vec3::new(0.0, 0.004 * k, 0.0));
+-        self.tr(FaceBone::LipBottom, Vec3::new(0.0, 0.004 * k, 0.0));
+-        self.rot(FaceBone::LipTop, -0.10 * k, 0.0, 0.0);
+-        self.rot(FaceBone::LipBottom, 0.10 * k, 0.0, 0.0);
+-    }
+-    /// Lèvres étirées sur les côtés (« i », « e »).
+-    pub fn widen_mouth(&mut self, k: f32) {
+-        self.pair_rot(FaceBone::LipCornerL, 0.0, 0.0, -0.30 * k);
+-    }
+-    /// Lèvre inférieure remontée contre les dents du haut (« f », « v »).
+-    pub fn lower_lip_up(&mut self, k: f32) {
+-        self.rot(FaceBone::LipBottom, -0.22 * k, 0.0, 0.0);
+-        self.pair_rot(FaceBone::LipBottomL, -0.18 * k, 0.0, 0.0);
+-        self.rot(FaceBone::LipTop, -0.08 * k, 0.0, 0.0);
+-    }
+-    /// Lèvres pincées l'une contre l'autre (« m », « b », « p »).
+-    pub fn lips_press(&mut self, k: f32) {
+-        self.rot(FaceBone::LipTop, 0.10 * k, 0.0, 0.0);
+-        self.rot(FaceBone::LipBottom, -0.10 * k, 0.0, 0.0);
+-        self.pair_rot(FaceBone::LipTopL, 0.06 * k, 0.0, 0.0);
+-        self.pair_rot(FaceBone::LipBottomL, -0.06 * k, 0.0, 0.0);
+-    }
+-
+-    // --- Nez, joues ---
+-    pub fn nose_wrinkle(&mut self, k: f32) {
+-        self.rot(FaceBone::Nose, -0.22 * k, 0.0, 0.0);
+-        self.pair_rot(FaceBone::NostrilL, -0.25 * k, 0.0, 0.0);
+-    }
+-    pub fn nostrils_flare(&mut self, k: f32) {
+-        self.pair_tr(FaceBone::NostrilL, Vec3::new(0.003 * k, 0.0, 0.0));
+-        self.pair_rot(FaceBone::NostrilL, -0.10 * k, 0.0, 0.0);
+-    }
+-    pub fn cheeks_raise(&mut self, k: f32) {
+-        self.pair_rot(FaceBone::CheekL, -0.30 * k, 0.0, 0.0);
+-    }
+-
+-    // --- Langue (ignorée si absente) ---
+-    pub fn tongue_out(&mut self, k: f32) {
+-        self.rot(FaceBone::Tongue1, 0.25 * k, 0.0, 0.0);
+-        self.rot(FaceBone::Tongue2, 0.22 * k, 0.0, 0.0);
+-    }
+-    pub fn tongue_up(&mut self, k: f32) {
+-        self.rot(FaceBone::Tongue1, -0.30 * k, 0.0, 0.0);
+-        self.rot(FaceBone::Tongue2, -0.18 * k, 0.0, 0.0);
+-    }
+-
+-    // --- Oreilles (animaux) ---
+-    pub fn ears_back(&mut self, k: f32) {
+-        self.pair_rot(FaceBone::EarL, -0.30 * k, 0.40 * k, 0.0);
+-    }
+-    pub fn ears_up(&mut self, k: f32) {
+-        self.pair_rot(FaceBone::EarL, 0.30 * k, -0.20 * k, 0.0);
++    pub fn finish(self) -> ExpressionData {
++        ExpressionData { bones: self.bones }
+     }
+ }
+diff --git a/crates/bones-core/src/presets/expression/mod.rs b/crates/bones-core/src/presets/expression/mod.rs
+index 066349b..9444119 100644
+--- a/crates/bones-core/src/presets/expression/mod.rs
++++ b/crates/bones-core/src/presets/expression/mod.rs
+@@ -19,6 +19,7 @@
+ //!
+ //! [`Category::FacialExpression`]: crate::presets::Category::FacialExpression
+ 
++mod actions;
+ mod apply;
+ mod builder;
+ mod data;
+diff --git a/crates/bones-core/src/presets/mod.rs b/crates/bones-core/src/presets/mod.rs
+index 2f86d96..bb656fa 100644
+--- a/crates/bones-core/src/presets/mod.rs
++++ b/crates/bones-core/src/presets/mod.rs
+@@ -10,7 +10,8 @@
+ //!   par [`Category`] / [`Section`] ([`Section::contains`]) et filtrer par
+ //!   texte ([`PresetInfo::matches`]).
+ //! - **Aperçu animé** (vignette) : [`Preview::new`] puis [`Preview::segments`]
+-//!   à l'instant voulu, sans toucher au projet.
++//!   à l'instant voulu, sans toucher au projet ; ou, joué sur le mannequin,
++//!   [`Staged::new`] puis [`Staged::joints`] (vignettes rendues).
+ //! - **Appliquer** : [`crate::Editor::apply_preset`] avec des [`ApplyOptions`]
+ //!   (une seule étape d'annulation), [`crate::Editor::preset_roles`] pour la
+ //!   correspondance des os.
+@@ -39,6 +40,7 @@ pub mod retarget;
+ pub mod roles;
+ #[cfg(test)]
+ mod sheet;
++pub mod stage;
+ #[cfg(test)]
+ mod tests;
+ pub mod user;
+@@ -56,3 +58,4 @@ pub use preview::Preview;
+ pub use procedural::Generator;
+ pub use reference::RefRig;
+ pub use roles::{BodyFrame, Chain, Lr, RigType, Role, RoleMap, detect};
++pub use stage::{Shot, StageModel, Staged, shot_for};
+diff --git a/crates/bones-core/src/presets/stage/framing.rs b/crates/bones-core/src/presets/stage/framing.rs
+new file mode 100644
+index 0000000..ab54df1
+--- /dev/null
++++ b/crates/bones-core/src/presets/stage/framing.rs
+@@ -0,0 +1,142 @@
++//! Cadrage des vignettes : quelques centaines de sommets du maillage servent
++//! de sondes, déformées (skinning linéaire sur le CPU) à chaque image cuite ;
++//! leur étendue dans le plan de la caméra donne un cadrage exact de la
++//! silhouette — bien meilleur que la boîte des os, qui ignore l'épaisseur du
++//! corps et ne suit pas une vue de trois quarts.
++
++use glam::{Mat4, Vec2, Vec3};
++
++use super::{Shot, StageModel, plane_axes};
++use crate::{BoneId, Pose, Rig, VertexWeights};
++
++/// Nombre maximal de sondes par ensemble.
++const MAX_PROBES: usize = 900;
++
++/// Poids minimal de la tête et du visage pour qu'un sommet serve au gros plan.
++const HEAD_WEIGHT: f32 = 0.5;
++
++/// Sommet sonde : position de repos et influences.
++#[derive(Clone, Copy)]
++struct Probe {
++    position: Vec3,
++    weights: VertexWeights,
++}
++
++/// Sondes du corps entier et de la tête.
++pub(super) struct Probes {
++    body: Vec<Probe>,
++    head: Vec<Probe>,
++}
++
++impl Probes {
++    pub fn new(rig: &Rig) -> Self {
++        let mesh = &rig.mesh;
++        let weights = &rig.skin.weights;
++        let all: Vec<Probe> = mesh
++            .positions
++            .iter()
++            .zip(weights)
++            .map(|(p, w)| Probe {
++                position: *p,
++                weights: *w,
++            })
++            .collect();
++        let head_bones = head_bones(rig);
++        let head: Vec<Probe> = all
++            .iter()
++            .filter(|p| head_bones.iter().map(|b| p.weights.weight_of(*b)).sum::<f32>() >= HEAD_WEIGHT)
++            .copied()
++            .collect();
++        Self {
++            body: thin(all),
++            head: thin(head),
++        }
++    }
++
++    fn get(&self, shot: Shot) -> &[Probe] {
++        match shot {
++            Shot::Body => &self.body,
++            Shot::Face => &self.head,
++        }
++    }
++}
++
++/// Os de la tête : `head.x` et les os du visage (contrat de l'auto-rig).
++fn head_bones(rig: &Rig) -> Vec<BoneId> {
++    let mut bones: Vec<BoneId> = crate::autorig::face::present(&rig.skeleton)
++        .into_iter()
++        .map(|(_, id)| id)
++        .collect();
++    bones.extend(rig.skeleton.find("head.x"));
++    bones
++}
++
++/// Garde au plus [`MAX_PROBES`] sondes, réparties régulièrement.
++fn thin(probes: Vec<Probe>) -> Vec<Probe> {
++    let step = probes.len().div_ceil(MAX_PROBES).max(1);
++    probes.into_iter().step_by(step).collect()
++}
++
++/// Zone à cadrer dans le plan de la caméra : centre monde et demi-étendues
++/// (droite, haut).
++#[derive(Clone, Copy, Debug, PartialEq)]
++pub struct Extent {
++    pub center: Vec3,
++    pub half: Vec2,
++}
++
++/// Étendue des sondes déformées sur toutes les poses. Sans sonde (modèle
++/// sans maillage), on se rabat sur les têtes et queues des os.
++pub(super) fn extent(model: &StageModel, poses: &[Pose], shot: Shot) -> Extent {
++    let (right, up) = plane_axes(shot);
++    let forward = right.cross(up);
++    let (mut lo, mut hi) = (Vec2::splat(f32::MAX), Vec2::splat(f32::MIN));
++    let mut depth = (0.0, 0usize);
++    let mut add = |p: Vec3| {
++        let q = Vec2::new(p.dot(right), p.dot(up));
++        lo = lo.min(q);
++        hi = hi.max(q);
++        depth.0 += p.dot(forward);
++        depth.1 += 1;
++    };
++    let probes = model.probes.get(shot);
++    let (mut world, mut joints) = (Vec::new(), Vec::new());
++    for pose in poses {
++        model.skinning(pose, &mut world, &mut joints);
++        if probes.is_empty() {
++            for (w, b) in world.iter().zip(model.skeleton.bones()) {
++                let (h, t) = crate::head_tail(w, b.length);
++                add(h);
++                add(t);
++            }
++        }
++        for probe in probes {
++            add(skin(probe, &joints));
++        }
++    }
++    if depth.1 == 0 {
++        return Extent {
++            center: Vec3::new(0.0, 1.0, 0.0),
++            half: Vec2::ONE,
++        };
++    }
++    let mid = (lo + hi) * 0.5;
++    let d = depth.0 / depth.1 as f32;
++    Extent {
++        center: right * mid.x + up * mid.y + forward * d,
++        half: (hi - lo) * 0.5,
++    }
++}
++
++/// Position déformée d'une sonde (skinning linéaire).
++fn skin(probe: &Probe, joints: &[Mat4]) -> Vec3 {
++    let mut sum = Vec3::ZERO;
++    let mut total = 0.0;
++    for (bone, w) in probe.weights.iter() {
++        if let Some(m) = joints.get(bone.index()) {
++            sum += w * m.transform_point3(probe.position);
++            total += w;
++        }
++    }
++    if total < 1e-6 { probe.position } else { sum / total }
++}
+diff --git a/crates/bones-core/src/presets/stage/mod.rs b/crates/bones-core/src/presets/stage/mod.rs
+new file mode 100644
+index 0000000..8036172
+--- /dev/null
++++ b/crates/bones-core/src/presets/stage/mod.rs
+@@ -0,0 +1,225 @@
++//! Préréglages joués sur un modèle de présentation (le mannequin de la
++//! galerie) : vignettes rendues avec le vrai maillage plutôt qu'en bâtons.
++//!
++//! - [`StageModel`] : le modèle préparé une fois (squelette, rôles, repos
++//!   inverse, sondes de cadrage prises sur le maillage) ;
++//! - [`Staged`] : un préréglage cuit sur ce modèle — animation humanoïde
++//!   reciblée et jouée sur place ([`Shot::Body`]), ou expression faciale à
++//!   pleine intensité ([`Shot::Face`]) — avec son cadrage, calculé sur les
++//!   sondes déformées à chaque image : la silhouette reste dans la vignette
++//!   pendant tout le cycle.
++//!
++//! Tout est pur et sans GPU : l'application cuit sur un fil de fond, puis
++//! demande les matrices de skinning de l'image voulue ([`Staged::joints`]).
++
++mod framing;
++#[cfg(test)]
++mod tests;
++
++use glam::{Mat4, Vec2, Vec3};
++
++pub use framing::Extent;
++
++use super::apply::{ApplyOptions, bake_preset};
++use super::error::{PresetError, incompatible};
++use super::model::{Preset, PresetKind};
++use super::roles::{RigType, RoleMap, detect};
++use crate::{OrbitCamera, Pose, Rig, Skeleton, Transform};
++
++/// Cadrage d'une vignette.
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum Shot {
++    /// Corps entier, de trois quarts.
++    Body,
++    /// Gros plan sur le visage, presque de face.
++    Face,
++}
++
++impl Shot {
++    /// Orientation de la caméra (lacet, tangage), en radians. Lacet positif :
++    /// la caméra passe du côté gauche du personnage (+X).
++    fn angles(self) -> (f32, f32) {
++        match self {
++            Shot::Body => (0.52, 0.10),
++            Shot::Face => (0.30, 0.04),
++        }
++    }
++}
++
++/// Le préréglage peut-il être joué sur un modèle humanoïde, et avec quel
++/// cadrage ? `None` : préréglage d'animal, de végétal… sans sens sur un
++/// humain (l'interface garde alors l'aperçu en bâtons de son squelette).
++pub fn shot_for(preset: &Preset) -> Option<Shot> {
++    match &preset.kind {
++        PresetKind::Expression(_) => Some(Shot::Face),
++        _ if preset.info.rig_type == RigType::Humanoid => Some(Shot::Body),
++        _ => None,
++    }
++}
++
++/// Modèle de présentation préparé une fois.
++pub struct StageModel {
++    skeleton: Skeleton,
++    roles: RoleMap,
++    /// Inverse des matrices monde de repos (skinning).
++    rest_inv: Vec<Mat4>,
++    probes: framing::Probes,
++}
++
++impl StageModel {
++    pub fn new(rig: &Rig) -> Self {
++        let skeleton = rig.skeleton.clone();
++        let roles = detect(&skeleton);
++        let rest_inv = skeleton
++            .rest_world()
++            .iter()
++            .map(|t| t.to_matrix().inverse())
++            .collect();
++        let probes = framing::Probes::new(rig);
++        Self {
++            skeleton,
++            roles,
++            rest_inv,
++            probes,
++        }
++    }
++
++    pub fn skeleton(&self) -> &Skeleton {
++        &self.skeleton
++    }
++
++    /// Matrices de skinning d'une pose, sans allocation (`world` et `out`
++    /// sont des tampons réutilisés).
++    fn skinning(&self, pose: &Pose, world: &mut Vec<Transform>, out: &mut Vec<Mat4>) {
++        world.clear();
++        out.clear();
++        for (i, bone) in self.skeleton.bones().iter().enumerate() {
++            let local = bone.rest.mul(&pose.bones.get(i).copied().unwrap_or_default());
++            let w = match bone.parent() {
++                Some(p) => world[p.index()].mul(&local),
++                None => local,
++            };
++            world.push(w);
++            out.push(w.to_matrix() * self.rest_inv[i]);
++        }
++    }
++}
++
++/// Préréglage cuit sur le modèle de présentation.
++pub struct Staged {
++    shot: Shot,
++    /// Une pose par image à `FPS` (une seule pour une expression).
++    poses: Vec<Pose>,
++    looping: bool,
++    extent: Extent,
++}
++
++/// Cadence de cuisson des vignettes.
++pub const FPS: f32 = 30.0;
++
++/// Pause sur la dernière image d'une action non bouclée, avant de rejouer.
++const HOLD: f32 = 0.7;
++
++impl Staged {
++    /// Cuit `preset` sur `model` : animation reciblée sur place, ou
++    /// expression à pleine intensité. Erreur si le préréglage ne convient pas
++    /// à un humanoïde (voir [`shot_for`]).
++    pub fn new(preset: &Preset, model: &StageModel) -> Result<Self, PresetError> {
++        let shot = shot_for(preset).ok_or_else(|| incompatible("not a humanoid preset"))?;
++        let skeleton = &model.skeleton;
++        let poses = match &preset.kind {
++            PresetKind::Expression(data) => {
++                vec![super::expression::face_pose(data, skeleton, 1.0, false).0]
++            }
++            _ => {
++                let options = ApplyOptions {
++                    in_place: true,
++                    ..ApplyOptions::default()
++                };
++                let base = Pose::rest(skeleton);
++                bake_preset(preset, skeleton, &model.roles, &base, &options, FPS)?.0
++            }
++        };
++        if poses.is_empty() {
++            return Err(incompatible("empty preset"));
++        }
++        let extent = framing::extent(model, &poses, shot);
++        Ok(Self {
++            shot,
++            poses,
++            looping: preset.info.looping,
++            extent,
++        })
++    }
++
++    pub fn shot(&self) -> Shot {
++        self.shot
++    }
++
++    /// Nombre d'images cuites (1 : pose fixe).
++    pub fn frames(&self) -> usize {
++        self.poses.len()
++    }
++
++    /// Pose fixe (expression) : inutile de redessiner la vignette.
++    pub fn is_static(&self) -> bool {
++        self.poses.len() < 2
++    }
++
++    /// Image à jouer à l'instant `time` (secondes) : boucle, ou action
++    /// rejouée après une courte pause sur sa fin.
++    pub fn frame_at(&self, time: f32) -> usize {
++        let n = self.poses.len();
++        if n < 2 || !time.is_finite() {
++            return 0;
++        }
++        let last = (n - 1) as f32;
++        let f = if self.looping {
++            (time * FPS).rem_euclid(last)
++        } else {
++            (time.rem_euclid(last / FPS + HOLD) * FPS).min(last)
++        };
++        (f.floor() as usize).min(n - 1)
++    }
++
++    /// Matrices de skinning de l'image `frame`. `world` et `out` sont des
++    /// tampons réutilisés d'un appel à l'autre.
++    pub fn joints(&self, model: &StageModel, frame: usize, world: &mut Vec<Transform>, out: &mut Vec<Mat4>) {
++        let pose = &self.poses[frame.min(self.poses.len() - 1)];
++        model.skinning(pose, world, out);
++    }
++
++    /// Zone à cadrer (tout le cycle), dans le plan de la caméra du cadrage.
++    pub fn extent(&self) -> Extent {
++        self.extent
++    }
++
++    /// Caméra orthographique qui cadre le préréglage dans une vignette de
++    /// rapport `aspect` (largeur / hauteur), avec une marge relative `margin`.
++    pub fn camera(&self, aspect: f32, margin: f32) -> OrbitCamera {
++        let (yaw, pitch) = self.shot.angles();
++        let mut camera = OrbitCamera {
++            yaw,
++            pitch,
++            orthographic: true,
++            ..OrbitCamera::default()
++        };
++        let Extent { center, half } = self.extent;
++        let half = half.max(Vec2::splat(1e-3));
++        let h = half.y.max(half.x / aspect.max(1e-3)) * (1.0 + margin.max(0.0));
++        camera.target = center;
++        camera.distance = h / (camera.fov_y * 0.5).tan();
++        camera
++    }
++}
++
++/// Point du plan de la caméra d'un cadrage : (droite, haut) d'un point monde.
++fn plane_axes(shot: Shot) -> (Vec3, Vec3) {
++    let (yaw, pitch) = shot.angles();
++    let camera = OrbitCamera {
++        yaw,
++        pitch,
++        ..OrbitCamera::default()
++    };
++    (camera.right(), camera.up())
++}
+diff --git a/crates/bones-core/src/presets/stage/tests.rs b/crates/bones-core/src/presets/stage/tests.rs
+new file mode 100644
+index 0000000..84e48b1
+--- /dev/null
++++ b/crates/bones-core/src/presets/stage/tests.rs
+@@ -0,0 +1,171 @@
++use glam::Vec3;
++
++use super::*;
++use crate::presets::{builtin, find_builtin};
++use crate::samples::mannequin;
++use crate::{Transform, Viewport};
++
++fn model() -> (Rig, StageModel) {
++    let rig = mannequin();
++    let model = StageModel::new(&rig);
++    (rig, model)
++}
++
++fn preset(id: &str) -> &'static Preset {
++    find_builtin(id).unwrap_or_else(|| panic!("préréglage {id} absent"))
++}
++
++/// Position monde de la tête d'un os à l'image `frame`.
++fn bone_position(staged: &Staged, model: &StageModel, frame: usize, name: &str) -> Vec3 {
++    let id = model.skeleton().find(name).expect("os du mannequin");
++    let world = staged.poses[frame].world(model.skeleton());
++    world[id.index()].translation
++}
++
++#[test]
++fn shots_follow_the_kind_of_preset() {
++    assert_eq!(shot_for(preset("builtin.human.walk")), Some(Shot::Body));
++    assert_eq!(shot_for(preset("builtin.face.happy")), Some(Shot::Face));
++    assert_eq!(shot_for(preset("builtin.animals.dog-walk")), None);
++    assert_eq!(shot_for(preset("builtin.vegetation.tree-breeze")), None);
++}
++
++#[test]
++fn expressions_pose_only_the_face() {
++    let (rig, model) = model();
++    let face: Vec<_> = crate::presets::expression::present_mapped(&rig.skeleton)
++        .into_iter()
++        .map(|(_, id)| id.index())
++        .collect();
++    assert!(face.len() > 20, "le mannequin a un visage");
++    let staged = Staged::new(preset("builtin.face.surprise"), &model).unwrap();
++    assert!(staged.is_static());
++    assert_eq!(staged.shot(), Shot::Face);
++    let pose = &staged.poses[0];
++    let moved: Vec<usize> = (0..pose.bones.len())
++        .filter(|i| !pose.bones[*i].abs_diff_eq(&Transform::IDENTITY, 1e-6))
++        .collect();
++    assert!(!moved.is_empty());
++    assert!(moved.iter().all(|i| face.contains(i)), "seul le visage bouge");
++
++    let (mut world, mut joints) = (Vec::new(), Vec::new());
++    staged.joints(&model, 0, &mut world, &mut joints);
++    assert_eq!(joints.len(), rig.skeleton.len());
++    assert!(joints.iter().all(|m| m.is_finite()));
++    // Gros plan : de l'ordre d'une tête (quelques dizaines de centimètres).
++    let half = staged.extent().half;
++    assert!(half.x > 0.05 && half.x < 0.25, "largeur {half}");
++    assert!(half.y > 0.08 && half.y < 0.3, "hauteur {half}");
++    assert!(staged.extent().center.y > 1.3, "centré sur la tête");
++}
++
++#[test]
++fn locomotion_is_played_in_place() {
++    let (_, model) = model();
++    let staged = Staged::new(preset("builtin.human.walk"), &model).unwrap();
++    assert_eq!(staged.shot(), Shot::Body);
++    assert!(staged.frames() > 10);
++    let first = bone_position(&staged, &model, 0, "root.x");
++    let last = bone_position(&staged, &model, staged.frames() - 1, "root.x");
++    let drift = Vec3::new(last.x - first.x, 0.0, last.z - first.z).length();
++    assert!(drift < 0.02, "dérive horizontale {drift}");
++    // Corps entier : environ 1,8 m de haut.
++    let half = staged.extent().half;
++    assert!(half.y > 0.7 && half.y < 1.3, "demi-hauteur {half}");
++
++    let (mut world, mut joints) = (Vec::new(), Vec::new());
++    for frame in 0..staged.frames() {
++        staged.joints(&model, frame, &mut world, &mut joints);
++        assert!(joints.iter().all(|m| m.is_finite()));
++    }
++}
++
++#[test]
++fn all_humanoid_presets_and_expressions_stage() {
++    let (_, model) = model();
++    for p in builtin() {
++        match shot_for(p) {
++            Some(_) => {
++                let staged = Staged::new(p, &model).unwrap_or_else(|e| panic!("{}: {e}", p.info.id));
++                assert!(staged.extent().half.is_finite(), "{}", p.info.id);
++            }
++            None => assert!(Staged::new(p, &model).is_err(), "{}", p.info.id),
++        }
++    }
++}
++
++#[test]
++fn frames_loop_or_hold_on_the_last_pose() {
++    let (_, model) = model();
++    let walk = Staged::new(preset("builtin.human.walk"), &model).unwrap();
++    let n = walk.frames();
++    assert_eq!(walk.frame_at(0.0), 0);
++    assert_eq!(walk.frame_at((n - 1) as f32 / FPS), 0, "boucle");
++    assert!(walk.frame_at(1e6) < n);
++    assert_eq!(walk.frame_at(f32::NAN), 0);
++
++    let jump = Staged::new(preset("builtin.human.jump"), &model).unwrap();
++    let last = jump.frames() - 1;
++    let end = last as f32 / FPS;
++    assert_eq!(jump.frame_at(end + HOLD * 0.5), last, "pause sur la fin");
++    assert_eq!(jump.frame_at(end + HOLD + 0.01), 0, "rejoue");
++}
++
++#[test]
++fn camera_frames_the_whole_extent() {
++    let (_, model) = model();
++    for id in ["builtin.human.run", "builtin.face.happy"] {
++        let staged = Staged::new(preset(id), &model).unwrap();
++        for aspect in [0.75, 1.0, 1.6] {
++            let camera = staged.camera(aspect, 0.1);
++            let viewport = Viewport::new(100.0 * aspect, 100.0);
++            let view_proj = camera.view_proj(&viewport);
++            let Extent { center, half } = staged.extent();
++            let (right, up) = plane_axes(staged.shot());
++            for (sx, sy) in [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
++                let p = center + right * half.x * sx + up * half.y * sy;
++                let ndc = view_proj.project_point3(p);
++                assert!(ndc.x.abs() <= 1.0 && ndc.y.abs() <= 1.0, "{id} {aspect}: {ndc}");
++                assert!((0.0..=1.0).contains(&ndc.z), "{id}: profondeur {ndc}");
++            }
++        }
++    }
++}
++
++#[test]
++#[ignore]
++fn diag_face_displacements() {
++    let rig = mannequin();
++    let present = crate::presets::expression::present_mapped(&rig.skeleton);
++    for (fb, id) in &present {
++        println!("{:16} len {:.4}", fb.name(), rig.skeleton.bone(*id).length);
++    }
++    let rest = crate::Pose::rest(&rig.skeleton).skinning_matrices(&rig.skeleton);
++    let (mut p0, mut n0) = (Vec::new(), Vec::new());
++    rig.skin.deform_into(&rig.mesh, &rest, &mut p0, &mut n0);
++    for p in builtin().iter().filter(|p| p.info.group == "Emotions") {
++        let PresetKind::Expression(data) = &p.kind else {
++            continue;
++        };
++        let (pose, _) = crate::presets::expression::face_pose(data, &rig.skeleton, 1.0, false);
++        let m = pose.skinning_matrices(&rig.skeleton);
++        let (mut p1, mut n1) = (Vec::new(), Vec::new());
++        rig.skin.deform_into(&rig.mesh, &m, &mut p1, &mut n1);
++        let d: Vec<f32> = p0.iter().zip(&p1).map(|(a, b)| a.distance(*b)).collect();
++        let max = d.iter().cloned().fold(0.0, f32::max);
++        let over = d.iter().filter(|x| **x > 0.002).count();
++        println!("{:12} max {:.4} m, sommets > 2 mm : {over}", p.info.name, max);
++    }
++    // Déplacement par os : 1 cm vers le haut.
++    for (fb, id) in &present {
++        let mut pose = crate::Pose::rest(&rig.skeleton);
++        pose.bones[id.index()].translation = glam::Vec3::new(0.0, 0.0, -0.01);
++        let m = pose.skinning_matrices(&rig.skeleton);
++        let (mut p1, mut n1) = (Vec::new(), Vec::new());
++        rig.skin.deform_into(&rig.mesh, &m, &mut p1, &mut n1);
++        let d: Vec<f32> = p0.iter().zip(&p1).map(|(a, b)| a.distance(*b)).collect();
++        let max = d.iter().cloned().fold(0.0, f32::max);
++        let over = d.iter().filter(|x| **x > 0.005).count();
++        println!("1cm {:16} max {:.4}, > 5 mm : {over}", fb.name(), max);
++    }
++}
+diff --git a/crates/bones-render/src/lib.rs b/crates/bones-render/src/lib.rs
+index 17d4650..7d77256 100644
+--- a/crates/bones-render/src/lib.rs
++++ b/crates/bones-render/src/lib.rs
+@@ -21,6 +21,8 @@
+ //! - [`renderer`] : état GPU et préparation ; `pass` : dessin ;
+ //! - `snapshot` : rendu hors écran et relecture des pixels ([`Readback`],
+ //!   miniatures des projets) ;
++//! - `tiles` : vignettes rendues dans leurs propres textures, sur fond
++//!   transparent ([`Tiles`], galeries de préréglages) ;
+ //! - `blur` : flou d'arrière-plan des panneaux en verre dépoli de
+ //!   l'interface ([`Backdrop`]) ;
+ //! - `materials`, `textures` : matériaux et textures du maillage ;
+@@ -42,9 +44,11 @@ pub mod scene;
+ mod snapshot;
+ mod targets;
+ mod textures;
++mod tiles;
+ 
+ pub use blur::{Backdrop, Region};
+ pub use geometry::{bone_matrix, handle_matrix};
+ pub use renderer::Renderer;
+ pub use scene::{BoneInstance, LineVertex, Scene, WeightView};
+ pub use snapshot::Readback;
++pub use tiles::Tiles;
+diff --git a/crates/bones-render/src/pass.rs b/crates/bones-render/src/pass.rs
+index d637864..9abdc6b 100644
+--- a/crates/bones-render/src/pass.rs
++++ b/crates/bones-render/src/pass.rs
+@@ -48,7 +48,12 @@ impl Renderer {
+                 depth_slice: None,
+                 resolve_target,
+                 ops: wgpu::Operations {
+-                    load: wgpu::LoadOp::Clear(wgpu::Color { r, g, b, a: 1.0 }),
++                    load: wgpu::LoadOp::Clear(wgpu::Color {
++                        r,
++                        g,
++                        b,
++                        a: f.clear_alpha,
++                    }),
+                     store,
+                 },
+             })],
+diff --git a/crates/bones-render/src/renderer.rs b/crates/bones-render/src/renderer.rs
+index 7e7993e..886ead1 100644
+--- a/crates/bones-render/src/renderer.rs
++++ b/crates/bones-render/src/renderer.rs
+@@ -24,6 +24,8 @@ pub(crate) struct Frame {
+     pub wire: bool,
+     pub viewport: [f32; 4],
+     pub background: [f64; 3],
++    /// Opacité du fond (0 : vignette sur fond transparent).
++    pub clear_alpha: f64,
+ }
+ 
+ pub struct Renderer {
+@@ -150,6 +152,7 @@ impl Renderer {
+             wire: scene.weights.is_some_and(|w| w.wire),
+             viewport: scene.viewport,
+             background: scene.background,
++            clear_alpha: 1.0,
+         };
+     }
+ }
+diff --git a/crates/bones-render/src/targets.rs b/crates/bones-render/src/targets.rs
+index 8137272..eca75df 100644
+--- a/crates/bones-render/src/targets.rs
++++ b/crates/bones-render/src/targets.rs
+@@ -37,6 +37,11 @@ impl RenderTargets {
+         self.samples
+     }
+ 
++    /// Taille des vues créées par le dernier [`Self::ensure`].
++    pub fn size(&self) -> [u32; 2] {
++        self.size
++    }
++
+     /// Vues créées par le dernier [`Self::ensure`].
+     pub fn views(&self) -> &Views {
+         self.views.as_ref().expect("RenderTargets::ensure appelé avant")
+diff --git a/crates/bones-render/src/tiles.rs b/crates/bones-render/src/tiles.rs
+new file mode 100644
+index 0000000..b6cc10c
+--- /dev/null
++++ b/crates/bones-render/src/tiles.rs
+@@ -0,0 +1,160 @@
++//! Vignettes 3D rendues chacune dans sa propre texture, sur fond
++//! transparent (alpha prémultiplié) : l'interface les pose sur ses cartes
++//! comme des images natives (galeries de préréglages).
++//!
++//! Une texture par vignette plutôt qu'un atlas : la passe de rendu efface et
++//! résout (MSAA) toute sa cible, les vignettes ont des tailles différentes
++//! (cartes, bandeau d'une feuille), et l'on évite une copie. Chaque vignette
++//! est soumise aussitôt : ses uniformes (caméra, matrices des os) sont ainsi
++//! lus avant que la suivante ne les remplace.
++
++use crate::renderer::Renderer;
++use crate::scene::Scene;
++use crate::targets::RenderTargets;
++
++/// Attachements gardés pour des tailles différentes (cartes, bandeau…).
++const TARGET_SIZES: usize = 3;
++
++struct Tile {
++    texture: wgpu::Texture,
++    view: wgpu::TextureView,
++    /// Change à chaque (re)création de la texture.
++    generation: u64,
++}
++
++/// Vignettes rendues, par emplacement.
++#[derive(Default)]
++pub struct Tiles {
++    slots: Vec<Option<Tile>>,
++    /// Attachements (profondeur, MSAA) par taille, du plus récent au plus ancien.
++    targets: Vec<RenderTargets>,
++    generation: u64,
++}
++
++impl Tiles {
++    pub fn new() -> Self {
++        Self::default()
++    }
++
++    /// Vue de la vignette `slot` (format du moteur) et sa génération : une
++    /// nouvelle génération signale une nouvelle texture à réenregistrer.
++    pub fn view(&self, slot: usize) -> Option<(&wgpu::TextureView, u64)> {
++        let tile = self.slots.get(slot)?.as_ref()?;
++        Some((&tile.view, tile.generation))
++    }
++
++    /// Texture de la vignette `slot` (relecture dans les tests).
++    pub fn texture(&self, slot: usize) -> Option<&wgpu::Texture> {
++        Some(&self.slots.get(slot)?.as_ref()?.texture)
++    }
++
++    /// Taille en pixels de la vignette `slot`.
++    pub fn size(&self, slot: usize) -> Option<[u32; 2]> {
++        self.texture(slot).map(|t| [t.width(), t.height()])
++    }
++
++    /// Nombre d'emplacements.
++    pub fn len(&self) -> usize {
++        self.slots.len()
++    }
++
++    pub fn is_empty(&self) -> bool {
++        self.slots.is_empty()
++    }
++
++    /// Ne garde que les `len` premiers emplacements (mémoire libérée).
++    pub fn truncate(&mut self, len: usize) {
++        self.slots.truncate(len);
++        if self.slots.is_empty() {
++            self.targets.clear();
++        }
++    }
++
++    /// Prépare `scene` et la dessine dans la vignette `slot` de `size` pixels
++    /// (créée ou recréée au besoin), sur fond transparent. Le fond de la
++    /// scène est ignoré. La commande est soumise immédiatement.
++    pub fn render(
++        &mut self,
++        renderer: &mut Renderer,
++        device: &wgpu::Device,
++        queue: &wgpu::Queue,
++        scene: &Scene,
++        slot: usize,
++        size: [u32; 2],
++    ) {
++        let size = [size[0].max(1), size[1].max(1)];
++        let format = renderer.targets.format();
++        let view = self.ensure(device, format, slot, size).view.clone();
++        renderer.prepare(device, queue, scene);
++        // Fond noir transparent : les bords anticrénelés restent en alpha
++        // prémultiplié, comme l'attend egui.
++        renderer.frame.background = [0.0; 3];
++        renderer.frame.clear_alpha = 0.0;
++        let targets = self.targets(device, format, renderer.targets.samples(), size);
++        let mut encoder =
++            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("tile") });
++        renderer.draw(&mut encoder, targets.views(), &view, size);
++        queue.submit([encoder.finish()]);
++    }
++
++    /// Vignette `slot` à la bonne taille.
++    fn ensure(
++        &mut self,
++        device: &wgpu::Device,
++        format: wgpu::TextureFormat,
++        slot: usize,
++        size: [u32; 2],
++    ) -> &Tile {
++        if self.slots.len() <= slot {
++            self.slots.resize_with(slot + 1, || None);
++        }
++        let fits = self.slots[slot]
++            .as_ref()
++            .is_some_and(|t| [t.texture.width(), t.texture.height()] == size && t.texture.format() == format);
++        if !fits {
++            self.generation += 1;
++            let texture = device.create_texture(&wgpu::TextureDescriptor {
++                label: Some("tile"),
++                size: wgpu::Extent3d {
++                    width: size[0],
++                    height: size[1],
++                    depth_or_array_layers: 1,
++                },
++                mip_level_count: 1,
++                sample_count: 1,
++                dimension: wgpu::TextureDimension::D2,
++                format,
++                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
++                    | wgpu::TextureUsages::TEXTURE_BINDING
++                    | wgpu::TextureUsages::COPY_SRC,
++                view_formats: &[],
++            });
++            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
++            self.slots[slot] = Some(Tile {
++                texture,
++                view,
++                generation: self.generation,
++            });
++        }
++        self.slots[slot].as_ref().expect("vignette créée")
++    }
++
++    /// Attachements pour `size`, réutilisés d'une image à l'autre.
++    fn targets(
++        &mut self,
++        device: &wgpu::Device,
++        format: wgpu::TextureFormat,
++        samples: u32,
++        size: [u32; 2],
++    ) -> &RenderTargets {
++        let found = self.targets.iter().position(|t| t.size() == size);
++        let mut targets = match found {
++            Some(i) => self.targets.remove(i),
++            None => RenderTargets::new(format, samples),
++        };
++        targets.ensure(device, size);
++        self.targets.insert(0, targets);
++        self.targets.truncate(TARGET_SIZES);
++        &self.targets[0]
++    }
++}
+diff --git a/crates/bones-render/tests/stage.rs b/crates/bones-render/tests/stage.rs
+new file mode 100644
+index 0000000..4d4a2c5
+--- /dev/null
++++ b/crates/bones-render/tests/stage.rs
+@@ -0,0 +1,135 @@
++//! Vignettes des préréglages joués sur le mannequin (`Tiles`) : fond
++//! transparent, modèle cadré, et expressions faciales nettement distinctes
++//! les unes des autres (critère de lisibilité des cartes).
++//!
++//! `BONES_RENDER_DUMP=dossier` écrit les vignettes (PPM) pour inspection.
++
++mod common;
++
++use bones_core::presets::{Category, Shot, StageModel, Staged, builtin, find_builtin};
++use bones_core::{Rig, Viewport};
++use bones_render::{Readback, Renderer, Scene, Tiles};
++use common::FORMAT;
++use glam::Mat4;
++
++const TILE: [u32; 2] = [200, 220];
++
++struct Bench {
++    device: wgpu::Device,
++    queue: wgpu::Queue,
++    renderer: Renderer,
++    tiles: Tiles,
++    model: StageModel,
++}
++
++impl Bench {
++    fn new() -> Option<Self> {
++        let (device, queue) = common::device()?;
++        let rig: Rig = bones_core::samples::mannequin();
++        let mut renderer = Renderer::new(&device, FORMAT);
++        renderer.set_mesh(&device, &queue, &rig.mesh, 1);
++        renderer.set_skin(&device, &queue, &rig.skin, 1);
++        Some(Self {
++            device,
++            queue,
++            renderer,
++            tiles: Tiles::new(),
++            model: StageModel::new(&rig),
++        })
++    }
++
++    /// Rend l'image `frame` de `staged` et retourne ses pixels RGBA.
++    fn render(&mut self, staged: &Staged, frame: usize) -> Vec<u8> {
++        let (mut world, mut joints): (_, Vec<Mat4>) = (Vec::new(), Vec::new());
++        staged.joints(&self.model, frame, &mut world, &mut joints);
++        let viewport = Viewport::new(TILE[0] as f32, TILE[1] as f32);
++        let camera = staged.camera(viewport.aspect(), 0.08);
++        let scene = Scene {
++            view_proj: camera.view_proj(&viewport),
++            eye: camera.eye(),
++            viewport: [0.0, 0.0, viewport.width, viewport.height],
++            background: [0.5, 0.5, 0.5],
++            joints: &joints,
++            show_mesh: true,
++            textured: true,
++            weights: None,
++            lines: &[],
++            bones: &[],
++            overlay_lines: &[],
++        };
++        let (device, queue) = (&self.device, &self.queue);
++        self.tiles
++            .render(&mut self.renderer, device, queue, &scene, 0, TILE);
++        let mut encoder = device.create_command_encoder(&Default::default());
++        let readback = Readback::copy(device, &mut encoder, self.tiles.texture(0).unwrap()).unwrap();
++        queue.submit([encoder.finish()]);
++        readback.wait().expect("relecture GPU")
++    }
++}
++
++/// Part des pixels qui diffèrent nettement entre deux images.
++fn difference(a: &[u8], b: &[u8]) -> f32 {
++    let (a, b) = (common::pixels(a), common::pixels(b));
++    let changed = a
++        .iter()
++        .zip(b)
++        .filter(|(p, q)| p.iter().zip(q.iter()).take(3).any(|(x, y)| x.abs_diff(*y) > 24))
++        .count();
++    changed as f32 / a.len() as f32
++}
++
++#[test]
++fn tiles_are_transparent_around_the_model() {
++    let Some(mut bench) = Bench::new() else {
++        eprintln!("aucun adaptateur GPU : test de rendu ignoré");
++        return;
++    };
++    let walk = Staged::new(find_builtin("builtin.human.walk").unwrap(), &bench.model).unwrap();
++    let rgba = bench.render(&walk, 0);
++    common::dump(&rgba, TILE, "stage-walk");
++    let pixels = common::pixels(&rgba);
++    assert_eq!(pixels[0], [0, 0, 0, 0], "fond transparent");
++    let opaque = pixels.iter().filter(|p| p[3] == 255).count() as f32 / pixels.len() as f32;
++    assert!(opaque > 0.08 && opaque < 0.6, "silhouette cadrée ({opaque})");
++    // Bords prémultipliés : jamais de couleur plus forte que l'alpha.
++    assert!(pixels.iter().all(|p| p[..3].iter().all(|c| *c <= p[3])));
++    assert_eq!(bench.tiles.size(0), Some(TILE));
++}
++
++#[test]
++fn expressions_read_differently_on_the_mannequin() {
++    let Some(mut bench) = Bench::new() else {
++        eprintln!("aucun adaptateur GPU : test de rendu ignoré");
++        return;
++    };
++    let mut emotions: Vec<(String, Vec<u8>)> = Vec::new();
++    let expressions = builtin()
++        .iter()
++        .filter(|p| p.info.category == Category::FacialExpression);
++    for preset in expressions {
++        let staged = Staged::new(preset, &bench.model).unwrap();
++        assert_eq!(staged.shot(), Shot::Face);
++        let rgba = bench.render(&staged, 0);
++        let name = format!("face-{}-{}", preset.info.group, preset.info.name).to_lowercase();
++        let name: String = name
++            .chars()
++            .map(|c| if c.is_alphanumeric() { c } else { '-' })
++            .collect();
++        common::dump(&rgba, TILE, &name);
++        if preset.info.group == "Emotions" {
++            emotions.push((preset.info.name.clone(), rgba));
++        }
++    }
++    // Deux émotions quelconques se distinguent nettement sur la carte : une
++    // part sensible des pixels change (mesurée sur le mannequin).
++    for (i, (a, pa)) in emotions.iter().enumerate() {
++        for (b, pb) in &emotions[i + 1..] {
++            let d = difference(pa, pb);
++            eprintln!("{a} / {b} : {:.2} %", d * 100.0);
++            assert!(d > MIN_DIFFERENCE, "{a} et {b} se ressemblent trop ({d})");
++        }
++    }
++}
++
++/// Part minimale de pixels qui changent entre deux émotions.
++const MIN_DIFFERENCE: f32 = 0.002;

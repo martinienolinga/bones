@@ -1,0 +1,1684 @@
+diff --git a/crates/bones-core/src/rig/document.rs b/crates/bones-core/src/rig/document.rs
+index 583aeff..3b2f58b 100644
+--- a/crates/bones-core/src/rig/document.rs
++++ b/crates/bones-core/src/rig/document.rs
+@@ -11,6 +11,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
+ use glam::{Mat4, Vec3};
+ use serde::{Deserialize, Serialize};
+ 
++use crate::scene::{BodyProps, SceneObject};
+ use crate::{BindMethod, BoneId, Clip, Limb, Mesh, Pin, Pose, Skeleton, Skin, Transform};
+ 
+ static NEXT_REVISION: AtomicU64 = AtomicU64::new(1);
+@@ -62,6 +63,12 @@ pub struct Rig {
+     /// jusqu'à ce que l'utilisateur relance les poids automatiques.
+     #[serde(default)]
+     pub(crate) painted: bool,
++    /// Nom, visibilité et verrou du corps dans la liste des objets.
++    #[serde(default)]
++    pub body: BodyProps,
++    /// Objets supplémentaires (voir [`crate::scene`]), dans l'ordre de la liste.
++    #[serde(default)]
++    pub(crate) objects: Vec<SceneObject>,
+     #[serde(skip)]
+     pub(crate) revisions: Revisions,
+ }
+@@ -81,6 +88,8 @@ impl Rig {
+             limbs: Vec::new(),
+             pins: Vec::new(),
+             painted: false,
++            body: BodyProps::default(),
++            objects: Vec::new(),
+             revisions: Revisions::default(),
+         }
+     }
+@@ -148,6 +157,9 @@ impl Rig {
+     /// Remplace tout le squelette (auto-rig) : pose, animation et épingles
+     /// sont réinitialisées car elles ne correspondent plus aux os.
+     pub fn set_skeleton(&mut self, skeleton: Skeleton, limbs: Vec<Limb>) {
++        // Objets attachés aux os : retrouvés par le nom de l'os.
++        let anchors = self.object_rest_anchors();
++        let old_names: Vec<String> = self.skeleton.bones().iter().map(|b| b.name.clone()).collect();
+         self.pose = Pose::rest(&skeleton);
+         self.skeleton = skeleton;
+         self.limbs = limbs;
+@@ -157,6 +169,7 @@ impl Rig {
+         self.clip = Arc::new(Clip::new(self.clip.fps, self.clip.frame_count));
+         self.touch_clip();
+         self.touch_skeleton();
++        self.retarget_objects(&old_names, &anchors);
+     }
+ 
+     /// Remplace le maillage (import) en gardant le squelette.
+@@ -184,8 +197,9 @@ impl Rig {
+ 
+     /// Supprime un os ; ses enfants passent à son parent.
+     pub fn remove_bone(&mut self, id: BoneId) {
++        let anchors = self.object_anchors();
+         let remap = self.skeleton.remove_bone(id);
+-        self.apply_remap(&remap, true);
++        self.apply_remap_keeping(&remap, true, &anchors);
+     }
+ 
+     pub fn world(&self) -> Vec<Transform> {
+diff --git a/crates/bones-core/src/rig/edit.rs b/crates/bones-core/src/rig/edit.rs
+index 2e9edd1..0ab175a 100644
+--- a/crates/bones-core/src/rig/edit.rs
++++ b/crates/bones-core/src/rig/edit.rs
+@@ -5,6 +5,7 @@ use std::sync::Arc;
+ 
+ use super::SkeletonError;
+ use super::document::next_revision;
++use crate::scene::ObjectAnchors;
+ use crate::{BoneId, BoneRemap, Pin, Rig};
+ 
+ impl Rig {
+@@ -22,6 +23,12 @@ impl Rig {
+     /// à tout ce qui référence des os. Avec `keep_binding`, les poids
+     /// remappés restent considérés comme liés (géométrie de repos inchangée).
+     pub fn apply_remap(&mut self, remap: &BoneRemap, keep_binding: bool) {
++        self.apply_remap_keeping(remap, keep_binding, &ObjectAnchors::default());
++    }
++
++    /// Comme [`Rig::apply_remap`] ; un objet dont l'os parent disparaît garde
++    /// sa place en monde notée dans `anchors` (relevée avant la modification).
++    pub(crate) fn apply_remap_keeping(&mut self, remap: &BoneRemap, keep_binding: bool, anchors: &ObjectAnchors) {
+         self.pose.remap(remap);
+         if !self.clip.is_empty() {
+             self.touch_clip();
+@@ -45,6 +52,7 @@ impl Rig {
+         if keep_binding && was_bound {
+             self.revisions.bound_to = (self.revisions.skeleton, self.revisions.mesh);
+         }
++        self.remap_objects(remap, anchors);
+     }
+ 
+     /// Change le parent d'un os (voir `Skeleton::set_parent`).
+@@ -54,16 +62,18 @@ impl Rig {
+         parent: Option<BoneId>,
+         connect: bool,
+     ) -> Result<BoneRemap, SkeletonError> {
++        let anchors = self.object_anchors();
+         let remap = self.skeleton.set_parent(id, parent, connect)?;
+         // Sans connexion, rien ne bouge : les poids restent valables.
+-        self.apply_remap(&remap, !connect);
++        self.apply_remap_keeping(&remap, !connect, &anchors);
+         Ok(remap)
+     }
+ 
+     /// Supprime un os et sa descendance.
+     pub fn remove_with_children(&mut self, id: BoneId) -> BoneRemap {
++        let anchors = self.object_anchors();
+         let remap = self.skeleton.remove_with_children(id);
+-        self.apply_remap(&remap, true);
++        self.apply_remap_keeping(&remap, true, &anchors);
+         remap
+     }
+ 
+diff --git a/crates/bones-core/src/rig/model.rs b/crates/bones-core/src/rig/model.rs
+index ec91c7b..8556008 100644
+--- a/crates/bones-core/src/rig/model.rs
++++ b/crates/bones-core/src/rig/model.rs
+@@ -78,6 +78,7 @@ impl Rig {
+             pin.target = m.transform_point(pin.target);
+         }
+ 
++        self.transform_objects_from(start, m);
+         self.skin = start.skin.clone();
+         self.revisions = start.revisions;
+         self.revisions.mesh = next_revision();
+diff --git a/crates/bones-core/src/scene/bind.rs b/crates/bones-core/src/scene/bind.rs
+new file mode 100644
+index 0000000..7812819
+--- /dev/null
++++ b/crates/bones-core/src/scene/bind.rs
+@@ -0,0 +1,204 @@
++//! Poids des objets déformés : état pour lequel ils ont été calculés,
++//! données d'un calcul en tâche de fond, et installation du résultat.
++//!
++//! Un objet déformé est d'abord placé par sa transformation évaluée au
++//! repos (placement de liaison) ; ses poids dépendent du squelette, de son
++//! maillage, de ce placement, de la méthode et, pour un transfert, des poids
++//! du corps. Le tampon [`BindStamp`] résume tout cela : des poids sont à
++//! jour tant que le tampon actuel est celui de leur calcul.
++
++use std::sync::Arc;
++
++use rayon::prelude::*;
++
++use super::{Binding, ObjectId, SkinMethod};
++use crate::{BindMethod, Mesh, Rig, Skeleton, Skin, Transform};
++
++/// État pour lequel les poids d'un objet ont été calculés.
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub struct BindStamp {
++    skeleton: u64,
++    mesh: u64,
++    /// Révision des poids du corps (transfert), sinon 0.
++    source: u64,
++    method: SkinMethod,
++    /// Placement de liaison, bit à bit.
++    placement: [u32; 10],
++}
++
++/// Source des poids d'un calcul.
++pub(crate) enum WeightSource {
++    /// Transfert depuis le corps (maillage et poids de repos).
++    Transfer(Arc<Mesh>, Arc<Skin>),
++    Compute(BindMethod),
++}
++
++/// Données autonomes d'un calcul de poids d'objet (tâche de fond).
++pub(crate) struct ObjectBindInput {
++    pub id: ObjectId,
++    pub mesh: Arc<Mesh>,
++    pub placement: Transform,
++    pub source: WeightSource,
++    pub stamp: BindStamp,
++}
++
++impl ObjectBindInput {
++    /// Calcule les poids (peut durer : à lancer hors du fil de l'interface).
++    pub fn compute(&self, skeleton: &Skeleton) -> Skin {
++        let m = self.placement;
++        let positions: Vec<glam::Vec3> = self.mesh.positions.par_iter().map(|p| m.transform_point(*p)).collect();
++        match &self.source {
++            WeightSource::Transfer(body, skin) => Skin::transfer(body, skin, &positions),
++            WeightSource::Compute(method) => {
++                let normals = self
++                    .mesh
++                    .normals
++                    .iter()
++                    .map(|n| m.transform_vector(*n).normalize_or(*n))
++                    .collect();
++                let placed = Mesh {
++                    positions,
++                    normals,
++                    indices: self.mesh.indices.clone(),
++                    ..Mesh::default()
++                };
++                method.compute(&placed, skeleton)
++            }
++        }
++    }
++}
++
++fn bits(t: &Transform) -> [u32; 10] {
++    let v = [
++        t.translation.x,
++        t.translation.y,
++        t.translation.z,
++        t.rotation.x,
++        t.rotation.y,
++        t.rotation.z,
++        t.rotation.w,
++        t.scale.x,
++        t.scale.y,
++        t.scale.z,
++    ];
++    v.map(f32::to_bits)
++}
++
++impl Rig {
++    /// Placement de liaison d'un objet : sa transformation monde évaluée
++    /// dans la pose de repos.
++    pub fn object_bind_placement(&self, id: ObjectId) -> Option<Transform> {
++        self.object_world(id, &self.skeleton.rest_world())
++    }
++
++    /// Le transfert depuis le corps est possible (corps maillé et lié).
++    fn body_transferable(&self) -> bool {
++        self.mesh.triangle_count() > 0 && (!self.needs_bind() || self.weights_painted())
++    }
++
++    fn stamp_of(&self, index: usize, rest: &[Transform]) -> Option<BindStamp> {
++        let o = &self.objects[index];
++        let Binding::Skinned(s) = &o.binding else { return None };
++        let transfer = s.method == SkinMethod::Transfer && self.mesh.triangle_count() > 0;
++        Some(BindStamp {
++            skeleton: self.revisions.skeleton,
++            mesh: o.revisions.mesh,
++            source: if transfer { self.revisions.skin } else { 0 },
++            method: s.method,
++            placement: bits(&self.object_world(o.id, rest).unwrap_or_default()),
++        })
++    }
++
++    /// Les poids automatiques de l'objet ne correspondent plus à son état.
++    pub fn object_needs_bind(&self, id: ObjectId) -> bool {
++        let Some(i) = self.object_index(id) else { return false };
++        self.stale(i, &self.skeleton.rest_world())
++    }
++
++    fn stale(&self, index: usize, rest: &[Transform]) -> bool {
++        match &self.objects[index].binding {
++            Binding::Skinned(s) if s.method.is_automatic() && !self.skeleton.is_empty() => {
++                s.bound_to != self.stamp_of(index, rest)
++            }
++            _ => false,
++        }
++    }
++
++    /// Objets dont les poids automatiques sont à recalculer.
++    pub(crate) fn stale_objects(&self) -> Vec<ObjectId> {
++        if !self.objects.iter().any(|o| o.binding.is_skinned()) {
++            return Vec::new();
++        }
++        let rest = self.skeleton.rest_world();
++        (0..self.objects.len())
++            .filter(|i| self.stale(*i, &rest))
++            .map(|i| self.objects[i].id)
++            .collect()
++    }
++
++    /// Considère à jour les poids des objets déformés (sauf `except`), après
++    /// un chargement ou un changement de révisions sans autre modification.
++    pub(crate) fn mark_objects_bound(&mut self, except: &[ObjectId]) {
++        let rest = self.skeleton.rest_world();
++        for i in 0..self.objects.len() {
++            if except.contains(&self.objects[i].id) {
++                continue;
++            }
++            let stamp = self.stamp_of(i, &rest);
++            if let Binding::Skinned(s) = &mut self.objects[i].binding {
++                s.bound_to = stamp;
++            }
++        }
++    }
++
++    /// Données du prochain calcul de poids d'objet à lancer (premier objet
++    /// périmé qui n'est pas dans `skip`). Un transfert attend que le corps
++    /// soit lié ; sans corps, `fallback` est utilisée.
++    pub(crate) fn object_bind_input(&self, fallback: BindMethod, skip: &[(ObjectId, BindStamp)]) -> Option<ObjectBindInput> {
++        if self.skeleton.is_empty() || !self.objects.iter().any(|o| o.binding.is_skinned()) {
++            return None;
++        }
++        let rest = self.skeleton.rest_world();
++        (0..self.objects.len()).find_map(|i| {
++            if !self.stale(i, &rest) {
++                return None;
++            }
++            let o = &self.objects[i];
++            let stamp = self.stamp_of(i, &rest)?;
++            if skip.contains(&(o.id, stamp)) {
++                return None;
++            }
++            let method = o.binding.skin()?.method;
++            let source = match method.bind_method() {
++                Some(m) => WeightSource::Compute(m),
++                None if self.mesh.triangle_count() == 0 => WeightSource::Compute(fallback),
++                // Transfert : le corps doit d'abord être lié.
++                None if !self.body_transferable() => return None,
++                None => WeightSource::Transfer(self.mesh.clone(), self.skin.clone()),
++            };
++            Some(ObjectBindInput {
++                id: o.id,
++                mesh: o.mesh.clone(),
++                placement: self.object_world(o.id, &rest).unwrap_or_default(),
++                source,
++                stamp,
++            })
++        })
++    }
++
++    /// Installe des poids calculés pour `stamp` ; ignoré si l'objet a
++    /// changé entre-temps (résultat périmé).
++    pub(crate) fn apply_object_skin(&mut self, id: ObjectId, skin: Skin, stamp: BindStamp) -> bool {
++        let Some(i) = self.object_index(id) else { return false };
++        let current = self.stamp_of(i, &self.skeleton.rest_world());
++        let o = &mut self.objects[i];
++        let Binding::Skinned(s) = &mut o.binding else { return false };
++        if current != Some(stamp) || skin.weights.len() != o.mesh.vertex_count() {
++            return false;
++        }
++        s.skin = Arc::new(skin);
++        s.bound_to = Some(stamp);
++        o.bump_skin();
++        true
++    }
++}
+diff --git a/crates/bones-core/src/scene/draw.rs b/crates/bones-core/src/scene/draw.rs
+new file mode 100644
+index 0000000..882c5d2
+--- /dev/null
++++ b/crates/bones-core/src/scene/draw.rs
+@@ -0,0 +1,138 @@
++//! Ce que le rendu et l'interface lisent des objets : appels de dessin
++//! (maillage, matrice, poids, révisions) et lignes de la liste des objets.
++
++use std::sync::Arc;
++
++use glam::Mat4;
++
++use super::{Binding, ObjectId, ObjectRef, Parent};
++use crate::{Mesh, Rig, Skin, Transform};
++
++/// Poids d'un objet déformé, pour le rendu.
++#[derive(Clone, Debug)]
++pub struct SkinDraw {
++    pub skin: Arc<Skin>,
++    /// Révision des poids (clé du tampon GPU des poids).
++    pub revision: u64,
++}
++
++/// Tout ce qu'il faut pour dessiner un objet visible.
++#[derive(Clone, Debug)]
++pub struct ObjectDraw {
++    pub id: ObjectId,
++    pub mesh: Arc<Mesh>,
++    /// Révision du maillage (clé des tampons GPU, avec `id`).
++    pub mesh_revision: u64,
++    /// Objet rigide : matrice monde. Objet déformé : placement de liaison,
++    /// appliqué avant le skinning par la palette d'os du corps.
++    pub model: Mat4,
++    /// `Some` pour un objet déformé par le squelette.
++    pub skin: Option<SkinDraw>,
++    pub selected: bool,
++}
++
++/// Une ligne de la liste des objets (corps en premier, puis les objets en
++/// profondeur d'abord, dans l'ordre de la liste).
++#[derive(Clone, Debug, PartialEq)]
++pub struct OutlinerRow {
++    pub item: ObjectRef,
++    pub name: String,
++    /// Profondeur dans la hiérarchie des objets (0 : attaché au monde ou à un os).
++    pub depth: usize,
++    pub parent: Parent,
++    pub skinned: bool,
++    pub visible: bool,
++    pub locked: bool,
++    /// Nombre d'enfants objets directs.
++    pub children: usize,
++}
++
++impl Rig {
++    /// Appels de dessin des objets visibles. `bone_world` : os tels
++    /// qu'affichés (posés ou au repos), `rest_world` : os au repos.
++    pub fn object_draws(
++        &self,
++        bone_world: &[Transform],
++        rest_world: &[Transform],
++        selected: Option<ObjectId>,
++    ) -> Vec<ObjectDraw> {
++        if self.objects.is_empty() {
++            return Vec::new();
++        }
++        let worlds = self.object_worlds(bone_world);
++        let skinned = self.objects.iter().any(|o| o.binding.is_skinned());
++        let placements = if skinned { self.object_worlds(rest_world) } else { Vec::new() };
++        self.objects
++            .iter()
++            .enumerate()
++            .filter(|(_, o)| o.visible)
++            .map(|(i, o)| {
++                let (model, skin) = match &o.binding {
++                    Binding::Rigid => (worlds[i].to_matrix(), None),
++                    Binding::Skinned(s) => (
++                        placements[i].to_matrix(),
++                        Some(SkinDraw {
++                            skin: s.skin.clone(),
++                            revision: o.revisions.skin,
++                        }),
++                    ),
++                };
++                ObjectDraw {
++                    id: o.id,
++                    mesh: o.mesh.clone(),
++                    mesh_revision: o.revisions.mesh,
++                    model,
++                    skin,
++                    selected: selected == Some(o.id),
++                }
++            })
++            .collect()
++    }
++
++    /// Lignes de la liste des objets.
++    pub fn outliner_rows(&self) -> Vec<OutlinerRow> {
++        let mut rows = vec![OutlinerRow {
++            item: ObjectRef::Body,
++            name: self.body.name.clone(),
++            depth: 0,
++            parent: Parent::World,
++            skinned: !self.skeleton.is_empty(),
++            visible: self.body.visible,
++            locked: self.body.locked,
++            children: 0,
++        }];
++        let mut seen = vec![false; self.objects.len()];
++        let is_root = |p: Parent| match p {
++            Parent::Object(id) => self.object(id).is_none(),
++            _ => true,
++        };
++        // Racines d'abord, puis tout objet resté à l'écart (document incohérent).
++        let roots = (0..self.objects.len()).filter(|i| is_root(self.objects[*i].parent));
++        let order: Vec<usize> = roots.chain(0..self.objects.len()).collect();
++        for start in order {
++            let mut stack = vec![(start, 0usize)];
++            while let Some((i, depth)) = stack.pop() {
++                if seen[i] {
++                    continue;
++                }
++                seen[i] = true;
++                let o = &self.objects[i];
++                let children: Vec<usize> = (0..self.objects.len())
++                    .filter(|c| self.objects[*c].parent == Parent::Object(o.id))
++                    .collect();
++                rows.push(OutlinerRow {
++                    item: ObjectRef::Extra(o.id),
++                    name: o.name.clone(),
++                    depth,
++                    parent: o.parent,
++                    skinned: o.binding.is_skinned(),
++                    visible: o.visible,
++                    locked: o.locked,
++                    children: children.len(),
++                });
++                stack.extend(children.into_iter().rev().map(|c| (c, depth + 1)));
++            }
++        }
++        rows
++    }
++}
+diff --git a/crates/bones-core/src/scene/hierarchy.rs b/crates/bones-core/src/scene/hierarchy.rs
+new file mode 100644
+index 0000000..7c3a703
+--- /dev/null
++++ b/crates/bones-core/src/scene/hierarchy.rs
+@@ -0,0 +1,165 @@
++//! Hiérarchie des objets : recherche, enfants, ascendance et évaluation des
++//! transformations monde (objet → objet → os → monde).
++
++use super::{ObjectError, ObjectId, Parent, SceneObject};
++use crate::{BoneId, Rig, Transform};
++
++impl Rig {
++    /// Objets supplémentaires, dans l'ordre de la liste.
++    pub fn objects(&self) -> &[SceneObject] {
++        &self.objects
++    }
++
++    pub fn object_index(&self, id: ObjectId) -> Option<usize> {
++        self.objects.iter().position(|o| o.id == id)
++    }
++
++    pub fn object(&self, id: ObjectId) -> Option<&SceneObject> {
++        self.objects.iter().find(|o| o.id == id)
++    }
++
++    pub(crate) fn object_mut(&mut self, id: ObjectId) -> Result<&mut SceneObject, ObjectError> {
++        self.objects
++            .iter_mut()
++            .find(|o| o.id == id)
++            .ok_or(ObjectError::NotFound)
++    }
++
++    /// Identifiant libre (jamais celui d'un objet existant).
++    pub(crate) fn next_object_id(&self) -> ObjectId {
++        ObjectId(self.objects.iter().map(|o| o.id.0 + 1).max().unwrap_or(1).max(1))
++    }
++
++    /// Enfants directs de `parent`, dans l'ordre de la liste.
++    pub fn object_children(&self, parent: Parent) -> impl Iterator<Item = ObjectId> + '_ {
++        self.objects
++            .iter()
++            .filter(move |o| o.parent == parent)
++            .map(|o| o.id)
++    }
++
++    /// Vrai si `ancestor` est `id` lui-même ou l'un de ses ascendants objets.
++    pub fn is_object_ancestor(&self, ancestor: ObjectId, id: ObjectId) -> bool {
++        let mut cur = Some(id);
++        // Borné par le nombre d'objets : jamais de boucle infinie, même sur
++        // un document incohérent.
++        for _ in 0..=self.objects.len() {
++            match cur {
++                Some(c) if c == ancestor => return true,
++                Some(c) => {
++                    cur = match self.object(c).map(|o| o.parent) {
++                        Some(Parent::Object(p)) => Some(p),
++                        _ => None,
++                    }
++                }
++                None => return false,
++            }
++        }
++        false
++    }
++
++    /// `id` puis tous ses descendants (parcours en profondeur, ordre de la liste).
++    pub fn object_subtree(&self, id: ObjectId) -> Vec<ObjectId> {
++        let mut out = Vec::new();
++        let mut stack = vec![id];
++        while let Some(cur) = stack.pop() {
++            if out.contains(&cur) {
++                continue;
++            }
++            out.push(cur);
++            let children: Vec<ObjectId> = self.object_children(Parent::Object(cur)).collect();
++            stack.extend(children.into_iter().rev());
++        }
++        out
++    }
++
++    /// Vérifie qu'un parent est possible pour `id` (existe, sans cycle).
++    pub(crate) fn check_parent(&self, id: Option<ObjectId>, parent: Parent) -> Result<(), ObjectError> {
++        match parent {
++            Parent::World => Ok(()),
++            Parent::Bone(b) if self.skeleton.contains(b) => Ok(()),
++            Parent::Bone(_) => Err(ObjectError::NoSuchBone),
++            Parent::Object(p) if self.object(p).is_none() => Err(ObjectError::NotFound),
++            Parent::Object(p) => match id {
++                Some(id) if self.is_object_ancestor(id, p) => Err(ObjectError::Cycle),
++                _ => Ok(()),
++            },
++        }
++    }
++
++    /// Transformations monde de tous les objets (indices de `objects()`),
++    /// `bone_world` étant celles des os (posées ou de repos).
++    pub fn object_worlds(&self, bone_world: &[Transform]) -> Vec<Transform> {
++        let n = self.objects.len();
++        let mut worlds: Vec<Option<Transform>> = vec![None; n];
++        for i in 0..n {
++            self.resolve(i, bone_world, &mut worlds);
++        }
++        worlds.into_iter().map(|w| w.unwrap_or_default()).collect()
++    }
++
++    /// Transformation monde d'un seul objet (remonte seulement sa chaîne).
++    pub fn object_world(&self, id: ObjectId, bone_world: &[Transform]) -> Option<Transform> {
++        let mut chain = Vec::new();
++        let mut cur = Some(id);
++        while let Some(c) = cur {
++            let o = self.object(c)?;
++            if chain.len() > self.objects.len() {
++                break;
++            }
++            chain.push(o.local);
++            cur = match o.parent {
++                Parent::Object(p) => Some(p),
++                Parent::Bone(b) => {
++                    chain.push(bone_transform(bone_world, b));
++                    None
++                }
++                Parent::World => None,
++            };
++        }
++        Some(chain.iter().rev().fold(Transform::IDENTITY, |acc, t| acc.mul(t)))
++    }
++
++    /// Transformation monde d'un parent (objet manquant : le monde).
++    pub fn parent_world(&self, parent: Parent, bone_world: &[Transform]) -> Transform {
++        match parent {
++            Parent::World => Transform::IDENTITY,
++            Parent::Bone(b) => bone_transform(bone_world, b),
++            Parent::Object(p) => self.object_world(p, bone_world).unwrap_or_default(),
++        }
++    }
++
++    /// Calcule (et mémorise) le monde de l'objet `i` et de ses ascendants,
++    /// sans récursion : la chaîne est remontée puis redescendue.
++    fn resolve(&self, i: usize, bone_world: &[Transform], worlds: &mut [Option<Transform>]) {
++        let mut chain = vec![i];
++        let mut base = Transform::IDENTITY;
++        loop {
++            let cur = self.objects[*chain.last().expect("chaîne non vide")].parent;
++            match cur {
++                Parent::World => break,
++                Parent::Bone(b) => {
++                    base = bone_transform(bone_world, b);
++                    break;
++                }
++                Parent::Object(p) => match self.object_index(p) {
++                    Some(j) if worlds[j].is_some() => {
++                        base = worlds[j].unwrap_or_default();
++                        break;
++                    }
++                    // Cycle (document incohérent) ou parent absent : monde.
++                    Some(j) if !chain.contains(&j) => chain.push(j),
++                    _ => break,
++                },
++            }
++        }
++        for &k in chain.iter().rev() {
++            base = base.mul(&self.objects[k].local);
++            worlds[k] = Some(base);
++        }
++    }
++}
++
++fn bone_transform(bone_world: &[Transform], b: BoneId) -> Transform {
++    bone_world.get(b.index()).copied().unwrap_or_default()
++}
+diff --git a/crates/bones-core/src/scene/mod.rs b/crates/bones-core/src/scene/mod.rs
+new file mode 100644
+index 0000000..38f29aa
+--- /dev/null
++++ b/crates/bones-core/src/scene/mod.rs
+@@ -0,0 +1,154 @@
++//! Objets de la scène : accessoires et pièces séparées autour du personnage
++//! (épée dans la main, chapeau sur la tête, lunettes, vêtements, parties du
++//! corps séparées…), à la manière des objets de Blender.
++//!
++//! Le maillage principal reste le **corps** (`Rig::mesh` / `Rig::skin`) :
++//! auto-rig, peinture de poids et préréglages le ciblent toujours. Les
++//! objets supplémentaires vivent dans `Rig::objects()` ; l'interface les
++//! liste avec le corps grâce à [`ObjectRef`].
++//!
++//! # Modèle
++//!
++//! - [`SceneObject`] : identifiant stable [`ObjectId`] (sérialisé, unique),
++//!   nom, maillage partagé par `Arc`, parent, transformation locale,
++//!   liaison, visibilité et verrou.
++//! - [`Parent`] : le monde, un autre objet, ou un os. Avec un os, la
++//!   transformation locale est relative à la transformation monde **posée**
++//!   de l'os (parentage d'os de Blender) : l'objet suit l'os quand il bouge.
++//!   Les cycles sont refusés ([`ObjectError::Cycle`]).
++//! - [`Binding`] : `Rigid` (l'objet suit rigidement son parent) ou
++//!   `Skinned` (déformé par le squelette avec ses propres poids). Un objet
++//!   déformé est d'abord placé par sa transformation évaluée **au repos**
++//!   (placement de liaison), puis déformé par les mêmes matrices de skinning
++//!   que le corps (`Editor::skinning_matrices`).
++//! - Les poids d'un objet déformé sont calculés en tâche de fond par la même
++//!   file que ceux du corps (`Editor::bind_job` / `Editor::finish_bind`) :
++//!   transfert depuis le corps ([`SkinMethod::Transfer`], « Data Transfer »
++//!   de Blender), diffusion de chaleur, enveloppes, ou poids importés
++//!   ([`SkinMethod::Manual`], jamais recalculés).
++//! - Les transformations des objets ne sont pas animées (extension
++//!   possible) : un accessoire s'anime en suivant l'os auquel il est attaché.
++//!
++//! # API pour le rendu (phase 2)
++//!
++//! `Editor::object_draws()` retourne un [`ObjectDraw`] par objet visible :
++//! maillage `Arc` + révision (clé des tampons GPU, avec l'identifiant),
++//! matrice `model`, et pour un objet déformé ses poids `Arc` + révision. Un
++//! objet rigide se dessine avec `model` seule (matrices d'os ignorées) ; un
++//! objet déformé applique d'abord `model` (placement de liaison) puis le
++//! skinning avec la palette du corps. Les sommets sans poids gardent leur
++//! position (comme le corps). `Editor::body_visible()` indique s'il faut
++//! dessiner le corps.
++//!
++//! # API pour l'interface (phase 3)
++//!
++//! - Liste : `Editor::outliner()` ([`OutlinerRow`] : corps puis objets en
++//!   profondeur d'abord), `Editor::object_info(id)`.
++//! - Sélection : `Editor::selected_object`, `select_object`,
++//!   `select_object_parent` / `_child` / `_next_sibling`, et en mode
++//!   `Mode::Object` toucher un objet le sélectionne, le glisser le déplace
++//!   dans le plan de l'écran, le manipulateur 3D le transforme (une étape
++//!   d'annulation par geste).
++//! - Création : `add_primitive(Primitive)`, `add_object_mesh`,
++//!   `add_imported_objects` (fichier déjà lu par `io::import_scene`),
++//!   `duplicate_object`.
++//! - Édition : `delete_object`, `rename_object`, `set_object_visible`,
++//!   `set_object_locked`, `set_object_parent` (avec « Keep Transform »),
++//!   `parent_object_to_selected_bone`, `clear_object_parent`,
++//!   `set_object_binding`, `rebind_object`, `set_object_transform`,
++//!   `reorder_object`. Toutes passent par l'historique et retournent une
++//!   erreur lisible (en anglais) si l'opération est refusée.
++
++mod bind;
++mod draw;
++mod hierarchy;
++mod object;
++mod ops;
++pub mod pick;
++mod remap;
++#[cfg(test)]
++mod tests;
++#[cfg(test)]
++mod tests_bind;
++
++pub use bind::BindStamp;
++pub(crate) use remap::ObjectAnchors;
++pub use draw::{ObjectDraw, OutlinerRow, SkinDraw};
++pub use object::{BodyProps, Binding, SceneObject, SkinBinding, SkinMethod};
++
++use serde::{Deserialize, Serialize};
++
++use crate::BoneId;
++
++/// Identifiant stable d'un objet (unique dans un document, sérialisé).
++#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
++#[serde(transparent)]
++pub struct ObjectId(pub u32);
++
++/// Élément de la scène tel que listé par l'interface : le corps (maillage
++/// principal) ou un objet supplémentaire.
++#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
++pub enum ObjectRef {
++    Body,
++    Extra(ObjectId),
++}
++
++/// Parent d'un objet.
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
++pub enum Parent {
++    #[default]
++    World,
++    Object(ObjectId),
++    /// Os : transformation locale relative à l'os posé.
++    Bone(BoneId),
++}
++
++/// Opération refusée sur un objet. Messages destinés à l'utilisateur.
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum ObjectError {
++    NotFound,
++    /// Le parent demandé est l'objet lui-même ou l'un de ses descendants.
++    Cycle,
++    NoSuchBone,
++    /// Déformation demandée sans squelette.
++    NoBones,
++    /// Opération impossible sur le corps (suppression, parent…).
++    Body,
++    /// Objet verrouillé.
++    Locked,
++    /// Poids fournis qui ne correspondent pas au maillage.
++    InvalidWeights,
++}
++
++impl std::fmt::Display for ObjectError {
++    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        f.write_str(match self {
++            ObjectError::NotFound => "Object not found",
++            ObjectError::Cycle => "An object cannot be parented to itself or its children",
++            ObjectError::NoSuchBone => "Bone not found",
++            ObjectError::NoBones => "Add bones before binding an object to the skeleton",
++            ObjectError::Body => "Not possible on the body",
++            ObjectError::Locked => "Object is locked",
++            ObjectError::InvalidWeights => "Weights do not match the object's mesh",
++        })
++    }
++}
++
++impl std::error::Error for ObjectError {}
++
++/// Nom libre parmi `taken` : `base`, puis `base.001`, `base.002`… (un
++/// numéro de copie déjà présent est d'abord retiré).
++pub(crate) fn unique_name(base: &str, taken: impl Fn(&str) -> bool) -> String {
++    let base = if base.trim().is_empty() { "Object" } else { base.trim() };
++    if !taken(base) {
++        return base.to_owned();
++    }
++    let stem = match base.rsplit_once('.') {
++        Some((stem, n)) if n.len() == 3 && n.bytes().all(|b| b.is_ascii_digit()) => stem,
++        _ => base,
++    };
++    (1..)
++        .map(|i| format!("{stem}.{i:03}"))
++        .find(|n| !taken(n))
++        .expect("itérateur infini")
++}
+diff --git a/crates/bones-core/src/scene/object.rs b/crates/bones-core/src/scene/object.rs
+new file mode 100644
+index 0000000..b0d8661
+--- /dev/null
++++ b/crates/bones-core/src/scene/object.rs
+@@ -0,0 +1,191 @@
++//! Objet de la scène, sa liaison au squelette et les propriétés du corps.
++
++use std::sync::Arc;
++
++use serde::{Deserialize, Serialize};
++
++use super::bind::BindStamp;
++use super::{ObjectId, Parent};
++use crate::{BindMethod, Mesh, Skin, Transform, VertexWeights, next_revision};
++
++/// Origine des poids d'un objet déformé.
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
++pub enum SkinMethod {
++    /// Copiés du corps au point le plus proche (« Data Transfer », face la
++    /// plus proche interpolée, de Blender) : idéal pour les vêtements.
++    #[default]
++    Transfer,
++    /// Diffusion de chaleur (Baran & Popović), comme le corps.
++    Heat,
++    /// Enveloppes par distance aux os.
++    Envelope,
++    /// Poids importés ou fournis : jamais recalculés automatiquement.
++    Manual,
++}
++
++impl SkinMethod {
++    /// Poids recalculés automatiquement quand le squelette change.
++    pub fn is_automatic(self) -> bool {
++        self != SkinMethod::Manual
++    }
++
++    /// Méthode de calcul directe (hors transfert et poids manuels).
++    pub(crate) fn bind_method(self) -> Option<BindMethod> {
++        match self {
++            SkinMethod::Heat => Some(BindMethod::Heat),
++            SkinMethod::Envelope => Some(BindMethod::Envelope),
++            SkinMethod::Transfer | SkinMethod::Manual => None,
++        }
++    }
++}
++
++/// Poids d'un objet déformé par le squelette.
++#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
++pub struct SkinBinding {
++    /// Un poids par sommet du maillage de l'objet (os du squelette du rig).
++    pub skin: Arc<Skin>,
++    pub method: SkinMethod,
++    /// État pour lequel les poids ont été calculés (non sérialisé).
++    #[serde(skip)]
++    pub(crate) bound_to: Option<BindStamp>,
++}
++
++/// Liaison d'un objet au squelette.
++#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
++pub enum Binding {
++    /// Suit rigidement son parent (accessoire).
++    #[default]
++    Rigid,
++    /// Déformé par le squelette avec ses propres poids (vêtement, partie
++    /// du corps séparée).
++    Skinned(SkinBinding),
++}
++
++impl Binding {
++    pub fn is_skinned(&self) -> bool {
++        matches!(self, Binding::Skinned(_))
++    }
++
++    pub fn skin(&self) -> Option<&SkinBinding> {
++        match self {
++            Binding::Skinned(s) => Some(s),
++            Binding::Rigid => None,
++        }
++    }
++}
++
++/// Révisions d'un objet (non sérialisées), pour les caches GPU.
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub struct ObjectRevisions {
++    pub mesh: u64,
++    pub skin: u64,
++}
++
++impl Default for ObjectRevisions {
++    fn default() -> Self {
++        Self {
++            mesh: next_revision(),
++            skin: next_revision(),
++        }
++    }
++}
++
++/// Objet supplémentaire de la scène. Les champs structurels (maillage,
++/// parent, liaison) ne changent que par les méthodes du `Rig`, qui tiennent
++/// les révisions et l'absence de cycle à jour.
++#[derive(Clone, Debug, Serialize, Deserialize)]
++pub struct SceneObject {
++    pub(crate) id: ObjectId,
++    pub name: String,
++    pub(crate) mesh: Arc<Mesh>,
++    #[serde(default)]
++    pub(crate) parent: Parent,
++    /// Transformation relative au parent (à l'os posé pour un os).
++    #[serde(default)]
++    pub(crate) local: Transform,
++    #[serde(default)]
++    pub(crate) binding: Binding,
++    #[serde(default = "visible_default")]
++    pub visible: bool,
++    /// Verrouillé : ni sélection dans la vue 3D, ni transformation (comme
++    /// « Disable Selection » de Blender) ; reste sélectionnable dans la liste.
++    #[serde(default)]
++    pub locked: bool,
++    #[serde(skip)]
++    pub(crate) revisions: ObjectRevisions,
++}
++
++fn visible_default() -> bool {
++    true
++}
++
++impl SceneObject {
++    pub(crate) fn new(id: ObjectId, name: String, mesh: Arc<Mesh>, parent: Parent, local: Transform) -> Self {
++        Self {
++            id,
++            name,
++            mesh,
++            parent,
++            local,
++            binding: Binding::Rigid,
++            visible: true,
++            locked: false,
++            revisions: ObjectRevisions::default(),
++        }
++    }
++
++    pub fn id(&self) -> ObjectId {
++        self.id
++    }
++
++    pub fn mesh(&self) -> &Arc<Mesh> {
++        &self.mesh
++    }
++
++    pub fn parent(&self) -> Parent {
++        self.parent
++    }
++
++    pub fn local(&self) -> Transform {
++        self.local
++    }
++
++    pub fn binding(&self) -> &Binding {
++        &self.binding
++    }
++
++    pub fn revisions(&self) -> ObjectRevisions {
++        self.revisions
++    }
++
++    /// Poids vides (un par sommet), en attente de calcul.
++    pub(crate) fn empty_skin(&self) -> Arc<Skin> {
++        Arc::new(Skin {
++            weights: vec![VertexWeights::default(); self.mesh.vertex_count()],
++        })
++    }
++
++    pub(crate) fn bump_skin(&mut self) {
++        self.revisions.skin = next_revision();
++    }
++}
++
++/// Propriétés du corps (maillage principal) dans la liste des objets.
++#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
++#[serde(default)]
++pub struct BodyProps {
++    pub name: String,
++    pub visible: bool,
++    /// Verrouillé : ni sélection dans la vue 3D, ni transformation.
++    pub locked: bool,
++}
++
++impl Default for BodyProps {
++    fn default() -> Self {
++        Self {
++            name: "Body".into(),
++            visible: true,
++            locked: false,
++        }
++    }
++}
+diff --git a/crates/bones-core/src/scene/ops.rs b/crates/bones-core/src/scene/ops.rs
+new file mode 100644
+index 0000000..4d27354
+--- /dev/null
++++ b/crates/bones-core/src/scene/ops.rs
+@@ -0,0 +1,189 @@
++//! Opérations du document sur les objets : création, copie, suppression,
++//! parent (avec « Keep Transform »), ordre, transformation et liaison.
++//! L'historique d'annulation est géré par l'éditeur.
++
++use std::sync::Arc;
++
++use super::{Binding, ObjectError, ObjectId, Parent, SceneObject, SkinBinding, SkinMethod, unique_name};
++use crate::{Mesh, Rig, Transform};
++
++/// Échelle minimale (en valeur absolue) d'un axe : une échelle nulle rendrait
++/// la transformation non inversible.
++const MIN_SCALE: f32 = 1e-4;
++
++/// Transformation ramenée à des valeurs sûres (finies, échelle non nulle).
++pub(crate) fn sanitize(t: Transform) -> Transform {
++    let finite = |v: glam::Vec3, d: glam::Vec3| if v.is_finite() { v } else { d };
++    let rotation = if t.rotation.is_finite() && t.rotation.length_squared() > 1e-12 {
++        t.rotation.normalize()
++    } else {
++        glam::Quat::IDENTITY
++    };
++    let scale = finite(t.scale, glam::Vec3::ONE)
++        .to_array()
++        .map(|s| if s.abs() < MIN_SCALE { MIN_SCALE.copysign(s) } else { s });
++    Transform {
++        translation: finite(t.translation, glam::Vec3::ZERO),
++        rotation,
++        scale: glam::Vec3::from_array(scale),
++    }
++}
++
++impl Rig {
++    /// Nom d'objet libre (les noms sont uniques, comme dans Blender).
++    pub fn unique_object_name(&self, base: &str) -> String {
++        unique_name(base, |n| self.objects.iter().any(|o| o.name == n))
++    }
++
++    /// Ajoute un objet rigide ; retourne son identifiant.
++    pub fn add_object(
++        &mut self,
++        name: &str,
++        mesh: Arc<Mesh>,
++        parent: Parent,
++        local: Transform,
++    ) -> Result<ObjectId, ObjectError> {
++        self.check_parent(None, parent)?;
++        let id = self.next_object_id();
++        let name = self.unique_object_name(name);
++        self.objects
++            .push(SceneObject::new(id, name, mesh, parent, sanitize(local)));
++        Ok(id)
++    }
++
++    /// Supprime un objet ; ses enfants passent à son parent en gardant leur
++    /// place en monde (`bone_world` : os tels qu'affichés).
++    pub fn remove_object(&mut self, id: ObjectId, bone_world: &[crate::Transform]) -> Result<(), ObjectError> {
++        let index = self.object_index(id).ok_or(ObjectError::NotFound)?;
++        let parent = self.objects[index].parent;
++        let children: Vec<ObjectId> = self.object_children(Parent::Object(id)).collect();
++        for child in children {
++            self.set_object_parent(child, parent, true, bone_world)?;
++        }
++        self.objects.remove(index);
++        Ok(())
++    }
++
++    /// Copie un objet (et ses descendants si demandé) au même endroit ; les
++    /// maillages et poids sont partagés. La copie de `id` vient juste après
++    /// lui dans la liste et est retournée en premier.
++    pub fn duplicate_object(&mut self, id: ObjectId, with_children: bool) -> Result<Vec<ObjectId>, ObjectError> {
++        let index = self.object_index(id).ok_or(ObjectError::NotFound)?;
++        let sources = if with_children { self.object_subtree(id) } else { vec![id] };
++        let mut pairs: Vec<(ObjectId, ObjectId)> = Vec::with_capacity(sources.len());
++        let mut copies = Vec::with_capacity(sources.len());
++        for source in &sources {
++            let mut copy = self.object(*source).ok_or(ObjectError::NotFound)?.clone();
++            copy.id = ObjectId(self.next_object_id().0.max(pairs.last().map_or(0, |p| p.1.0 + 1)));
++            copy.name = unique_name(&copy.name, |n| {
++                self.objects.iter().chain(&copies).any(|o: &SceneObject| o.name == n)
++            });
++            if let Parent::Object(p) = copy.parent
++                && let Some((_, new)) = pairs.iter().find(|(old, _)| *old == p)
++            {
++                copy.parent = Parent::Object(*new);
++            }
++            // Nouvelles révisions : chaque objet a ses propres tampons GPU.
++            copy.revisions = Default::default();
++            pairs.push((*source, copy.id));
++            copies.push(copy);
++        }
++        let ids = copies.iter().map(|c| c.id).collect();
++        self.objects.splice(index + 1..index + 1, copies);
++        Ok(ids)
++    }
++
++    pub fn rename_object(&mut self, id: ObjectId, name: &str) -> Result<(), ObjectError> {
++        let name = name.trim();
++        let current = &self.object(id).ok_or(ObjectError::NotFound)?.name;
++        if name.is_empty() || current == name {
++            return Ok(());
++        }
++        let unique = self.unique_object_name(name);
++        self.object_mut(id)?.name = unique;
++        Ok(())
++    }
++
++    /// Change le parent. Avec `keep_transform`, l'objet garde sa place en
++    /// monde (« Keep Transform » de Blender) ; sinon sa transformation
++    /// locale est conservée et il saute sous son nouveau parent.
++    pub fn set_object_parent(
++        &mut self,
++        id: ObjectId,
++        parent: Parent,
++        keep_transform: bool,
++        bone_world: &[Transform],
++    ) -> Result<(), ObjectError> {
++        self.object(id).ok_or(ObjectError::NotFound)?;
++        self.check_parent(Some(id), parent)?;
++        if keep_transform {
++            let world = self.object_world(id, bone_world).unwrap_or_default();
++            let local = self.parent_world(parent, bone_world).inverse().mul(&world);
++            self.object_mut(id)?.local = sanitize(local);
++        }
++        self.object_mut(id)?.parent = parent;
++        Ok(())
++    }
++
++    pub fn set_object_local(&mut self, id: ObjectId, local: Transform) -> Result<(), ObjectError> {
++        self.object_mut(id)?.local = sanitize(local);
++        Ok(())
++    }
++
++    /// Place l'objet à la position `index` parmi ses frères (même parent),
++    /// bornée ; l'ordre de la liste est celui de l'interface.
++    pub fn reorder_object(&mut self, id: ObjectId, index: usize) -> Result<(), ObjectError> {
++        let from = self.object_index(id).ok_or(ObjectError::NotFound)?;
++        let parent = self.objects[from].parent;
++        let object = self.objects.remove(from);
++        let siblings: Vec<usize> = (0..self.objects.len())
++            .filter(|i| self.objects[*i].parent == parent)
++            .collect();
++        let at = match siblings.get(index) {
++            Some(&i) => i,
++            None => siblings.last().map_or(self.objects.len(), |i| i + 1),
++        };
++        self.objects.insert(at, object);
++        Ok(())
++    }
++
++    /// Rigide, ou déformé avec la méthode de poids donnée. Les poids
++    /// automatiques sont calculés en tâche de fond (voir `Editor::bind_job`) ;
++    /// `Manual` garde les poids actuels (vides s'il n'y en avait pas).
++    pub fn set_object_binding(&mut self, id: ObjectId, method: Option<SkinMethod>) -> Result<(), ObjectError> {
++        if method.is_some() && self.skeleton.is_empty() {
++            return Err(ObjectError::NoBones);
++        }
++        let object = self.object_mut(id)?;
++        object.binding = match (method, &object.binding) {
++            (None, _) => Binding::Rigid,
++            (Some(method), Binding::Skinned(s)) => Binding::Skinned(SkinBinding {
++                skin: s.skin.clone(),
++                method,
++                bound_to: None,
++            }),
++            (Some(method), Binding::Rigid) => Binding::Skinned(SkinBinding {
++                skin: object.empty_skin(),
++                method,
++                bound_to: None,
++            }),
++        };
++        object.bump_skin();
++        Ok(())
++    }
++
++    /// Installe des poids fournis (import) : méthode `Manual`.
++    pub fn set_object_weights(&mut self, id: ObjectId, skin: crate::Skin) -> Result<(), ObjectError> {
++        let object = self.object_mut(id)?;
++        if skin.weights.len() != object.mesh.vertex_count() {
++            return Err(ObjectError::InvalidWeights);
++        }
++        object.binding = Binding::Skinned(SkinBinding {
++            skin: Arc::new(skin),
++            method: SkinMethod::Manual,
++            bound_to: None,
++        });
++        object.bump_skin();
++        Ok(())
++    }
++}
+diff --git a/crates/bones-core/src/scene/pick.rs b/crates/bones-core/src/scene/pick.rs
+new file mode 100644
+index 0000000..5670837
+--- /dev/null
++++ b/crates/bones-core/src/scene/pick.rs
+@@ -0,0 +1,68 @@
++//! Lancer de rayon sur un maillage triangulé (sélection d'un objet au
++//! doigt) : intersection rayon–triangle de Möller & Trumbore, « Fast,
++//! Minimum Storage Ray/Triangle Intersection » (1997), deux faces, en
++//! parallèle sur les triangles.
++
++use glam::{Mat4, Vec3};
++use rayon::prelude::*;
++
++use crate::Ray;
++
++/// Triangles par tâche parallèle.
++const CHUNK: usize = 4096;
++
++/// Paramètre `t ≥ 0` de la première intersection du rayon `origin + t·dir`
++/// avec un triangle (`dir` n'a pas besoin d'être unitaire).
++pub fn ray_triangle(origin: Vec3, dir: Vec3, a: Vec3, b: Vec3, c: Vec3) -> Option<f32> {
++    let (e1, e2) = (b - a, c - a);
++    let p = dir.cross(e2);
++    let det = e1.dot(p);
++    if det.abs() < 1e-12 {
++        return None;
++    }
++    let inv = 1.0 / det;
++    let s = origin - a;
++    let u = s.dot(p) * inv;
++    if !(0.0..=1.0).contains(&u) {
++        return None;
++    }
++    let q = s.cross(e1);
++    let v = dir.dot(q) * inv;
++    if v < 0.0 || u + v > 1.0 {
++        return None;
++    }
++    let t = e2.dot(q) * inv;
++    (t >= 0.0 && t.is_finite()).then_some(t)
++}
++
++/// Première intersection d'un rayon avec des triangles (`positions` dans
++/// le même espace que le rayon) ; les indices invalides sont ignorés.
++pub fn ray_mesh(origin: Vec3, dir: Vec3, positions: &[Vec3], indices: &[u32]) -> Option<f32> {
++    let n = positions.len();
++    let tris = indices.as_chunks::<3>().0;
++    tris.par_chunks(CHUNK)
++        .filter_map(|chunk| {
++            chunk
++                .iter()
++                .filter(|t| t.iter().all(|i| (*i as usize) < n))
++                .filter_map(|t| {
++                    let [a, b, c] = t.map(|i| positions[i as usize]);
++                    ray_triangle(origin, dir, a, b, c)
++                })
++                .min_by(f32::total_cmp)
++        })
++        .min_by(f32::total_cmp)
++}
++
++/// Distance le long du rayon (monde) jusqu'à un maillage placé par `model`.
++/// Le rayon est ramené dans l'espace du maillage : avec une direction non
++/// renormalisée, le paramètre d'intersection est le même dans les deux espaces.
++pub fn ray_model(ray: &Ray, model: Mat4, positions: &[Vec3], indices: &[u32]) -> Option<f32> {
++    let inv = model.inverse();
++    if !inv.is_finite() {
++        return None;
++    }
++    let origin = inv.transform_point3(ray.origin);
++    let dir = inv.transform_vector3(ray.dir);
++    ray_mesh(origin, dir, positions, indices)
++}
+diff --git a/crates/bones-core/src/scene/remap.rs b/crates/bones-core/src/scene/remap.rs
+new file mode 100644
+index 0000000..00c0852
+--- /dev/null
++++ b/crates/bones-core/src/scene/remap.rs
+@@ -0,0 +1,132 @@
++//! Les objets suivent les modifications du squelette : changement
++//! d'indices des os (suppression, réordonnancement), remplacement complet
++//! (auto-rig, retrouvés par le nom de l'os) et transformation du modèle.
++
++use std::sync::Arc;
++
++use super::ops::sanitize;
++use super::{Binding, ObjectId, Parent};
++use crate::{BoneId, BoneRemap, Rig, Transform};
++
++/// Places en monde des objets attachés à un os, relevées avant une
++/// modification du squelette.
++#[derive(Clone, Debug, Default)]
++pub(crate) struct ObjectAnchors(Vec<(ObjectId, Transform)>);
++
++impl ObjectAnchors {
++    fn get(&self, id: ObjectId) -> Option<Transform> {
++        self.0.iter().find(|(o, _)| *o == id).map(|(_, t)| *t)
++    }
++}
++
++impl Rig {
++    fn anchors_with(&self, bone_world: impl FnOnce() -> Vec<Transform>) -> ObjectAnchors {
++        if !self.objects.iter().any(|o| matches!(o.parent, Parent::Bone(_))) {
++            return ObjectAnchors::default();
++        }
++        let bones = bone_world();
++        ObjectAnchors(
++            self.objects
++                .iter()
++                .filter(|o| matches!(o.parent, Parent::Bone(_)))
++                .filter_map(|o| Some((o.id, self.object_world(o.id, &bones)?)))
++                .collect(),
++        )
++    }
++
++    /// Places posées des objets attachés à un os.
++    pub(crate) fn object_anchors(&self) -> ObjectAnchors {
++        self.anchors_with(|| self.world())
++    }
++
++    /// Places de repos des objets attachés à un os.
++    pub(crate) fn object_rest_anchors(&self) -> ObjectAnchors {
++        self.anchors_with(|| self.skeleton.rest_world())
++    }
++
++    /// Applique une correspondance d'indices d'os aux objets : parents et
++    /// poids. Un objet dont l'os disparaît passe à l'os qui hérite des
++    /// influences (ou au monde) en gardant sa place notée dans `anchors`.
++    pub(crate) fn remap_objects(&mut self, remap: &BoneRemap, anchors: &ObjectAnchors) {
++        let mut orphans = Vec::new();
++        for o in &mut self.objects {
++            if let Parent::Bone(b) = o.parent {
++                o.parent = match remap.get(b) {
++                    Some(new) => Parent::Bone(new),
++                    None => {
++                        orphans.push(o.id);
++                        remap.removed_parent.map_or(Parent::World, Parent::Bone)
++                    }
++                };
++            }
++            if let Binding::Skinned(s) = &mut o.binding {
++                Arc::make_mut(&mut s.skin).remap(remap);
++                o.revisions.skin = crate::next_revision();
++            }
++        }
++        self.keep_places(&orphans, anchors, false);
++    }
++
++    /// Après le remplacement du squelette : chaque objet attaché à un os
++    /// retrouve l'os de même nom (sinon le monde) en gardant sa place de
++    /// repos ; les poids suivent les noms des os.
++    pub(crate) fn retarget_objects(&mut self, old_names: &[String], anchors: &ObjectAnchors) {
++        if self.objects.is_empty() {
++            return;
++        }
++        let map: Vec<Option<BoneId>> = old_names.iter().map(|n| self.skeleton.find(n)).collect();
++        let remap = BoneRemap {
++            map,
++            removed_parent: None,
++        };
++        let mut moved = Vec::new();
++        for o in &mut self.objects {
++            if let Parent::Bone(b) = o.parent {
++                o.parent = remap.get(b).map_or(Parent::World, Parent::Bone);
++                moved.push(o.id);
++            }
++            if let Binding::Skinned(s) = &mut o.binding {
++                Arc::make_mut(&mut s.skin).remap(&remap);
++                o.revisions.skin = crate::next_revision();
++            }
++        }
++        self.keep_places(&moved, anchors, true);
++    }
++
++    /// Recalcule la transformation locale des objets `ids` pour qu'ils
++    /// retrouvent leur place notée (pose courante, ou repos si `rest`).
++    fn keep_places(&mut self, ids: &[ObjectId], anchors: &ObjectAnchors, rest: bool) {
++        if ids.is_empty() {
++            return;
++        }
++        let bones = if rest { self.skeleton.rest_world() } else { self.world() };
++        for &id in ids {
++            let Some(world) = anchors.get(id) else { continue };
++            let Some(parent) = self.object(id).map(|o| o.parent) else {
++                continue;
++            };
++            let local = self.parent_world(parent, &bones).inverse().mul(&world);
++            if let Ok(o) = self.object_mut(id) {
++                o.local = sanitize(local);
++            }
++        }
++    }
++
++    /// Transformation du modèle entier (voir `Rig::transform_model_from`) :
++    /// les objets posés dans le monde suivent `m` ; ceux attachés à un os
++    /// suivent déjà l'os, seule une échelle uniforme leur est appliquée.
++    pub(crate) fn transform_objects_from(&mut self, start: &Rig, m: &Transform) {
++        self.objects.clone_from(&start.objects);
++        let uniform = (m.scale.x - m.scale.y).abs() < 1e-6 && (m.scale.x - m.scale.z).abs() < 1e-6;
++        for o in &mut self.objects {
++            match o.parent {
++                Parent::World => o.local = sanitize(m.mul(&o.local)),
++                Parent::Bone(_) if uniform && m.scale.x != 1.0 => {
++                    o.local.translation *= m.scale.x;
++                    o.local.scale *= m.scale.x;
++                }
++                _ => {}
++            }
++        }
++    }
++}
+diff --git a/crates/bones-core/src/skinning/closest.rs b/crates/bones-core/src/skinning/closest.rs
+new file mode 100644
+index 0000000..4ff91f4
+--- /dev/null
++++ b/crates/bones-core/src/skinning/closest.rs
+@@ -0,0 +1,192 @@
++//! Point le plus proche sur un maillage : hiérarchie de boîtes englobantes
++//! (BVH, partage médian sur l'axe le plus long) parcourue par « séparation
++//! et évaluation » (branch and bound), et point le plus proche d'un
++//! triangle selon Ericson, *Real-Time Collision Detection* (2005), § 5.1.5.
++
++use glam::Vec3;
++
++/// Triangles par feuille.
++const LEAF: usize = 4;
++
++struct Node {
++    lo: Vec3,
++    hi: Vec3,
++    /// Feuille : plage `start..start + count` de `order` ; sinon `count == 0`
++    /// et les enfants sont `start` et `start + 1`.
++    start: u32,
++    count: u32,
++}
++
++/// Point trouvé : triangle, coordonnées barycentriques et distance au carré.
++#[derive(Clone, Copy, Debug, PartialEq)]
++pub(crate) struct Hit {
++    pub triangle: [u32; 3],
++    pub bary: Vec3,
++    pub distance2: f32,
++}
++
++pub(crate) struct ClosestTriangles<'a> {
++    positions: &'a [Vec3],
++    tris: Vec<[u32; 3]>,
++    order: Vec<u32>,
++    nodes: Vec<Node>,
++}
++
++impl<'a> ClosestTriangles<'a> {
++    /// Construit la hiérarchie ; les triangles d'indices invalides sont ignorés.
++    pub fn new(positions: &'a [Vec3], indices: &[u32]) -> Self {
++        let n = positions.len();
++        let tris: Vec<[u32; 3]> = indices
++            .as_chunks::<3>()
++            .0
++            .iter()
++            .filter(|t| t.iter().all(|i| (*i as usize) < n))
++            .copied()
++            .collect();
++        let mut tree = Self {
++            positions,
++            order: (0..tris.len() as u32).collect(),
++            tris,
++            nodes: Vec::new(),
++        };
++        if !tree.tris.is_empty() {
++            tree.nodes.push(Node {
++                lo: Vec3::ZERO,
++                hi: Vec3::ZERO,
++                start: 0,
++                count: tree.tris.len() as u32,
++            });
++            // Pile explicite : pas de récursion profonde.
++            let mut stack = vec![0usize];
++            while let Some(i) = stack.pop() {
++                stack.extend(tree.split(i));
++            }
++        }
++        tree
++    }
++
++    fn corners(&self, t: u32) -> [Vec3; 3] {
++        self.tris[t as usize].map(|v| self.positions[v as usize])
++    }
++
++    /// Calcule la boîte d'un nœud et le coupe en deux s'il est trop grand ;
++    /// retourne les enfants à traiter.
++    fn split(&mut self, index: usize) -> Vec<usize> {
++        let (start, count) = (self.nodes[index].start as usize, self.nodes[index].count as usize);
++        let (mut lo, mut hi) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
++        for &t in &self.order[start..start + count] {
++            for p in self.corners(t) {
++                lo = lo.min(p);
++                hi = hi.max(p);
++            }
++        }
++        self.nodes[index].lo = lo;
++        self.nodes[index].hi = hi;
++        if count <= LEAF {
++            return Vec::new();
++        }
++        let axis = (hi - lo).max_position();
++        let mid = count / 2;
++        let centroid = |t: &u32| self.corners(*t).iter().sum::<Vec3>()[axis];
++        let mut range: Vec<u32> = self.order[start..start + count].to_vec();
++        range.select_nth_unstable_by(mid, |a, b| centroid(a).total_cmp(&centroid(b)));
++        self.order[start..start + count].copy_from_slice(&range);
++        let left = self.nodes.len();
++        for (s, c) in [(start, mid), (start + mid, count - mid)] {
++            self.nodes.push(Node {
++                lo,
++                hi,
++                start: s as u32,
++                count: c as u32,
++            });
++        }
++        self.nodes[index].start = left as u32;
++        self.nodes[index].count = 0;
++        vec![left, left + 1]
++    }
++
++    /// Point du maillage le plus proche de `p` ; `None` sans triangle.
++    pub fn closest(&self, p: Vec3) -> Option<Hit> {
++        let mut best: Option<Hit> = None;
++        let mut stack = vec![0usize];
++        while let Some(i) = stack.pop() {
++            let Some(node) = self.nodes.get(i) else { break };
++            let bound = best.map_or(f32::INFINITY, |b| b.distance2);
++            if box_distance2(p, node.lo, node.hi) >= bound {
++                continue;
++            }
++            if node.count == 0 {
++                // Enfant le plus proche visité en premier (empilé en dernier).
++                let (a, b) = (node.start as usize, node.start as usize + 1);
++                let da = box_distance2(p, self.nodes[a].lo, self.nodes[a].hi);
++                let db = box_distance2(p, self.nodes[b].lo, self.nodes[b].hi);
++                stack.extend(if da <= db { [b, a] } else { [a, b] });
++                continue;
++            }
++            for &t in &self.order[node.start as usize..(node.start + node.count) as usize] {
++                let [a, b, c] = self.corners(t);
++                let bary = closest_on_triangle(p, a, b, c);
++                let q = a * bary.x + b * bary.y + c * bary.z;
++                let d2 = (q - p).length_squared();
++                if best.is_none_or(|h| d2 < h.distance2) {
++                    best = Some(Hit {
++                        triangle: self.tris[t as usize],
++                        bary,
++                        distance2: d2,
++                    });
++                }
++            }
++        }
++        best
++    }
++}
++
++/// Distance au carré d'un point à une boîte (0 à l'intérieur).
++fn box_distance2(p: Vec3, lo: Vec3, hi: Vec3) -> f32 {
++    let d = (lo - p).max(Vec3::ZERO).max(p - hi);
++    d.length_squared()
++}
++
++/// Coordonnées barycentriques du point du triangle `abc` le plus proche de
++/// `p` (Ericson, § 5.1.5 : régions de Voronoï des sommets, arêtes, face).
++fn closest_on_triangle(p: Vec3, a: Vec3, b: Vec3, c: Vec3) -> Vec3 {
++    let (ab, ac, ap) = (b - a, c - a, p - a);
++    let (d1, d2) = (ab.dot(ap), ac.dot(ap));
++    if d1 <= 0.0 && d2 <= 0.0 {
++        return Vec3::X;
++    }
++    let bp = p - b;
++    let (d3, d4) = (ab.dot(bp), ac.dot(bp));
++    if d3 >= 0.0 && d4 <= d3 {
++        return Vec3::Y;
++    }
++    let vc = d1 * d4 - d3 * d2;
++    if vc <= 0.0 && d1 >= 0.0 && d3 <= 0.0 {
++        let v = d1 / (d1 - d3);
++        return Vec3::new(1.0 - v, v, 0.0);
++    }
++    let cp = p - c;
++    let (d5, d6) = (ab.dot(cp), ac.dot(cp));
++    if d6 >= 0.0 && d5 <= d6 {
++        return Vec3::Z;
++    }
++    let vb = d5 * d2 - d1 * d6;
++    if vb <= 0.0 && d2 >= 0.0 && d6 <= 0.0 {
++        let w = d2 / (d2 - d6);
++        return Vec3::new(1.0 - w, 0.0, w);
++    }
++    let va = d3 * d6 - d5 * d4;
++    if va <= 0.0 && (d4 - d3) >= 0.0 && (d5 - d6) >= 0.0 {
++        let w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
++        return Vec3::new(0.0, 1.0 - w, w);
++    }
++    let denom = va + vb + vc;
++    if denom.abs() < 1e-30 || !denom.is_finite() {
++        // Triangle dégénéré : sommet le plus proche.
++        let d = [a, b, c].map(|q| (q - p).length_squared());
++        let i = (0..3).min_by(|x, y| d[*x].total_cmp(&d[*y])).unwrap_or(0);
++        return [Vec3::X, Vec3::Y, Vec3::Z][i];
++    }
++    let (v, w) = (vb / denom, vc / denom);
++    Vec3::new(1.0 - v - w, v, w)
++}
+diff --git a/crates/bones-core/src/skinning/mod.rs b/crates/bones-core/src/skinning/mod.rs
+index 0210c3d..adc1331 100644
+--- a/crates/bones-core/src/skinning/mod.rs
++++ b/crates/bones-core/src/skinning/mod.rs
+@@ -1,6 +1,7 @@
+ //! Skinning : poids des sommets (format compact), calcul automatique
+ //! (enveloppes ou diffusion de chaleur) et déformation.
+ 
++mod closest;
+ mod deform;
+ pub mod envelope;
+ mod face;
+@@ -10,6 +11,7 @@ mod sparse;
+ mod tests;
+ #[cfg(test)]
+ mod tests_visibility;
++mod transfer;
+ mod visibility;
+ mod weights;
+ 
+diff --git a/crates/bones-core/src/skinning/transfer.rs b/crates/bones-core/src/skinning/transfer.rs
+new file mode 100644
+index 0000000..4f37448
+--- /dev/null
++++ b/crates/bones-core/src/skinning/transfer.rs
+@@ -0,0 +1,42 @@
++//! Transfert de poids d'un maillage à un autre (vêtements, accessoires
++//! déformés) : chaque sommet reçoit les poids interpolés du point le plus
++//! proche de la surface source, comme le « Data Transfer » de Blender en
++//! mode « Nearest Face Interpolated ». Calcul parallèle sur les sommets.
++
++use glam::Vec3;
++use rayon::prelude::*;
++
++use super::closest::ClosestTriangles;
++use super::{MAX_INFLUENCES, Skin, VertexWeights};
++use crate::{BoneId, Mesh};
++
++impl Skin {
++    /// Poids de chaque point de `targets` (même espace que `source`),
++    /// interpolés depuis `source_skin` au point le plus proche de `source`.
++    /// Sans triangle source, les poids sont vides.
++    pub fn transfer(source: &Mesh, source_skin: &Skin, targets: &[Vec3]) -> Skin {
++        let tree = ClosestTriangles::new(&source.positions, &source.indices);
++        let weights = targets
++            .par_iter()
++            .map(|p| {
++                let Some(hit) = tree.closest(*p) else {
++                    return VertexWeights::default();
++                };
++                let mut influences: Vec<(BoneId, f32)> = Vec::with_capacity(3 * MAX_INFLUENCES);
++                for (corner, factor) in hit.triangle.iter().zip(hit.bary.to_array()) {
++                    let Some(w) = source_skin.weights.get(*corner as usize) else {
++                        continue;
++                    };
++                    for (bone, weight) in w.iter() {
++                        match influences.iter_mut().find(|(b, _)| *b == bone) {
++                            Some(e) => e.1 += weight * factor,
++                            None => influences.push((bone, weight * factor)),
++                        }
++                    }
++                }
++                VertexWeights::from_influences(influences)
++            })
++            .collect();
++        Skin { weights }
++    }
++}
