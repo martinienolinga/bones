@@ -1,10 +1,9 @@
-//! Contrôle segmenté : une pilule en dégradé d'accent glisse sous le choix
+//! Contrôle segmenté : une pilule d'accent en aplat glisse sous le choix
 //! courant (choix du mode, de l'interpolation…).
 
 use egui::{Color32, CornerRadius, FontId, Rect, Response, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
 
-use crate::draw;
-use crate::theme::{TEXT, TEXT_DIM, TEXT_FAINT, semibold};
+use crate::theme::{ACCENT, TEXT, TEXT_DIM, TEXT_FAINT, semibold};
 
 const HEIGHT: f32 = 36.0;
 const PAD: f32 = 15.0;
@@ -62,19 +61,12 @@ pub fn segmented(ui: &mut Ui, options: &[&str], selected: &mut usize) -> Respons
             vec2(w, HEIGHT - 2.0 * INSET),
         );
         let pill_radius = CornerRadius::same(((HEIGHT - 2.0 * INSET) * 0.5) as u8);
-        draw::glow(
-            painter,
-            pill.center(),
-            w * 0.6,
-            Color32::from_rgba_unmultiplied(10, 132, 255, 40),
-        );
-        draw::accent_fill(
-            painter,
-            pill,
-            pill_radius,
-            if ui.is_enabled() { 1.0 } else { 0.4 },
-        );
-        draw::sheen(painter, pill, pill_radius);
+        let fill = if ui.is_enabled() {
+            ACCENT
+        } else {
+            ACCENT.gamma_multiply(0.4)
+        };
+        painter.rect_filled(pill, pill_radius, fill);
 
         let mut left = rect.left() + INSET;
         for (i, (option, w)) in options.iter().zip(&widths).enumerate() {

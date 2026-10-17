@@ -3,7 +3,7 @@
 
 use bones_core::{BoneId, Editor, LimbMode, Mode, Side, side_of};
 use bones_ui::icons::Icon;
-use bones_ui::{draw, theme, widgets};
+use bones_ui::{theme, widgets};
 
 use super::UiState;
 
@@ -36,7 +36,7 @@ fn tree_row(
             .ctx()
             .animate_bool_with_time(response.id.with("h"), response.hovered(), 0.12);
         if selected {
-            draw::accent_fill(painter, rect, 10, 0.32);
+            painter.rect_filled(rect, 10, theme::ACCENT.gamma_multiply(0.32));
         } else if hover > 0.0 {
             painter.rect_filled(rect, 10, egui::Color32::from_white_alpha((12.0 * hover) as u8));
         }
@@ -99,9 +99,9 @@ fn tree(ui: &mut egui::Ui, editor: &mut Editor) {
 }
 
 fn properties(ui: &mut egui::Ui, editor: &mut Editor, state: &mut UiState) {
-    widgets::section_title(ui, "Os sélectionné");
+    widgets::section_title(ui, "Selected bone");
     let Some(bone) = editor.selected else {
-        ui.label(egui::RichText::new("Touchez un os pour le sélectionner.").color(theme::TEXT_FAINT));
+        ui.label(egui::RichText::new("Tap a bone to select it.").color(theme::TEXT_FAINT));
         return;
     };
     let b = editor.rig.skeleton.bone(bone);
@@ -120,30 +120,31 @@ fn properties(ui: &mut egui::Ui, editor: &mut Editor, state: &mut UiState) {
     }
     ui.label(
         egui::RichText::new(format!(
-            "Parent : {}   ·   Longueur : {length:.3} m",
-            parent.as_deref().unwrap_or("aucun (racine)")
+            "Parent: {}   ·   Length: {length:.3} m",
+            parent.as_deref().unwrap_or("none (root)")
         ))
         .size(13.0)
         .color(theme::TEXT_DIM),
     );
     ui.horizontal(|ui| {
-        if editor.mode == Mode::Pose && widgets::pill_button(ui, Some(Icon::Reset), "Repos", false).clicked()
+        if editor.mode == Mode::Pose
+            && widgets::pill_button(ui, Some(Icon::Reset), "Reset to rest", false).clicked()
         {
             editor.reset_pose(true);
         }
         if editor.mode == Mode::Edit
-            && widgets::pill_button(ui, Some(Icon::Delete), "Supprimer", false).clicked()
+            && widgets::pill_button(ui, Some(Icon::Delete), "Delete bone", false).clicked()
         {
             editor.delete_selected();
         }
-        if widgets::pill_button(ui, None, "Désélectionner", false).clicked() {
+        if widgets::pill_button(ui, None, "Deselect", false).clicked() {
             editor.select(None::<BoneId>);
         }
     });
 }
 
 fn limbs(ui: &mut egui::Ui, editor: &mut Editor) {
-    widgets::section_title(ui, "Membres");
+    widgets::section_title(ui, "Limbs");
     for i in 0..editor.rig.limbs.len() {
         let limb = &editor.rig.limbs[i];
         let mut index = usize::from(limb.mode == LimbMode::Fk);

@@ -39,36 +39,36 @@ fn divider(ui: &mut egui::Ui) {
 
 fn pose_tools(ui: &mut egui::Ui, editor: &mut Editor) {
     for (tool, icon, label) in [
-        (PoseTool::Move, Icon::Move, "Déplacer"),
-        (PoseTool::Rotate, Icon::Rotate, "Tourner"),
-        (PoseTool::Pin, Icon::Pin, "Épingler"),
+        (PoseTool::Move, Icon::Move, "Move"),
+        (PoseTool::Rotate, Icon::Rotate, "Rotate"),
+        (PoseTool::Pin, Icon::Pin, "Pin"),
     ] {
         if widgets::tool_cell(ui, icon, label, editor.pose_tool == tool).clicked() {
             editor.pose_tool = tool;
         }
     }
     divider(ui);
-    if widgets::tool_cell(ui, Icon::Mirror, "Miroir", false).clicked() {
+    if widgets::tool_cell(ui, Icon::Mirror, "Mirror", false).clicked() {
         editor.mirror_pose();
     }
-    if widgets::tool_cell(ui, Icon::Reset, "Repos", false).clicked() {
+    if widgets::tool_cell(ui, Icon::Reset, "Reset", false).clicked() {
         let selected_only = editor.selected.is_some();
         editor.reset_pose(selected_only);
     }
-    if !editor.rig.pins.is_empty() && widgets::tool_cell(ui, Icon::Close, "Épingles", false).clicked() {
+    if !editor.rig.pins.is_empty() && widgets::tool_cell(ui, Icon::Close, "Unpin", false).clicked() {
         editor.clear_pins();
     }
     divider(ui);
     let view = &mut editor.view;
-    toggle(ui, Icon::Trajectory, "Trajet", &mut view.trajectory);
-    toggle(ui, Icon::Ghost, "Fantômes", &mut view.ghosts);
-    toggle(ui, Icon::CenterOfMass, "Masse", &mut view.center_of_mass);
+    toggle(ui, Icon::Trajectory, "Trail", &mut view.trajectory);
+    toggle(ui, Icon::Ghost, "Ghosts", &mut view.ghosts);
+    toggle(ui, Icon::CenterOfMass, "Mass", &mut view.center_of_mass);
 }
 
 fn edit_tools(ui: &mut egui::Ui, editor: &mut Editor) {
     for (tool, icon, label) in [
-        (EditTool::Select, Icon::Select, "Ajuster"),
-        (EditTool::AddBone, Icon::BoneAdd, "Ajouter"),
+        (EditTool::Select, Icon::Select, "Adjust"),
+        (EditTool::AddBone, Icon::BoneAdd, "Add"),
     ] {
         if widgets::tool_cell(ui, icon, label, editor.edit_tool == tool).clicked() {
             editor.edit_tool = tool;
@@ -78,32 +78,32 @@ fn edit_tools(ui: &mut egui::Ui, editor: &mut Editor) {
     let has_selection = editor.selected.is_some();
     if ui
         .add_enabled_ui(has_selection, |ui| {
-            widgets::tool_cell(ui, Icon::Delete, "Supprimer", false)
+            widgets::tool_cell(ui, Icon::Delete, "Delete", false)
         })
         .inner
         .clicked()
     {
         editor.delete_selected();
     }
-    if widgets::tool_cell(ui, Icon::Symmetrize, "G → D", false).clicked() {
+    if widgets::tool_cell(ui, Icon::Symmetrize, "L → R", false).clicked() {
         editor.symmetrize(Side::Left);
     }
-    if widgets::tool_cell(ui, Icon::Mirror, "D → G", false).clicked() {
+    if widgets::tool_cell(ui, Icon::Mirror, "R → L", false).clicked() {
         editor.symmetrize(Side::Right);
     }
     divider(ui);
-    if widgets::tool_cell(ui, Icon::Weights, "Lier", false).clicked() {
+    if widgets::tool_cell(ui, Icon::Weights, "Rebind", false).clicked() {
         editor.request_rebind();
     }
 }
 
 fn autorig_tools(ui: &mut egui::Ui, editor: &mut Editor) {
-    widgets::tool_cell(ui, Icon::Marker, "Marqueurs", true);
-    if widgets::tool_cell(ui, Icon::Reset, "Estimer", false).clicked() {
+    widgets::tool_cell(ui, Icon::Marker, "Markers", true);
+    if widgets::tool_cell(ui, Icon::Reset, "Guess", false).clicked() {
         editor.guess_markers();
     }
     divider(ui);
-    if widgets::tool_cell(ui, Icon::AutoRig, "Générer", false).clicked() {
+    if widgets::tool_cell(ui, Icon::AutoRig, "Generate", false).clicked() {
         editor.generate_rig();
     }
 }

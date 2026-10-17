@@ -9,29 +9,29 @@ use bones_ui::{theme, widgets};
 use super::UiAction;
 
 pub fn show(ui: &mut egui::Ui, editor: &mut Editor, actions: &mut Vec<UiAction>) {
-    widgets::section_title(ui, "Poids automatiques");
+    widgets::section_title(ui, "Automatic weights");
     let methods = [BindMethod::Heat, BindMethod::Envelope];
     let mut index = methods.iter().position(|m| *m == editor.bind_method).unwrap_or(0);
-    if widgets::segmented(ui, &["Diffusion de chaleur", "Enveloppes"], &mut index).changed() {
+    if widgets::segmented(ui, &["Heat diffusion", "Envelopes"], &mut index).changed() {
         editor.bind_method = methods[index];
         editor.request_rebind();
     }
     ui.label(
         egui::RichText::new(match editor.bind_method {
-            BindMethod::Heat => "Qualité (Baran & Popović 2007), calculé en tâche de fond.",
-            BindMethod::Envelope => "Instantané, selon la distance aux os.",
+            BindMethod::Heat => "High quality (Baran & Popović 2007), computed in the background.",
+            BindMethod::Envelope => "Instant, based on the distance to the bones.",
         })
         .size(12.0)
         .color(theme::TEXT_DIM),
     );
-    if widgets::pill_button(ui, Some(Icon::Weights), "Recalculer les poids", false).clicked() {
+    if widgets::pill_button(ui, Some(Icon::Weights), "Recompute weights", false).clicked() {
         editor.request_rebind();
     }
 
     ui.add_space(8.0);
     widgets::section_title(ui, "Animation");
     ui.horizontal(|ui| {
-        ui.label("Images par seconde");
+        ui.label("Frames per second");
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let mut fps = editor.rig.clip.fps;
             if ui
@@ -49,15 +49,15 @@ pub fn show(ui: &mut egui::Ui, editor: &mut Editor, actions: &mut Vec<UiAction>)
 
 /// Un format par ligne, avec ce qu'il emporte.
 fn export(ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
-    widgets::section_title(ui, "Exporter");
+    widgets::section_title(ui, "Export");
     ui.spacing_mut().item_spacing.y = 4.0;
     for format in Format::exportable().filter(|f| *f != Format::Bones) {
-        let mut contents = vec!["maillage"];
+        let mut contents = vec!["mesh"];
         if format.supports_textures() {
             contents.push("textures");
         }
         if format.exports_skeleton() {
-            contents.push("squelette");
+            contents.push("skeleton");
         }
         if format.exports_animation() {
             contents.push("animation");
@@ -77,7 +77,7 @@ fn export(ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
         }
     }
     ui.label(
-        egui::RichText::new("Les formats sans squelette (OBJ, STL, PLY) exportent la pose courante.")
+        egui::RichText::new("Formats without a skeleton (OBJ, STL, PLY) export the current pose.")
             .size(12.0)
             .color(theme::TEXT_DIM),
     );

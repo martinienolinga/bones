@@ -9,9 +9,8 @@ use egui::{
 };
 
 use super::anim;
-use crate::draw;
 use crate::icons::{self, Icon};
-use crate::theme::{PANEL, TEXT, TEXT_DIM, THUMB, semibold, soft_shadow};
+use crate::theme::{ACCENT, PANEL, TEXT, TEXT_DIM, THUMB, semibold, small_shadow};
 
 const WIDTH: f32 = 38.0;
 const HEIGHT: f32 = 168.0;
@@ -100,11 +99,10 @@ fn slider(
         let t = fraction(*value, &range);
         let thumb_y = track.bottom() - 13.0 - t * usable;
         let filled = Rect::from_min_max(pos2(track.left(), thumb_y - 6.0), track.max);
-        draw::accent_fill(
-            painter,
+        painter.rect_filled(
             filled.shrink(2.0),
             CornerRadius::same((WIDTH * 0.5 - 2.0) as u8),
-            0.55 + 0.45 * grab,
+            ACCENT.gamma_multiply(0.7 + 0.3 * grab),
         );
         painter.rect_stroke(
             track,
@@ -115,9 +113,7 @@ fn slider(
 
         let size = vec2(30.0 + 4.0 * grab, 14.0 + 4.0 * grab);
         let thumb = Rect::from_center_size(pos2(track.center().x, thumb_y), size);
-        painter.add(soft_shadow().as_shape(thumb, CornerRadius::same(8)));
         painter.rect_filled(thumb, CornerRadius::same(8), THUMB);
-        draw::sheen(painter, thumb, CornerRadius::same(8));
     }
 
     if response.dragged() {
@@ -138,7 +134,7 @@ fn bubble(ui: &Ui, id: Id, slider: Rect, label: &str, value: &str) {
         big.size().y + small.size().y + 18.0,
     );
     let rect = Align2::LEFT_CENTER.anchor_size(pos2(slider.right() + 14.0, slider.center().y), size);
-    painter.add(soft_shadow().as_shape(rect, CornerRadius::same(14)));
+    painter.add(small_shadow().as_shape(rect, CornerRadius::same(14)));
     painter.rect_filled(rect, CornerRadius::same(14), PANEL);
     painter.rect_stroke(
         rect,
@@ -200,15 +196,13 @@ pub fn slider_row(
         painter.rect_filled(track, CornerRadius::same(3), Color32::from_white_alpha(26));
         let t = fraction(*value, &range);
         let x = track.left() + t * track.width();
-        draw::accent_fill(
-            painter,
+        painter.rect_filled(
             Rect::from_min_max(track.min, pos2(x, track.bottom())),
             CornerRadius::same(3),
-            1.0,
+            ACCENT,
         );
         let grab = anim(ui, response.id.with("grab"), response.dragged());
         let knob = Rect::from_center_size(pos2(x, track.center().y), vec2(24.0, 24.0) * (1.0 + 0.1 * grab));
-        painter.add(soft_shadow().as_shape(knob, CornerRadius::same(12)));
         painter.circle_filled(knob.center(), knob.width() * 0.5, Color32::WHITE);
     }
     response

@@ -13,16 +13,16 @@ use crate::files::FileEntry;
 pub fn show(ui: &mut egui::Ui, editor: &mut Editor, state: &mut UiState, actions: &mut Vec<UiAction>) {
     ui.add(
         egui::TextEdit::singleline(&mut editor.rig.name)
-            .hint_text("Nom du document")
+            .hint_text("Name")
             .desired_width(f32::INFINITY)
             .margin(egui::Margin::symmetric(12, 10)),
     );
     ui.add_space(4.0);
     ui.horizontal(|ui| {
-        if widgets::pill_button(ui, Some(Icon::Pose), "Nouveau mannequin", false).clicked() {
+        if widgets::pill_button(ui, Some(Icon::Pose), "New mannequin", false).clicked() {
             actions.push(UiAction::NewDemo);
         }
-        if widgets::pill_button(ui, Some(Icon::Save), "Enregistrer", true).clicked() {
+        if widgets::pill_button(ui, Some(Icon::Save), "Save", true).clicked() {
             actions.push(UiAction::Save);
         }
     });
@@ -33,13 +33,13 @@ pub fn show(ui: &mut egui::Ui, editor: &mut Editor, state: &mut UiState, actions
         ui.spacing_mut().item_spacing.y = 4.0;
         section(ui, "Documents", &documents, actions);
         ui.add_space(6.0);
-        section(ui, "Modèles et animations à importer", &models, actions);
+        section(ui, "Models & animations to import", &models, actions);
     });
     ui.add_space(6.0);
     ui.label(
         egui::RichText::new(
-            "Déposez vos fichiers (glTF, GLB, FBX, OBJ + MTL, STL, PLY, BVH) et leurs textures dans \
-             « Sur mon iPad › Bones » depuis l'app Fichiers. Les exports sont rangés dans « Exports ».",
+            "Put your files (glTF, GLB, FBX, OBJ + MTL, STL, PLY, BVH) and their textures in \
+             “On My iPad › Bones” using the Files app. Exports go to “Exports”.",
         )
         .size(12.0)
         .color(theme::TEXT_DIM),
@@ -49,7 +49,7 @@ pub fn show(ui: &mut egui::Ui, editor: &mut Editor, state: &mut UiState, actions
 fn section(ui: &mut egui::Ui, title: &str, files: &[FileEntry], actions: &mut Vec<UiAction>) {
     widgets::section_title(ui, title);
     if files.is_empty() {
-        ui.label(egui::RichText::new("Aucun fichier").color(theme::TEXT_FAINT));
+        ui.label(egui::RichText::new("No files").color(theme::TEXT_FAINT));
     }
     for file in files {
         let icon = match file.format {

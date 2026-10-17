@@ -45,18 +45,18 @@ pub fn show(ctx: &egui::Context, editor: &mut Editor) -> egui::Rect {
 }
 
 fn transport(ui: &mut egui::Ui, editor: &mut Editor) {
-    if widgets::tool_button(ui, Icon::PrevKey, false, "Clé précédente").clicked() {
+    if widgets::tool_button(ui, Icon::PrevKey, false, "Previous key").clicked() {
         editor.jump_key(false);
     }
     let (icon, hint) = if editor.playing {
         (Icon::Pause, "Pause")
     } else {
-        (Icon::Play, "Lecture")
+        (Icon::Play, "Play")
     };
     if widgets::tool_button(ui, icon, editor.playing, hint).clicked() {
         editor.toggle_play();
     }
-    if widgets::tool_button(ui, Icon::NextKey, false, "Clé suivante").clicked() {
+    if widgets::tool_button(ui, Icon::NextKey, false, "Next key").clicked() {
         editor.jump_key(true);
     }
     // Compteur d'images, chiffres à chasse fixe pour ne pas trembler.
@@ -69,12 +69,12 @@ fn transport(ui: &mut egui::Ui, editor: &mut Editor) {
 
 fn keys_and_interpolation(ui: &mut egui::Ui, editor: &mut Editor) {
     let on_key = editor.rig.clip.key_at(editor.current_frame()).is_some();
-    if widgets::tool_button(ui, Icon::Key, on_key, "Poser une clé").clicked() {
+    if widgets::tool_button(ui, Icon::Key, on_key, "Add key").clicked() {
         editor.add_key();
     }
     if ui
         .add_enabled_ui(on_key, |ui| {
-            widgets::tool_button(ui, Icon::KeyRemove, false, "Supprimer la clé")
+            widgets::tool_button(ui, Icon::KeyRemove, false, "Delete key")
         })
         .inner
         .clicked()
@@ -85,7 +85,7 @@ fn keys_and_interpolation(ui: &mut egui::Ui, editor: &mut Editor) {
         let mut index = INTERPOLATIONS.iter().position(|i| *i == current).unwrap_or(2);
         ui.vertical(|ui| {
             ui.add_space(4.0);
-            if widgets::segmented(ui, &["Palier", "Linéaire", "Doux"], &mut index).changed() {
+            if widgets::segmented(ui, &["Step", "Linear", "Smooth"], &mut index).changed() {
                 editor.set_interpolation(INTERPOLATIONS[index]);
             }
         });
@@ -94,7 +94,7 @@ fn keys_and_interpolation(ui: &mut egui::Ui, editor: &mut Editor) {
         ui,
         Icon::Ballistic,
         false,
-        "Saut balistique sur l'intervalle courant",
+        "Ballistic jump over the current interval",
     )
     .clicked()
     {
@@ -106,9 +106,9 @@ fn keys_and_interpolation(ui: &mut egui::Ui, editor: &mut Editor) {
         let response = ui
             .add_sized(
                 [72.0, 32.0],
-                egui::DragValue::new(&mut count).range(2..=100_000).suffix(" im."),
+                egui::DragValue::new(&mut count).range(2..=100_000).suffix(" fr"),
             )
-            .on_hover_text("Nombre d'images");
+            .on_hover_text("Frame count");
         if response.changed() {
             editor.set_frame_count(count);
         }

@@ -1,86 +1,86 @@
 //! Familles de teintes des icônes et enveloppe SVG commune.
 //!
-//! Chaque icône est un fragment SVG (`viewBox` 32 × 32) qui utilise trois
-//! dégradés fournis par l'enveloppe :
-//! - `url(#a)` : dégradé principal de la famille, du clair (haut) au foncé
-//!   (bas), en coordonnées de l'icône pour que toutes les formes partagent la
-//!   même lumière ;
-//! - `url(#b)` : variante diagonale plus lumineuse (faces secondaires) ;
-//! - `url(#h)` : reflet blanc qui s'estompe vers le bas (brillance).
+//! Les icônes sont plates : uniquement des aplats. Chaque fragment SVG
+//! (`viewBox` 32 × 32) écrit ses couleurs avec trois jetons que l'enveloppe
+//! remplace par les teintes de la famille :
+//! - `@p` : teinte de base (formes principales) ;
+//! - `@s` : teinte claire (formes secondaires) ;
+//! - `@d` : teinte foncée (faces d'ombre, rainures).
 
 /// Teintes d'une famille d'outils.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Hue {
-    pub light: &'static str,
-    pub dark: &'static str,
-    pub glow: &'static str,
+    pub base: &'static str,
+    pub soft: &'static str,
+    pub deep: &'static str,
 }
 
-/// Os et rigging : ambre → orange.
+/// Os et rigging : orange.
 pub const RIG: Hue = Hue {
-    light: "#FFD86E",
-    dark: "#FF7417",
-    glow: "#FFF3C9",
+    base: "#FF9F0A",
+    soft: "#FFCC70",
+    deep: "#C76F00",
 };
-/// Déplacement et IK : cyan → bleu.
+/// Déplacement et IK : bleu.
 pub const MOVE: Hue = Hue {
-    light: "#72EAFF",
-    dark: "#1D63FF",
-    glow: "#DDF9FF",
+    base: "#0A84FF",
+    soft: "#70B7FF",
+    deep: "#0060C7",
 };
-/// Rotation et FK : violet → magenta.
+/// Rotation et FK : violet.
 pub const ROTATE: Hue = Hue {
-    light: "#CFA8FF",
-    dark: "#C42DF0",
-    glow: "#F4E9FF",
+    base: "#BF5AF2",
+    soft: "#DCA5F8",
+    deep: "#8E35BD",
 };
 /// Épingles et validation : vert.
 pub const PIN: Hue = Hue {
-    light: "#86F7AE",
-    dark: "#0FA35A",
-    glow: "#E2FFEC",
+    base: "#30D158",
+    soft: "#8BE6A1",
+    deep: "#1F9B3F",
 };
-/// Suppression : rouge → corail.
+/// Suppression : rouge.
 pub const DANGER: Hue = Hue {
-    light: "#FF9A8F",
-    dark: "#EE2A45",
-    glow: "#FFE4E0",
+    base: "#FF453A",
+    soft: "#FF9A93",
+    deep: "#B8261D",
 };
-/// Animation et clés : or.
+/// Animation et clés : jaune.
 pub const ANIM: Hue = Hue {
-    light: "#FFE680",
-    dark: "#F09A00",
-    glow: "#FFF8D6",
+    base: "#FFD60A",
+    soft: "#FFE88A",
+    deep: "#C9A300",
 };
 /// Physique (balistique, centre de masse) : sarcelle.
 pub const PHYSICS: Hue = Hue {
-    light: "#66F4DA",
-    dark: "#0B9690",
-    glow: "#D9FFF7",
+    base: "#2ED3B7",
+    soft: "#90EADB",
+    deep: "#1C9E89",
 };
 /// Fichiers (galerie, import, export) : bleu ciel.
 pub const FILES: Hue = Hue {
-    light: "#93D4FF",
-    dark: "#2A78FF",
-    glow: "#E6F5FF",
+    base: "#5AC8FA",
+    soft: "#ADE4FD",
+    deep: "#2B95C9",
 };
-/// Affichage (œil, grille, fantômes) : indigo → lilas.
+/// Affichage (œil, grille, fantômes) : indigo.
 pub const VIEW: Hue = Hue {
-    light: "#BCC0FF",
-    dark: "#6A55F0",
-    glow: "#EEEDFF",
+    base: "#7D7AFF",
+    soft: "#BDBBFF",
+    deep: "#5552D6",
 };
-/// Commandes générales (annuler, réglages) : blanc nacré.
+/// Commandes générales (annuler, réglages) : gris clair.
 pub const NEUTRAL: Hue = Hue {
-    light: "#FFFFFF",
-    dark: "#B4BAC6",
-    glow: "#FFFFFF",
+    base: "#E5E5EA",
+    soft: "#A1A1A8",
+    deep: "#6E6E75",
 };
 
-/// Document SVG complet d'une icône.
+/// Document SVG complet d'une icône, jetons de teinte remplacés.
 pub fn document(hue: Hue, body: &str) -> String {
-    let Hue { light, dark, glow } = hue;
-    format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><defs><linearGradient id="a" gradientUnits="userSpaceOnUse" x1="0" y1="3" x2="0" y2="29"><stop offset="0" stop-color="{light}"/><stop offset="1" stop-color="{dark}"/></linearGradient><linearGradient id="b" gradientUnits="userSpaceOnUse" x1="4" y1="4" x2="28" y2="28"><stop offset="0" stop-color="{glow}"/><stop offset="1" stop-color="{light}"/></linearGradient><linearGradient id="h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".6"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>{body}</svg>"##
-    )
+    let body = body
+        .replace("@p", hue.base)
+        .replace("@s", hue.soft)
+        .replace("@d", hue.deep);
+    format!(r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">{body}</svg>"#)
 }

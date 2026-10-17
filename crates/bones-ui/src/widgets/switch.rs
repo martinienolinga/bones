@@ -4,7 +4,7 @@
 use egui::{Align2, Color32, CornerRadius, FontId, Rect, Response, Sense, Ui, pos2, vec2};
 
 use super::{Motion, anim};
-use crate::theme::{SUCCESS, TEXT, TEXT_DIM, mix, soft_shadow};
+use crate::theme::{SUCCESS, TEXT, TEXT_DIM, mix};
 
 const SIZE: egui::Vec2 = egui::Vec2::new(51.0, 31.0);
 
@@ -16,7 +16,6 @@ fn paint_switch(ui: &Ui, rect: Rect, on: f32, press: f32) {
     let stretch = 5.0 * press;
     let x = rect.left() + 2.0 + on * (rect.width() - d - 4.0 - stretch);
     let knob = Rect::from_min_size(pos2(x, rect.top() + 2.0), vec2(d + stretch, d));
-    painter.add(soft_shadow().as_shape(knob, CornerRadius::same(14)));
     painter.rect_filled(knob, CornerRadius::same(14), Color32::WHITE);
 }
 

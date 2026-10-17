@@ -1,9 +1,9 @@
-//! Icônes en couleur, dessinées en SVG (dégradés, reflets) et rastérisées
-//! une seule fois par `resvg` dans un atlas de textures egui.
+//! Icônes plates en couleur, dessinées en SVG (aplats, sans dégradé) et
+//! rastérisées une seule fois par `resvg` dans un atlas de textures egui.
 //!
-//! Chaque famille d'outils a sa teinte (voir [`hue`]) : os en ambre, IK en
-//! bleu, rotation en violet, épingles en vert, animation en or, physique en
-//! sarcelle, fichiers en bleu ciel, affichage en indigo.
+//! Chaque famille d'outils a sa teinte (voir [`hue`]) : os en orange, IK en
+//! bleu, rotation en violet, épingles en vert, animation en jaune, physique
+//! en sarcelle, fichiers en bleu ciel, affichage en indigo.
 
 mod atlas;
 pub mod hue;
@@ -130,10 +130,10 @@ impl Icon {
         hue::document(hue, body)
     }
 
-    /// Couleur principale de la famille (lueurs, états actifs).
+    /// Couleur de base de la famille (états actifs).
     pub fn tone(self) -> Color32 {
         let (_, hue) = svg::source(self);
-        parse_hex(hue.dark)
+        parse_hex(hue.base)
     }
 }
 

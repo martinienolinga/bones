@@ -33,10 +33,10 @@ pub fn show(ctx: &egui::Context, editor: &mut Editor) -> egui::Rect {
                 );
                 ui.vertical(|ui| {
                     ui.spacing_mut().item_spacing.y = 2.0;
-                    ui.label(egui::RichText::new("Rigging assisté").font(theme::semibold(17.0)));
+                    ui.label(egui::RichText::new("Auto-rig").font(theme::semibold(17.0)));
                     ui.label(
                         egui::RichText::new(
-                            "Placez les marqueurs de face, réglez les options, puis générez.",
+                            "1. Place the markers (front view)  2. Set the options  3. Generate",
                         )
                         .size(13.0)
                         .color(theme::TEXT_DIM),
@@ -44,18 +44,18 @@ pub fn show(ctx: &egui::Context, editor: &mut Editor) -> egui::Rect {
                 });
                 ui.add_space(12.0);
                 let options = &mut editor.autorig_options;
-                field(ui, "Colonne", |ui| {
+                field(ui, "Spine", |ui| {
                     ui.add(egui::DragValue::new(&mut options.spine_count).range(1..=6))
                 });
-                field(ui, "Cou", |ui| {
+                field(ui, "Neck", |ui| {
                     ui.add(egui::DragValue::new(&mut options.neck_count).range(1..=3))
                 });
-                field(ui, "Doigts", |ui| widgets::switch(ui, &mut options.fingers));
-                field(ui, "Orteils", |ui| widgets::switch(ui, &mut options.toes));
+                field(ui, "Fingers", |ui| widgets::switch(ui, &mut options.fingers));
+                field(ui, "Toes", |ui| widgets::switch(ui, &mut options.toes));
                 ui.add_space(8.0);
                 ui.vertical(|ui| {
                     ui.add_space(6.0);
-                    if widgets::pill_button(ui, Some(Icon::AutoRig), "Générer le rig", true).clicked() {
+                    if widgets::pill_button(ui, Some(Icon::AutoRig), "Generate rig", true).clicked() {
                         editor.generate_rig();
                     }
                 });

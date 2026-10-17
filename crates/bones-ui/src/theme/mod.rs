@@ -1,6 +1,6 @@
-//! Thème sombre soigné, dans l'esprit de Procreate et Nomad Sculpt : blocs
-//! très sombres aux coins généreux, liseré de lumière d'un pixel, ombres
-//! longues et douces, un accent bleu iOS qui glisse vers l'indigo.
+//! Thème sombre et plat, dans l'esprit de Procreate et Nomad Sculpt : blocs
+//! très sombres aux coins généreux, liseré d'un pixel, ombres courtes, un
+//! accent bleu iOS en aplat ; aucun dégradé.
 //!
 //! - couleurs (ce module) ;
 //! - [`fonts`] : police Inter embarquée ;
@@ -14,7 +14,7 @@ mod style;
 use egui::Color32;
 
 pub use fonts::{install_fonts, semibold};
-pub use frames::{bar_frame, card_frame, panel_frame, soft_shadow};
+pub use frames::{bar_frame, card_frame, panel_frame, small_shadow, soft_shadow};
 pub use style::apply;
 
 /// Couleur de fond de la vue 3D (sRGB #262628), en espace d'affichage : la
@@ -36,9 +36,9 @@ pub const WIDGET_HOVER: Color32 = Color32::from_rgb(0x3a, 0x3a, 0x41);
 pub const THUMB: Color32 = Color32::from_rgb(0xe5, 0xe5, 0xea);
 /// Accent : bleu iOS de Procreate.
 pub const ACCENT: Color32 = Color32::from_rgb(0x0a, 0x84, 0xff);
-/// Fin du dégradé d'accent (indigo).
-pub const ACCENT_2: Color32 = Color32::from_rgb(0x5e, 0x5c, 0xe6);
-/// Accent atténué (fonds de sélection, lueurs).
+/// Accent survolé / pressé (un ton plus sombre).
+pub const ACCENT_PRESSED: Color32 = Color32::from_rgb(0x00, 0x6e, 0xdb);
+/// Accent atténué (fonds de sélection).
 pub const ACCENT_SOFT: Color32 = Color32::from_rgba_premultiplied(4, 46, 89, 89);
 pub const TEXT: Color32 = Color32::from_rgb(0xf5, 0xf5, 0xf7);
 pub const TEXT_DIM: Color32 = Color32::from_rgb(0x8e, 0x8e, 0x93);

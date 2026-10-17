@@ -18,15 +18,15 @@ pub fn left(ctx: &egui::Context, editor: &mut Editor, state: &mut UiState) -> eg
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
                 let open = state.popover;
-                if widgets::text_button(ui, "Galerie", open == Some(Popover::Gallery)).clicked() {
+                if widgets::text_button(ui, "Gallery", open == Some(Popover::Gallery)).clicked() {
                     state.toggle(Popover::Gallery);
                 }
                 widgets::separator_dot(ui);
                 for (icon, popover, hint) in [
                     (Icon::Actions, Popover::Actions, "Actions"),
-                    (Icon::Eye, Popover::View, "Affichage"),
-                    (Icon::Hierarchy, Popover::Outliner, "Os et membres"),
-                    (Icon::Settings, Popover::Settings, "Réglages"),
+                    (Icon::Eye, Popover::View, "View"),
+                    (Icon::Hierarchy, Popover::Outliner, "Bones"),
+                    (Icon::Settings, Popover::Settings, "Settings"),
                 ] {
                     if widgets::tool_button(ui, icon, open == Some(popover), hint).clicked() {
                         state.toggle(popover);
@@ -59,7 +59,7 @@ pub fn right(ctx: &egui::Context, editor: &mut Editor, _state: &mut UiState) -> 
                 const MODES: [Mode; 3] = [Mode::Pose, Mode::Edit, Mode::AutoRig];
                 let mut index = MODES.iter().position(|m| *m == editor.mode).unwrap_or(0);
                 ui.add_space(4.0);
-                if widgets::segmented(ui, &["Pose", "Édition", "Auto-Rig"], &mut index).changed() {
+                if widgets::segmented(ui, &["Pose", "Edit", "Auto-Rig"], &mut index).changed() {
                     editor.set_mode(MODES[index]);
                 }
                 ui.add_space(4.0);

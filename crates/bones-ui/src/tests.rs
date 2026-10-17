@@ -68,20 +68,20 @@ fn widgets_render() {
     let mut mode = 1;
     let mut on = true;
     let output = run(|ui| {
-        widgets::tool_button(ui, icons::Icon::Bone, true, "Os");
+        widgets::tool_button(ui, icons::Icon::Bone, true, "Bones");
         widgets::tool_cell(ui, icons::Icon::Ik, "IK", false);
-        widgets::text_button(ui, "Galerie", false);
+        widgets::text_button(ui, "Gallery", false);
         widgets::separator_dot(ui);
-        widgets::segmented(ui, &["Pose", "Édition", "Auto-Rig"], &mut mode);
-        widgets::vertical_slider(ui, &mut value, 1.0..=6.0, "Chaîne IK");
-        widgets::vertical_slider_with_icon(ui, &mut value, 1.0..=6.0, icons::Icon::Chain, "Chaîne IK");
+        widgets::segmented(ui, &["Pose", "Edit", "Auto-Rig"], &mut mode);
+        widgets::vertical_slider(ui, &mut value, 1.0..=6.0, "IK chain");
+        widgets::vertical_slider_with_icon(ui, &mut value, 1.0..=6.0, icons::Icon::Chain, "IK chain");
         widgets::key_strip(ui, &mut frame, 120, &[0, 12, 60], 64.0);
-        widgets::switch_row(ui, &mut on, "Poser", "IK et rotation");
-        widgets::pill_button(ui, Some(icons::Icon::Save), "Enregistrer", true);
-        widgets::list_row(ui, icons::Icon::Export, "Exporter", Some("glTF"), Some("GLB"));
+        widgets::switch_row(ui, &mut on, "Pose", "IK and rotation");
+        widgets::pill_button(ui, Some(icons::Icon::Save), "Save", true);
+        widgets::list_row(ui, icons::Icon::Export, "Export", Some("glTF"), Some("GLB"));
         widgets::section_title(ui, "Section");
         let mut r = 22.0;
-        widgets::slider_row(ui, &mut r, 10.0..=48.0, "Rayon", "pt");
+        widgets::slider_row(ui, &mut r, 10.0..=48.0, "Radius", "pt");
         icons::paint(
             ui.painter(),
             Rect::from_min_size(pos2(10.0, 10.0), vec2(24.0, 24.0)),

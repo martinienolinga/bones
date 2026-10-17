@@ -1,13 +1,12 @@
 //! Frise de clés (timeline) : piste creusée, graduations, losanges de clés
-//! dorés avec halo, tête de lecture à pastille en dégradé d'accent. Un tap
-//! ou un glissement déplace l'image courante.
+//! jaunes, tête de lecture à pastille d'accent (aplats). Un tap ou un
+//! glissement déplace l'image courante.
 
 use egui::{
     Align2, Color32, CornerRadius, FontId, Pos2, Response, Sense, Shape, Stroke, StrokeKind, Ui, pos2, vec2,
 };
 
-use crate::draw;
-use crate::theme::{TEXT_DIM, semibold};
+use crate::theme::{ACCENT, TEXT_DIM, semibold};
 
 const PAD: f32 = 16.0;
 /// Pas majeurs possibles, en images.
@@ -98,17 +97,11 @@ pub fn key_strip(ui: &mut Ui, frame: &mut f32, frame_count: u32, keys: &[u32], h
         Stroke::new(1.0, Color32::from_white_alpha(14)),
     );
 
-    // Clés en losanges dorés avec halo.
+    // Clés en losanges jaunes.
     let current = frame.round() as u32;
     for &k in keys.iter().filter(|k| **k < count) {
         let c = pos2(x_of(k as f32), mid);
         let on = k == current;
-        draw::glow(
-            painter,
-            c,
-            if on { 18.0 } else { 12.0 },
-            KEY.gamma_multiply(if on { 0.5 } else { 0.28 }),
-        );
         let stroke = if on {
             Stroke::new(1.6, Color32::WHITE)
         } else {
@@ -130,7 +123,7 @@ pub fn key_strip(ui: &mut Ui, frame: &mut f32, frame_count: u32, keys: &[u32], h
     painter.circle_filled(pos2(x, rect.bottom() - 4.0), 2.2, Color32::WHITE);
     let label = painter.layout_no_wrap(format!("{current}"), semibold(11.0), Color32::WHITE);
     let pill = Align2::CENTER_BOTTOM.anchor_size(pos2(x, tick_top + 1.0), label.size() + vec2(12.0, 5.0));
-    draw::accent_fill(painter, pill, CornerRadius::same(8), 1.0);
+    painter.rect_filled(pill, CornerRadius::same(8), ACCENT);
     painter.galley(pill.center() - label.size() * 0.5, label, Color32::WHITE);
     response
 }

@@ -1,17 +1,27 @@
 //! Cadres : blocs posés sur la vue (barre, cartes) et fenêtres
-//! contextuelles. Coins généreux, liseré de lumière intérieur, ombre longue.
+//! contextuelles. Aplats, coins généreux, liseré d'un pixel, ombre courte.
 
 use egui::{Color32, CornerRadius, Frame, Margin, Shadow, Stroke};
 
 use super::{BAR, PANEL, PANEL_BORDER};
 
-/// Ombre douce et longue des blocs flottants.
+/// Ombre portée nette des blocs flottants.
 pub fn soft_shadow() -> Shadow {
     Shadow {
-        offset: [0, 10],
-        blur: 32,
+        offset: [0, 4],
+        blur: 12,
         spread: 0,
-        color: Color32::from_black_alpha(120),
+        color: Color32::from_black_alpha(80),
+    }
+}
+
+/// Ombre très courte des petites bulles flottantes (valeur d'un curseur).
+pub fn small_shadow() -> Shadow {
+    Shadow {
+        offset: [0, 2],
+        blur: 4,
+        spread: 0,
+        color: Color32::from_black_alpha(70),
     }
 }
 

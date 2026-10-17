@@ -20,7 +20,7 @@ pub fn show(ctx: &egui::Context, editor: &mut Editor, state: &mut UiState) -> Ve
                 ui.spacing_mut().item_spacing.y = 6.0;
                 ui.add_space(4.0);
                 context_slider(ui, editor);
-                if widgets::tool_button(ui, Icon::Frame, false, "Cadrer le modèle").clicked() {
+                if widgets::tool_button(ui, Icon::Frame, false, "Frame the model").clicked() {
                     editor.frame_all();
                 }
                 let mut radius = state.settings.pick_radius;
@@ -29,7 +29,7 @@ pub fn show(ctx: &egui::Context, editor: &mut Editor, state: &mut UiState) -> Ve
                     &mut radius,
                     10.0..=48.0,
                     Icon::Marker,
-                    "Rayon de sélection",
+                    "Selection radius",
                 )
                 .changed()
                 {
@@ -39,7 +39,7 @@ pub fn show(ctx: &egui::Context, editor: &mut Editor, state: &mut UiState) -> Ve
                 ui.add_space(4.0);
                 let undo = ui
                     .add_enabled_ui(editor.can_undo(), |ui| {
-                        widgets::tool_button(ui, Icon::Undo, false, "Annuler (tape à deux doigts)")
+                        widgets::tool_button(ui, Icon::Undo, false, "Undo (two-finger tap)")
                     })
                     .inner;
                 if undo.clicked() {
@@ -47,7 +47,7 @@ pub fn show(ctx: &egui::Context, editor: &mut Editor, state: &mut UiState) -> Ve
                 }
                 let redo = ui
                     .add_enabled_ui(editor.can_redo(), |ui| {
-                        widgets::tool_button(ui, Icon::Redo, false, "Rétablir (tape à trois doigts)")
+                        widgets::tool_button(ui, Icon::Redo, false, "Redo (three-finger tap)")
                     })
                     .inner;
                 if redo.clicked() {
@@ -72,10 +72,10 @@ pub fn show(ctx: &egui::Context, editor: &mut Editor, state: &mut UiState) -> Ve
                     ui,
                     Icon::Weights,
                     &mut view.weights,
-                    "Carte de poids de l'os sélectionné",
+                    "Weight map of the selected bone",
                 );
-                toggle(ui, Icon::Mesh, &mut view.mesh, "Afficher le maillage");
-                toggle(ui, Icon::Bone, &mut view.bones, "Afficher les os");
+                toggle(ui, Icon::Mesh, &mut view.mesh, "Show the mesh");
+                toggle(ui, Icon::Bone, &mut view.bones, "Show the bones");
             });
         },
     );
@@ -88,7 +88,7 @@ fn context_slider(ui: &mut egui::Ui, editor: &mut Editor) {
     match editor.mode {
         Mode::Pose => {
             let mut v = editor.chain_len as f32;
-            if widgets::vertical_slider_with_icon(ui, &mut v, 1.0..=6.0, Icon::Chain, "Longueur de chaîne IK")
+            if widgets::vertical_slider_with_icon(ui, &mut v, 1.0..=6.0, Icon::Chain, "IK chain length")
                 .changed()
             {
                 editor.chain_len = v.round() as usize;
@@ -96,7 +96,7 @@ fn context_slider(ui: &mut egui::Ui, editor: &mut Editor) {
         }
         Mode::AutoRig => {
             let mut v = editor.autorig_options.spine_count as f32;
-            if widgets::vertical_slider_with_icon(ui, &mut v, 1.0..=6.0, Icon::Hierarchy, "Vertèbres")
+            if widgets::vertical_slider_with_icon(ui, &mut v, 1.0..=6.0, Icon::Hierarchy, "Spine bones")
                 .changed()
             {
                 editor.autorig_options.spine_count = v.round() as u8;

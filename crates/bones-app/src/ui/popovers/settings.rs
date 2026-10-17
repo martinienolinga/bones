@@ -9,7 +9,7 @@ use crate::gizmo::GizmoStyle;
 use crate::settings::PencilPolicy;
 
 pub fn show(ui: &mut egui::Ui, state: &mut UiState) {
-    widgets::section_title(ui, "Apple Pencil uniquement pour :");
+    widgets::section_title(ui, "Apple Pencil only for:");
     ui.spacing_mut().item_spacing.y = 6.0;
     for (index, (label, description)) in PencilPolicy::TASKS.iter().enumerate() {
         let value = state.settings.pencil.get_mut(index);
@@ -18,20 +18,18 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState) {
         }
     }
     ui.label(
-        egui::RichText::new(
-            "Les doigts servent alors uniquement à naviguer (orbite, pincement, tapes d'annulation).",
-        )
-        .size(12.0)
-        .color(theme::TEXT_DIM),
+        egui::RichText::new("Fingers then only navigate (orbit, pinch, undo taps).")
+            .size(12.0)
+            .color(theme::TEXT_DIM),
     );
     ui.add_space(10.0);
-    widgets::section_title(ui, "Vue");
+    widgets::section_title(ui, "View");
     ui.horizontal(|ui| {
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
-            ui.label("Guide de rotation");
+            ui.label("Rotation guide");
             ui.label(
-                egui::RichText::new("axes à la Blender ou cube à la Nomad")
+                egui::RichText::new("Blender-style axes or Nomad-style cube")
                     .size(12.0)
                     .color(theme::TEXT_DIM),
             );
@@ -49,14 +47,14 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState) {
         });
     });
     ui.add_space(10.0);
-    widgets::section_title(ui, "Toucher");
+    widgets::section_title(ui, "Touch");
     let mut radius = state.settings.pick_radius;
-    if widgets::slider_row(ui, &mut radius, 10.0..=48.0, "Rayon de sélection", "pt").changed() {
+    if widgets::slider_row(ui, &mut radius, 10.0..=48.0, "Selection radius", "pt").changed() {
         state.settings.pick_radius = radius.round();
         state.settings_dirty = true;
     }
     ui.label(
-        egui::RichText::new("Distance, en points, à laquelle un os ou une poignée réagit au doigt.")
+        egui::RichText::new("How close, in points, a finger must be to grab a bone or handle.")
             .size(12.0)
             .color(theme::TEXT_DIM),
     );

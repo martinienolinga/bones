@@ -2,14 +2,13 @@
 //! libellé), bouton texte de la barre supérieure.
 //!
 //! L'état actif reprend la couleur de la famille de l'icône (comme Nomad
-//! Sculpt) : tuile teintée, liseré lumineux et halo.
+//! Sculpt) : tuile teintée en aplat et liseré net de la même teinte.
 
 use egui::{Color32, CornerRadius, FontId, Rect, Response, Sense, Stroke, StrokeKind, Ui, vec2};
 
 use super::{Motion, anim, icon_tint};
-use crate::draw;
 use crate::icons::{self, Icon};
-use crate::theme::{ACCENT, TEXT, TEXT_DIM, TEXT_FAINT, WIDGET, WIDGET_HOVER, mix, semibold};
+use crate::theme::{ACCENT, ACCENT_PRESSED, TEXT, TEXT_DIM, TEXT_FAINT, WIDGET, WIDGET_HOVER, mix, semibold};
 
 /// Fond d'une tuile selon le survol, la pression et l'activation.
 fn tile(ui: &Ui, rect: Rect, radius: u8, motion: &Motion, active: f32, tone: Color32) {
@@ -19,22 +18,10 @@ fn tile(ui: &Ui, rect: Rect, radius: u8, motion: &Motion, active: f32, tone: Col
         painter.rect_filled(rect, radius, hover.gamma_multiply(motion.hover.max(motion.press)));
     }
     if active > 0.0 {
-        draw::glow(
-            painter,
-            rect.center(),
-            rect.width() * 0.75,
-            tone.gamma_multiply(0.22 * active),
-        );
-        let fill = Color32::from_rgba_unmultiplied(tone.r(), tone.g(), tone.b(), (52.0 * active) as u8);
+        let fill = Color32::from_rgba_unmultiplied(tone.r(), tone.g(), tone.b(), (44.0 * active) as u8);
         painter.rect_filled(rect, radius, fill);
-        let ring = Color32::from_rgba_unmultiplied(tone.r(), tone.g(), tone.b(), (210.0 * active) as u8);
-        painter.rect_stroke(
-            rect.shrink(0.75),
-            radius,
-            Stroke::new(1.5, ring),
-            StrokeKind::Inside,
-        );
-        draw::sheen(painter, rect.shrink(1.5), radius.saturating_sub(1));
+        let ring = Color32::from_rgba_unmultiplied(tone.r(), tone.g(), tone.b(), (230.0 * active) as u8);
+        painter.rect_stroke(rect, radius, Stroke::new(1.5, ring), StrokeKind::Inside);
     }
 }
 
@@ -109,7 +96,7 @@ pub fn text_button(ui: &mut Ui, label: &str, active: bool) -> Response {
     response
 }
 
-/// Bouton pilule (icône facultative + libellé). `primary` : dégradé
+/// Bouton pilule (icône facultative + libellé). `primary` : aplat
 /// d'accent ; sinon fond neutre.
 pub fn pill_button(ui: &mut Ui, icon: Option<Icon>, label: &str, primary: bool) -> Response {
     let font = semibold(15.0);
@@ -123,23 +110,16 @@ pub fn pill_button(ui: &mut Ui, icon: Option<Icon>, label: &str, primary: bool) 
         let radius = CornerRadius::same(21);
         let rect = rect.shrink(1.5 * motion.press);
         let enabled = ui.is_enabled();
-        if primary {
-            draw::glow(
-                painter,
-                rect.center(),
-                rect.width() * 0.55,
-                ACCENT.gamma_multiply(0.18 + 0.12 * motion.hover),
-            );
-            draw::accent_fill(painter, rect, radius, if enabled { 1.0 } else { 0.35 });
+        let fill = if primary {
+            mix(ACCENT, ACCENT_PRESSED, motion.hover.max(motion.press))
         } else {
-            let fill = mix(WIDGET, WIDGET_HOVER, motion.hover.max(motion.press));
-            painter.rect_filled(
-                rect,
-                radius,
-                if enabled { fill } else { fill.gamma_multiply(0.5) },
-            );
-        }
-        draw::sheen(painter, rect, radius);
+            mix(WIDGET, WIDGET_HOVER, motion.hover.max(motion.press))
+        };
+        painter.rect_filled(
+            rect,
+            radius,
+            if enabled { fill } else { fill.gamma_multiply(0.45) },
+        );
         let color = if enabled { Color32::WHITE } else { TEXT_FAINT };
         let mut x = rect.center().x - (galley.size().x + icon_w) * 0.5;
         if let Some(icon) = icon {

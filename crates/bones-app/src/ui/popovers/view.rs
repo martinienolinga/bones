@@ -7,21 +7,21 @@ pub fn show(ui: &mut egui::Ui, editor: &mut Editor) {
     ui.spacing_mut().item_spacing.y = 6.0;
     let v = &mut editor.view;
     for (value, label, description) in [
-        (&mut v.mesh, "Maillage", "le modèle déformé par le squelette"),
+        (&mut v.mesh, "Mesh", "the model deformed by the skeleton"),
         (
             &mut v.textures,
-            "Textures et matériaux",
-            "sinon rendu « argile » uniforme",
+            "Textures & materials",
+            "otherwise a uniform clay look",
         ),
-        (&mut v.bones, "Os", "squelette en rayons X"),
-        (&mut v.grid, "Grille au sol", "repère d'un mètre"),
-        (&mut v.weights, "Carte de poids", "influence de l'os sélectionné"),
-        (&mut v.trajectory, "Trajectoire", "chemin de l'os sélectionné"),
-        (&mut v.ghosts, "Fantômes", "poses des clés voisines"),
+        (&mut v.bones, "Bones", "X-ray skeleton"),
+        (&mut v.grid, "Ground grid", "one-metre reference"),
+        (&mut v.weights, "Weight map", "influence of the selected bone"),
+        (&mut v.trajectory, "Trail", "path of the selected bone"),
+        (&mut v.ghosts, "Ghosts", "poses of neighbouring keys"),
         (
             &mut v.center_of_mass,
-            "Centre de masse",
-            "équilibre du personnage",
+            "Center of mass",
+            "balance of the character",
         ),
     ] {
         widgets::switch_row(ui, value, label, description);

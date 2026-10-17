@@ -26,11 +26,11 @@ pub enum Popover {
 impl Popover {
     fn title(self) -> &'static str {
         match self {
-            Popover::Gallery => "Galerie",
+            Popover::Gallery => "Gallery",
             Popover::Actions => "Actions",
-            Popover::View => "Affichage",
-            Popover::Outliner => "Os et membres",
-            Popover::Settings => "Réglages",
+            Popover::View => "View",
+            Popover::Outliner => "Bones",
+            Popover::Settings => "Settings",
         }
     }
 }
@@ -61,7 +61,7 @@ pub fn show(
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new(popover.title()).font(theme::semibold(21.0)));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if widgets::tool_button(ui, Icon::Close, false, "Fermer").clicked() {
+                    if widgets::tool_button(ui, Icon::Close, false, "Close").clicked() {
                         close = true;
                     }
                 });

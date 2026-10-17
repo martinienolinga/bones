@@ -3,7 +3,7 @@
 //! et indicateur de calcul.
 
 use bones_core::{Editor, Handle, Mode, Viewport};
-use bones_ui::{draw, theme};
+use bones_ui::theme;
 
 use super::{Busy, COLUMN_TOP, UiState};
 
@@ -20,9 +20,9 @@ pub fn show(ctx: &egui::Context, editor: &Editor, state: &mut UiState, viewport:
     toast(ctx, state);
     if busy.binding || busy.jobs > 0 {
         let text = if busy.binding {
-            "Calcul des poids…"
+            "Computing weights…"
         } else {
-            "Traitement…"
+            "Working…"
         };
         egui::Area::new(egui::Id::unique("busy"))
             .anchor(egui::Align2::CENTER_TOP, [0.0, 74.0])
@@ -44,15 +44,15 @@ fn stats(painter: &egui::Painter, editor: &Editor) {
     let rig = &editor.rig;
     let mut lines = vec![
         format!(
-            "{} sommets · {} triangles",
+            "{} vertices · {} triangles",
             rig.mesh.vertex_count(),
             rig.mesh.triangle_count()
         ),
-        format!("{} os · {} clés", rig.skeleton.len(), rig.clip.keys().len()),
+        format!("{} bones · {} keys", rig.skeleton.len(), rig.clip.keys().len()),
     ];
     if let Some(bone) = editor.selected {
         let b = rig.skeleton.bone(bone);
-        lines.push(format!("{}  ·  {:.3} m", b.name, b.length));
+        lines.push(format!("Bone: {}  ·  {:.3} m", b.name, b.length));
     }
     let origin = egui::pos2(78.0, COLUMN_TOP + 2.0);
     for (i, line) in lines.iter().enumerate() {
@@ -123,7 +123,6 @@ fn toast(ctx: &egui::Context, state: &mut UiState) {
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         let (dot, _) = ui.allocate_exact_size(egui::vec2(10.0, 18.0), egui::Sense::hover());
-                        draw::glow(ui.painter(), dot.center(), 9.0, theme::ACCENT.gamma_multiply(0.6));
                         ui.painter().circle_filled(dot.center(), 3.5, theme::ACCENT);
                         ui.label(egui::RichText::new(message).font(theme::semibold(14.0)));
                     });
