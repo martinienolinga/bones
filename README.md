@@ -12,7 +12,7 @@ avant d'exporter le résultat vers Blender, Unity, Unreal ou Godot. Le moteur de
 | --- | --- | --- |
 | Rigging | Auto-Rig Pro (extension Blender) | marqueurs « Smart », génération d'un squelette humanoïde complet, membres IK/FK avec pôle et recalage, symétrisation |
 | Pose & animation | [Cascadeur](https://cascadeur.com/) | poses-clés complètes, interpolation par intervalle, points d'appui épinglés, centre de masse, trajectoires balistiques, fantômes |
-| Interface | [Procreate](https://procreate.com/) & [Nomad Sculpt](https://nomadsculpt.com/) | vue 3D plein écran, panneaux flottants translucides, barre latérale à curseurs verticaux, colonne d'outils, gestes multi-doigts |
+| Interface | [Procreate](https://procreate.com/) & [Nomad Sculpt](https://nomadsculpt.com/) | vue 3D plein écran, blocs d'outils posés sur les bords, barre latérale à curseurs verticaux, colonne d'outils, gestes multi-doigts |
 
 ## Fonctionnalités
 
@@ -72,8 +72,9 @@ avant d'exporter le résultat vers Blender, Unity, Unreal ou Godot. Le moteur de
 
 ### Interface
 
-- Vue 3D plein écran, **panneaux flottants translucides** façon Procreate / Nomad Sculpt, icônes
-  vectorielles dessinées en Rust.
+- Vue 3D plein écran, **blocs d'outils sombres posés sur les bords** façon Nomad Sculpt, fenêtres
+  contextuelles façon Procreate, icônes vectorielles dessinées en Rust (couleurs et dimensions relevées
+  sur des captures des deux applications).
 - Barre latérale gauche à **curseurs verticaux** et boutons annuler / rétablir, colonne d'outils à
   droite, timeline en bas.
 - Modes **Pose**, **Édition** et **Auto-rig** ; os octaédriques en « rayons X » colorés par côté.
@@ -119,7 +120,8 @@ Les détails (flux de données, révisions, passes de rendu, conventions) sont d
 
 ### Prérequis
 
-- Rust stable récent (`rustup`), édition 2024.
+- Rust **1.97** (version figée par `rust-toolchain.toml`, installée automatiquement par `rustup`),
+  édition 2024.
 - Pour l'iPad : macOS avec **Xcode 15 ou plus récent**, et les cibles Rust :
 
   ```sh
@@ -168,12 +170,19 @@ L'identité se trouve avec `security find-identity -v -p codesigning` ; le profi
 
 Sur poste : clic gauche (manipuler / tourner), clic droit ou du milieu (déplacer), molette (zoomer).
 
+Raccourcis clavier (ordinateur ou Magic Keyboard) : `⌘Z` / `Ctrl+Z` annuler, `⇧⌘Z` rétablir,
+`Espace` lecture, `K` poser une clé, `←` / `→` image précédente / suivante, `F` cadrer,
+`1` / `2` / `3` modes Pose / Édition / Auto-Rig, `Suppr` supprimer l'os (mode Édition),
+`Échap` fermer la fenêtre contextuelle.
+
 ## Fichiers
 
 Sur iPad, les documents `.bones`, les modèles `.obj` à importer et les exports `.glb` se trouvent
 dans le dossier **Documents** de l'application, visible dans l'app **Fichiers** sous
 « Sur mon iPad › Bones ». Il suffit d'y déposer un `.obj` pour le retrouver dans la galerie.
-Sur poste de développement, un dossier `documents/` local joue le même rôle.
+Sur poste de développement, c'est le dossier `~/Documents/PaintSharp Bones` (ou celui indiqué par la
+variable d'environnement `BONES_DOCUMENTS`). La session en cours est enregistrée automatiquement dans
+`Session.bones` à la fermeture ou au passage en arrière-plan, et rouverte au lancement.
 
 ## Feuille de route
 

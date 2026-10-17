@@ -1,0 +1,6 @@
+# Version de Rust figée : la CI et les postes de développement compilent
+# avec exactement le même compilateur et les mêmes règles clippy.
+[toolchain]
+channel = "1.97.0"
+components = ["clippy", "rustfmt"]
+targets = ["aarch64-apple-ios", "aarch64-apple-ios-sim"]
