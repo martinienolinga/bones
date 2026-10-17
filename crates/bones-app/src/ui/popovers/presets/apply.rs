@@ -129,7 +129,7 @@ fn animation_options(ui: &mut egui::Ui, form: &mut ApplyForm, looping: bool) {
     }
     ui.add_space(10.0);
     widgets::section_title(ui, "Playback");
-    widgets::slider_row(ui, &mut o.speed, 0.25..=3.0, "Speed", "×");
+    value_slider(ui, &mut o.speed, 0.25..=3.0, "Speed");
     if looping {
         ui.horizontal(|ui| {
             ui.label(egui::RichText::new("Loops").size(17.0).color(theme::TEXT_LIST));
@@ -149,7 +149,7 @@ fn animation_options(ui: &mut egui::Ui, form: &mut ApplyForm, looping: bool) {
 /// Réglages d'une expression : force, miroir, additif, écriture d'une clé.
 fn expression_options(ui: &mut egui::Ui, form: &mut ApplyForm) {
     widgets::section_title(ui, "Expression");
-    widgets::slider_row(ui, &mut form.intensity, 0.0..=1.5, "Intensity", "×");
+    value_slider(ui, &mut form.intensity, 0.0..=1.5, "Intensity");
     ui.add_space(6.0);
     widgets::switch_row(ui, &mut form.options.mirror, "Mirror", "Swap left and right");
     widgets::switch_row(
@@ -164,6 +164,14 @@ fn expression_options(ui: &mut egui::Ui, form: &mut ApplyForm) {
         "Apply as key",
         "Set a keyframe at the current frame",
     );
+}
+
+/// Curseur dont la pastille montre la valeur réelle en multiplicateur
+/// (« 1.00× ») plutôt que le pourcentage de la course.
+fn value_slider(ui: &mut egui::Ui, value: &mut f32, range: std::ops::RangeInclusive<f32>, label: &str) {
+    widgets::slider_row_with(ui, value, range, label, |ui, v| {
+        widgets::value_chip(ui, &format!("{:.2}×", *v))
+    });
 }
 
 /// Applique le préréglage (animation ou expression) et mémorise le compte

@@ -456,6 +456,17 @@ fn import_view_builds_with_an_empty_folder() {
 }
 
 #[test]
+fn switching_mode_closes_the_presets_popover() {
+    let mut h = Harness::new();
+    open_gallery(&mut h, Popover::Presets);
+    assert_eq!(h.state.popover, Some(Popover::Presets));
+    // Changer de mode (barre du haut) referme une fenêtre propre à la pose.
+    h.editor.set_mode(Mode::AutoRig);
+    h.frame(vec![]);
+    assert_eq!(h.state.popover, None, "le changement de mode ferme la galerie");
+}
+
+#[test]
 fn expressions_gallery_lists_the_facial_category() {
     let mut h = Harness::new();
     h.state.docs_dir = temp_presets_dir("expr");

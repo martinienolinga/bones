@@ -153,23 +153,24 @@ fn nav(ui: &mut egui::Ui, p: &mut PresetsState, kind: Kind, height: f32) {
         .show(ui, |ui| {
             ui.set_width(196.0);
             ui.set_height(height - 24.0);
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                ui.add_space(8.0);
-                ui.label(egui::RichText::new(kind.title()).font(theme::semibold(24.0)));
-            });
-            ui.add_space(14.0);
-            egui::ScrollArea::vertical()
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    ui.spacing_mut().item_spacing.y = 6.0;
-                    for (i, cat) in items.iter().enumerate() {
-                        if widgets::nav_item(ui, cat.icon, &cat.label, p.section == i).clicked() {
-                            p.section = i;
-                            p.view_slot = Some(View::Grid);
-                        }
-                    }
+            // Le cadre hérite de la disposition horizontale du parent : il faut
+            // empiler le titre et les pilules dans une colonne verticale (comme
+            // le studio des os), sinon elles se chevauchent en haut.
+            ui.vertical(|ui| {
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    ui.add_space(8.0);
+                    ui.label(egui::RichText::new(kind.title()).font(theme::semibold(24.0)));
                 });
+                ui.add_space(14.0);
+                ui.spacing_mut().item_spacing.y = 6.0;
+                for (i, cat) in items.iter().enumerate() {
+                    if widgets::nav_item(ui, cat.icon, &cat.label, p.section == i).clicked() {
+                        p.section = i;
+                        p.view_slot = Some(View::Grid);
+                    }
+                }
+            });
         });
 }
 

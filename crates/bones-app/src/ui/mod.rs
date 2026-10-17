@@ -163,6 +163,7 @@ pub fn show(
     if std::mem::take(&mut state.gallery_requested) {
         actions.push(UiAction::Gallery);
     }
+    close_mode_popovers(editor, state);
     rects.push(sidebar::show(ctx, editor, state));
     rects.push(toolbox::show(ctx, editor, state));
     rects.extend(crate::gizmo::show(ctx, editor, state.settings.gizmo));
@@ -235,6 +236,23 @@ fn store_weight_paint(editor: &Editor, state: &mut UiState) {
     if editor.weight_paint != state.settings.weight_paint {
         state.settings.weight_paint = editor.weight_paint.clone();
         state.settings_dirty = true;
+    }
+}
+
+/// Ferme les fenêtres propres à un mode quand on change de mode (après la
+/// barre du haut, qui applique le changement) : la bibliothèque de préréglages
+/// et les expressions n'existent qu'en pose, les outils de poids qu'en
+/// peinture.
+fn close_mode_popovers(editor: &Editor, state: &mut UiState) {
+    if let Some(popover) = state.popover {
+        let keep = match popover {
+            Popover::Presets | Popover::Expressions => editor.mode == Mode::Pose,
+            Popover::Brush | Popover::WeightsTools => editor.mode == Mode::WeightPaint,
+            _ => true,
+        };
+        if !keep {
+            state.popover = None;
+        }
     }
 }
 
