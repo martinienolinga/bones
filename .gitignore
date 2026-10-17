@@ -18,3 +18,6 @@ DerivedData/
 
 # Documents produits pendant le développement sur poste
 /documents/
+
+# Réglages Claude Code personnels (les réglages partagés sont dans .claude/settings.json)
+.claude/settings.local.json
