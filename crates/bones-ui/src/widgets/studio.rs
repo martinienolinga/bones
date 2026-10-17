@@ -17,6 +17,9 @@ use crate::theme::{
     semibold,
 };
 
+/// Pastille survolée ou pressée.
+const CHIP_HOVER: Color32 = Color32::from_rgb(0x55, 0x55, 0x5a);
+
 /// Entrée de la colonne de navigation : glyphe gris de 20 pt et libellé de
 /// 17 pt ; sélectionnée, pilule bleue pleine, glyphe et texte blancs.
 pub fn nav_item(ui: &mut Ui, icon: Icon, label: &str, selected: bool) -> Response {
@@ -102,6 +105,11 @@ pub fn drag_chip(
             v.corner_radius = CornerRadius::same(15);
             v.expansion = 0.0;
         }
+        // Un ton au-dessus des listes groupées pour rester visible dessus.
+        w.inactive.bg_fill = WIDGET_HOVER;
+        w.inactive.weak_bg_fill = WIDGET_HOVER;
+        w.hovered.bg_fill = CHIP_HOVER;
+        w.hovered.weak_bg_fill = CHIP_HOVER;
         ui.add_sized(
             [width, 30.0],
             DragValue::new(value)
@@ -125,7 +133,7 @@ pub fn chip_button(ui: &mut Ui, label: &str, active: bool) -> Response {
     if ui.is_rect_visible(rect) {
         let motion = Motion::of(ui, &response);
         let on = anim(ui, response.id.with("active"), active);
-        let idle = mix(WIDGET, WIDGET_HOVER, motion.hover.max(motion.press));
+        let idle = mix(WIDGET_HOVER, CHIP_HOVER, motion.hover.max(motion.press));
         let fill = mix(idle, ACCENT, on);
         ui.painter().rect_filled(rect, CornerRadius::same(17), fill);
         let color = if ui.is_enabled() { TEXT } else { DISABLED };
@@ -154,7 +162,7 @@ pub fn stepper(ui: &mut Ui, value: &mut usize, range: RangeInclusive<usize>) -> 
     }
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
-        painter.rect_filled(rect, CornerRadius::same(17), WIDGET);
+        painter.rect_filled(rect, CornerRadius::same(17), WIDGET_HOVER);
         let color = if ui.is_enabled() { TEXT } else { DISABLED };
         let y = rect.center().y;
         for (x, sign) in [

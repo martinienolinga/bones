@@ -25,18 +25,20 @@ pub fn show(
             .show(ui, |ui| {
                 ui.set_width(196.0);
                 ui.set_height(height - 24.0);
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    ui.add_space(8.0);
-                    ui.label(egui::RichText::new(title).font(theme::semibold(26.0)));
-                });
-                ui.add_space(16.0);
-                ui.spacing_mut().item_spacing.y = 8.0;
-                for (i, (icon, label)) in items.iter().enumerate() {
-                    if widgets::nav_item(ui, *icon, label, *section == i).clicked() {
-                        *section = i;
+                ui.vertical(|ui| {
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        ui.add_space(8.0);
+                        ui.label(egui::RichText::new(title).font(theme::semibold(26.0)));
+                    });
+                    ui.add_space(16.0);
+                    ui.spacing_mut().item_spacing.y = 8.0;
+                    for (i, (icon, label)) in items.iter().enumerate() {
+                        if widgets::nav_item(ui, *icon, label, *section == i).clicked() {
+                            *section = i;
+                        }
                     }
-                }
+                });
             });
         ui.add_space(10.0);
         ui.vertical(|ui| {

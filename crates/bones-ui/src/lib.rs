@@ -1,14 +1,15 @@
 //! Kit d'interface de PaintSharp Bones, construit sur egui.
 //!
-//! Inspiré de Procreate et Nomad Sculpt : blocs sombres posés sur la vue 3D,
-//! style plat (aplats, aucun dégradé), icônes SVG en couleur par famille
-//! d'outils, police Inter, accent bleu, transitions animées et cibles
-//! tactiles d'au moins 44 pt.
+//! Calqué sur Procreate : barre pleine en haut, bandeaux collés aux bords,
+//! fenêtres #2C2C2E aux coins de 20 pt, listes groupées et studios de
+//! réglages ; style plat (aucun dégradé), glyphes monochromes teintés en
+//! bleu d'accent quand ils sont actifs, police Inter, transitions animées et
+//! cibles tactiles d'au moins 44 pt.
 //!
 //! - [`theme`] : couleurs, police, style egui, cadres de panneaux ;
-//! - [`icons`] : icônes SVG rastérisées dans un atlas ;
-//! - [`widgets`] : boutons d'outils, cellules, contrôle segmenté, curseurs,
-//!   interrupteurs, lignes de liste, frise de clés.
+//! - [`icons`] : glyphes SVG monochromes rastérisés dans un atlas ;
+//! - [`widgets`] : boutons, puits et outils de barre, contrôle segmenté,
+//!   curseurs, interrupteurs, listes groupées, studio, frise de clés.
 //!
 //! Appeler [`install`] une fois au démarrage.
 

@@ -17,7 +17,7 @@ const SECTIONS: [(Icon, &str); 3] = [
 ];
 
 /// Retourne vrai quand le studio doit se fermer.
-pub fn show(ui: &mut egui::Ui, state: &mut UiState) -> bool {
+pub fn show(ui: &mut egui::Ui, state: &mut UiState, height: f32) -> bool {
     let mut close = false;
     let mut section = state.settings_section;
     let mut cancel = false;
@@ -26,7 +26,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState) -> bool {
         "Settings",
         &SECTIONS,
         &mut section,
-        440.0,
+        height,
         |ui| {
             close = widgets::confirm_button(ui, "Done").clicked();
             ui.add_space(4.0);

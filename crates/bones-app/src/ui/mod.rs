@@ -163,12 +163,12 @@ pub fn show(
     actions
 }
 
-/// Messages de l'éditeur : consigne persistante pendant l'outil « Parent »,
-/// message temporaire sinon.
+/// Messages de l'éditeur : ceux de l'outil « Parent » restent affichés en
+/// consigne tant que l'outil est actif ; les autres sont temporaires.
 fn route_status(editor: &mut Editor, state: &mut UiState) {
     let reparenting = editor.mode == Mode::Edit && editor.edit_tool == EditTool::Reparent;
     if let Some(message) = editor.status.take() {
-        if reparenting {
+        if reparenting && is_reparent_message(&message) {
             state.hint = Some(message);
         } else {
             state.notify(message);
@@ -177,6 +177,11 @@ fn route_status(editor: &mut Editor, state: &mut UiState) {
     if !reparenting {
         state.hint = None;
     }
+}
+
+/// Consigne ou résultat de l'outil « Parent » (textes de `bones-core`).
+fn is_reparent_message(message: &str) -> bool {
+    message.contains("tap the new parent") || message.contains(" → ") || message.ends_with(" is now a root")
 }
 
 /// Marge entre les blocs flottants et les bords de l'écran.
@@ -201,3 +206,6 @@ fn block(
         .response
         .rect
 }
+
+#[cfg(test)]
+mod tests;

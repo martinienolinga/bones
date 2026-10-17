@@ -5,13 +5,16 @@
 use egui::{Align2, Color32, CornerRadius, FontId, Rect, Response, Sense, Ui, pos2, vec2};
 
 use super::{Motion, anim};
-use crate::theme::{ACCENT, TEXT_DIM, TEXT_LIST, WIDGET_HOVER, mix};
+use crate::theme::{ACCENT, TEXT_DIM, TEXT_LIST, mix};
+
+/// Piste éteinte, lisible sur les listes groupées.
+const OFF: Color32 = Color32::from_rgb(0x58, 0x58, 0x5d);
 
 pub(crate) const SIZE: egui::Vec2 = egui::Vec2::new(51.0, 31.0);
 
 pub(crate) fn paint(ui: &Ui, rect: Rect, on: f32, press: f32) {
     let painter = ui.painter();
-    let track = mix(WIDGET_HOVER, ACCENT, on);
+    let track = mix(OFF, ACCENT, on);
     painter.rect_filled(rect, CornerRadius::same(16), track);
     let d = 27.0;
     let stretch = 5.0 * press;

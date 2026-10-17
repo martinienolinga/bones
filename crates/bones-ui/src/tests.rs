@@ -114,3 +114,49 @@ fn widgets_render() {
     assert_eq!((value, frame, mode, on), (3.0, 12.0, 1, true));
     let _ = theme::ACCENT;
 }
+
+/// Un glissement horizontal sur une pastille modifiable placée dans une
+/// ligne de liste groupée change bien la valeur.
+#[test]
+fn drag_chip_in_group_row_drags() {
+    let ctx = egui::Context::default();
+    crate::install(&ctx);
+    let mut value = 1.0_f32;
+    let mut chip_rect = Rect::NOTHING;
+    let frame = |events: Vec<egui::Event>, value: &mut f32, chip_rect: &mut Rect| {
+        let input = RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0))),
+            events,
+            ..Default::default()
+        };
+        let mut output = ctx.run_ui(input, |ui| {
+            widgets::group(ui, |g| {
+                g.custom(50.0, |ui| {
+                    ui.label("Head");
+                    let r = widgets::drag_chip(ui, value, -10.0..=10.0, 0.01, 3, "", 80.0);
+                    *chip_rect = r.rect;
+                });
+            });
+        });
+        output.textures_delta.clear();
+    };
+    frame(vec![], &mut value, &mut chip_rect);
+    let start = chip_rect.center();
+    let button = |pressed| egui::Event::PointerButton {
+        pos: start,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: Default::default(),
+    };
+    frame(
+        vec![egui::Event::PointerMoved(start), button(true)],
+        &mut value,
+        &mut chip_rect,
+    );
+    for i in 1..=10 {
+        let p = start + vec2(10.0 * i as f32, 0.0);
+        frame(vec![egui::Event::PointerMoved(p)], &mut value, &mut chip_rect);
+    }
+    frame(vec![button(false)], &mut value, &mut chip_rect);
+    assert!(value > 1.5, "valeur inchangée : {value}");
+}

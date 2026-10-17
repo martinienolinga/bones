@@ -32,14 +32,17 @@ pub fn show(ctx: &egui::Context, editor: &mut Editor, state: &mut UiState) -> eg
         |ui| {
             ui.vertical_centered(|ui| {
                 ui.spacing_mut().item_spacing.y = 6.0;
-                context_slider(ui, editor);
-                if widgets::square_button(ui, "Frame the model (F)").clicked() {
-                    editor.frame_all();
+                let first = context_slider(ui, editor);
+                if first {
+                    frame_button(ui, editor);
                 }
                 let mut radius = state.settings.pick_radius;
                 if widgets::vertical_slider(ui, &mut radius, 10.0..=48.0, "Selection radius").changed() {
                     state.settings.pick_radius = radius;
                     state.settings_dirty = true;
+                }
+                if !first {
+                    frame_button(ui, editor);
                 }
                 ui.add_space(2.0);
                 ui.spacing_mut().item_spacing.y = 0.0;
@@ -64,9 +67,16 @@ pub fn show(ctx: &egui::Context, editor: &mut Editor, state: &mut UiState) -> eg
     )
 }
 
+/// Petit carré cerclé : cadrer le modèle.
+fn frame_button(ui: &mut egui::Ui, editor: &mut Editor) {
+    if widgets::square_button(ui, "Frame the model (F)").clicked() {
+        editor.frame_all();
+    }
+}
+
 /// Premier curseur : longueur de chaîne IK en pose, nombre de vertèbres en
-/// auto-rig ; absent en édition.
-fn context_slider(ui: &mut egui::Ui, editor: &mut Editor) {
+/// auto-rig ; absent en édition (retourne alors faux).
+fn context_slider(ui: &mut egui::Ui, editor: &mut Editor) -> bool {
     match editor.mode {
         Mode::Pose => {
             let mut v = editor.chain_len as f32;
@@ -80,6 +90,7 @@ fn context_slider(ui: &mut egui::Ui, editor: &mut Editor) {
                 editor.autorig_options.spine_count = v.round() as u8;
             }
         }
-        Mode::Edit => {}
+        Mode::Edit => return false,
     }
+    true
 }

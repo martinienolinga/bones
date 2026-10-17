@@ -29,7 +29,7 @@ const SECTIONS: [(Icon, &str); 6] = [
 ];
 
 /// Retourne vrai quand le studio doit se fermer.
-pub fn show(ui: &mut egui::Ui, editor: &mut Editor, state: &mut UiState) -> bool {
+pub fn show(ui: &mut egui::Ui, editor: &mut Editor, state: &mut UiState, height: f32) -> bool {
     let mut close = false;
     let mut section = state.bones_section;
     studio::show(
@@ -37,7 +37,7 @@ pub fn show(ui: &mut egui::Ui, editor: &mut Editor, state: &mut UiState) -> bool
         "Bones",
         &SECTIONS,
         &mut section,
-        560.0,
+        height,
         |ui| close = widgets::confirm_button(ui, "Done").clicked(),
         |ui, section| match section {
             0 => hierarchy::tree(ui, editor),

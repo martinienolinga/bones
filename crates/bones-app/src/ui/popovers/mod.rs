@@ -71,12 +71,16 @@ pub fn show(
             let frame = theme::panel_frame().inner_margin(egui::Margin::same(margin));
             let panel = frame.show(ui, |ui| {
                 ui.set_width(width - 2.0 * margin as f32);
+                // Une `Area` borne son contenu à sa taille de l'image
+                // précédente : sans cela, les listes défilantes ne
+                // pourraient jamais grandir.
+                ui.set_max_height(max_height - 2.0 * margin as f32);
                 match popover {
                     Popover::Gallery => gallery::show(ui, editor, state, actions, max_height),
                     Popover::Actions => actions::show(ui, editor, state, actions, max_height),
                     Popover::View => view::show(ui, editor, max_height),
-                    Popover::Outliner => close = bones::show(ui, editor, state),
-                    Popover::Settings => close = settings::show(ui, state),
+                    Popover::Outliner => close = bones::show(ui, editor, state, studio_height(max_height)),
+                    Popover::Settings => close = settings::show(ui, state, studio_height(max_height) - 120.0),
                 }
             });
             let rect = panel.response.rect;
@@ -111,6 +115,11 @@ pub fn show(
     Some(rect)
 }
 
+/// Hauteur d'un studio : 620 pt au plus, moins sur les petits écrans.
+fn studio_height(max_height: f32) -> f32 {
+    (max_height - 20.0).clamp(360.0, 620.0)
+}
+
 fn anim_id() -> egui::Id {
     egui::Id::unique("popover-anim")
 }
@@ -131,8 +140,14 @@ fn header(ui: &mut egui::Ui, title: &str, plus: Option<&str>) -> bool {
 
 /// Note discrète sous une liste (13 pt, retrait de 16 pt).
 fn note(ui: &mut egui::Ui, text: &str) {
-    ui.horizontal_wrapped(|ui| {
-        ui.add_space(16.0);
-        ui.label(egui::RichText::new(text).size(13.0).color(theme::TEXT_DIM));
-    });
+    egui::Frame::new()
+        .inner_margin(egui::Margin {
+            left: 16,
+            right: 16,
+            top: 2,
+            bottom: 2,
+        })
+        .show(ui, |ui| {
+            ui.label(egui::RichText::new(text).size(13.0).color(theme::TEXT_DIM));
+        });
 }

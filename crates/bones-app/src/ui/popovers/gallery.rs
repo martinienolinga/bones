@@ -66,9 +66,10 @@ fn section(ui: &mut egui::Ui, title: &str, files: &[FileEntry], actions: &mut Ve
                 _ => Icon::Import,
             };
             let badge = file.format.extension().to_uppercase();
-            if g.icon_row(icon, &file.name, Some(file.format.label()), Some(&badge))
-                .clicked()
-            {
+            // « Binary glTF (Blender, Unity…) » : seul le nom du format.
+            let label = file.format.label();
+            let kind = label.split_once(" (").map_or(label, |(kind, _)| kind);
+            if g.icon_row(icon, &file.name, Some(kind), Some(&badge)).clicked() {
                 actions.push(UiAction::Import(file.path.clone()));
             }
         }
