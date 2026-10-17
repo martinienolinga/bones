@@ -68,6 +68,11 @@ impl Clip {
             .map(|i| &self.keys[i])
     }
 
+    /// Poses de toutes les clés (transformation du modèle entier).
+    pub fn poses_mut(&mut self) -> impl Iterator<Item = &mut Pose> {
+        self.keys.iter_mut().map(|k| &mut k.pose)
+    }
+
     pub fn key_at_mut(&mut self, frame: u32) -> Option<&mut Key> {
         self.keys
             .binary_search_by_key(&frame, |k| k.frame)

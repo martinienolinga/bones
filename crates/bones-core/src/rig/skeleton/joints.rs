@@ -93,6 +93,27 @@ impl Skeleton {
         self.set_rest_world(&world);
     }
 
+    /// Tourne un os autour de sa tête, roulis compris (rotation monde). Les
+    /// enfants connectés suivent par leur tête en gardant leur queue en
+    /// place ; les autres os ne bougent pas.
+    pub fn rotate_bone_world(&mut self, id: BoneId, rotation: Quat) {
+        let mut world = self.rest_world();
+        let children: Vec<BoneId> = self.children(id).filter(|c| self.is_connected(*c)).collect();
+        let w = &mut world[id.index()];
+        w.rotation = (rotation * w.rotation).normalize();
+        let (_, tail) = head_tail(w, self.bones[id.index()].length);
+        for c in children {
+            let (_, child_tail) = head_tail(&world[c.index()], self.bones[c.index()].length);
+            retarget(
+                &mut world[c.index()],
+                &mut self.bones[c.index()].length,
+                tail,
+                child_tail,
+            );
+        }
+        self.set_rest_world(&world);
+    }
+
     /// Translation rigide d'un ensemble d'os (sans toucher aux autres).
     pub fn offset_world(&mut self, ids: &[BoneId], delta: Vec3) {
         let mut world = self.rest_world();

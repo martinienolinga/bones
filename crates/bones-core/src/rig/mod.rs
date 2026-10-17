@@ -4,6 +4,7 @@ mod demo;
 mod document;
 mod edit;
 pub mod mirror;
+mod model;
 mod pose;
 pub mod skeleton;
 #[cfg(test)]

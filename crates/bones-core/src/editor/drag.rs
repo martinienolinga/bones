@@ -3,6 +3,7 @@
 use glam::{Quat, Vec2, Vec3};
 
 use super::edit_tools::EditDrag;
+use super::manipulate::ManipGesture;
 use super::{Editor, Mode, is_limb_marker, mirror_x};
 use crate::ik::{IkSettings, solve_fabrik, solve_pins};
 use crate::{BoneId, MarkerKind, Transform, Viewport};
@@ -49,10 +50,20 @@ pub(super) enum Drag {
     },
     /// Outils de tête, de déplacement et de roulis du mode Édition.
     Edit(EditDrag),
+    /// Poignée du manipulateur 3D.
+    Manip(Box<ManipGesture>),
 }
 
 impl Editor {
     pub fn pointer_move(&mut self, pos: Vec2, vp: &Viewport) {
+        // Manipulateur : son état évolue à chaque mouvement (angle déroulé),
+        // il est donc repris puis remis en place, sans copie.
+        if let Some(Drag::Manip(mut gesture)) = self.drag.take_if(|d| matches!(d, Drag::Manip(_))) {
+            self.drag_moved = true;
+            self.manipulator_move(&mut gesture, pos);
+            self.drag = Some(Drag::Manip(gesture));
+            return;
+        }
         let Some(drag) = self.drag.clone() else { return };
         self.drag_moved = true;
         match drag {
@@ -129,6 +140,7 @@ impl Editor {
                 self.after_bone_edit(bone);
             }
             Drag::Edit(edit) => self.edit_drag(edit, pos, vp),
+            Drag::Manip(_) => {}
             Drag::NewBone { bone, anchor } => {
                 let p = self.plane_point(pos, vp, anchor);
                 self.rig.skeleton.set_tail_world(bone, p);
@@ -156,7 +168,7 @@ impl Editor {
     }
 
     /// Maintient les membres IK et les épingles pendant une manipulation.
-    fn hold_constraints(&mut self, locked: &[BoneId], driven_limb: Option<usize>) {
+    pub(super) fn hold_constraints(&mut self, locked: &[BoneId], driven_limb: Option<usize>) {
         let skeleton = &self.rig.skeleton;
         for (i, limb) in self.rig.limbs.iter().enumerate() {
             if Some(i) == driven_limb || locked.iter().any(|b| limb.contains(*b)) {
@@ -181,6 +193,7 @@ impl Editor {
                 }
             }
             Drag::Marker { .. } => {}
+            Drag::Manip(gesture) => self.manipulator_up(&gesture),
             // Simple tape sur un os (sélection) : rien à annuler.
             _ if !self.drag_moved => self.drop_checkpoint(true),
             Drag::Tail { .. } | Drag::Edit(_) => {}

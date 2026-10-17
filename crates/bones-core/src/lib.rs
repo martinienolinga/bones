@@ -19,6 +19,7 @@
 //! - [`anim`] : clés, interpolation, physique (Cascadeur) ;
 //! - [`io`] : fichiers `.bones` et formats d'échange (glTF/GLB, FBX, OBJ,
 //!   STL, PLY, BVH) en import et en export ;
+//! - [`manipulator`] : manipulateurs 3D (translation, rotation, échelle) ;
 //! - [`editor`] : état de l'éditeur et gestes, indépendants de la plateforme.
 
 pub mod anim;
@@ -26,6 +27,7 @@ pub mod autorig;
 pub mod editor;
 pub mod ik;
 pub mod io;
+pub mod manipulator;
 pub mod math;
 pub mod mesh;
 pub mod rig;
@@ -39,6 +41,7 @@ pub use editor::{BindJob, EditTool, Editor, Handle, Mode, PoseTool, ViewOptions}
 pub use ik::{IkSettings, Pin};
 pub use io::rig_file::RigError;
 pub use io::{Format, Imported, IoError};
+pub use manipulator::{ManipulatorMode, ManipulatorSettings, TransformSpace};
 pub use math::{OrbitCamera, Ray, Transform, Viewport};
 pub use mesh::{Material, Mesh, Submesh, Texture};
 pub use rig::mirror::{Side, mirror_name, side_of};

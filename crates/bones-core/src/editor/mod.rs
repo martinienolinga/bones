@@ -7,6 +7,8 @@ mod bone_ops;
 mod drag;
 mod edit_tools;
 mod history;
+mod manip_apply;
+mod manipulate;
 mod pointer;
 mod pose_ops;
 mod rig_ops;
@@ -14,6 +16,8 @@ mod rig_ops;
 mod tests;
 #[cfg(test)]
 mod tests_bones;
+#[cfg(test)]
+mod tests_manip;
 mod timeline;
 mod view;
 
@@ -22,7 +26,9 @@ pub use rig_ops::BindJob;
 
 use glam::Vec3;
 
-use crate::{AutoRigOptions, BindMethod, BoneId, MarkerKind, Markers, Mesh, OrbitCamera, Rig};
+use crate::{
+    AutoRigOptions, BindMethod, BoneId, ManipulatorSettings, MarkerKind, Markers, Mesh, OrbitCamera, Rig,
+};
 
 const UNDO_LIMIT: usize = 64;
 
@@ -119,6 +125,11 @@ pub struct Editor {
     /// Édition symétrique (« X-Axis Mirror » de Blender) : toute retouche
     /// d'un os `.l` / `.r` est reportée sur son symétrique existant.
     pub mirror_edit: bool,
+    /// Manipulateur 3D (translation, rotation, échelle).
+    pub manipulator: ManipulatorSettings,
+    /// Échelle de l'interface (pixels physiques par point), réglée par
+    /// l'application : taille du manipulateur à l'écran.
+    pub pixels_per_point: f32,
     /// Outil « Parent » : enfant choisi, en attente de son nouveau parent.
     reparent_child: Option<BoneId>,
     /// Dernière retouche numérique (os, propriété) : les réglages continus
@@ -155,6 +166,8 @@ impl Editor {
             autorig_options: AutoRigOptions::default(),
             status: None,
             mirror_edit: false,
+            manipulator: ManipulatorSettings::default(),
+            pixels_per_point: 1.0,
             reparent_child: None,
             coalesce: None,
             undo: Vec::new(),

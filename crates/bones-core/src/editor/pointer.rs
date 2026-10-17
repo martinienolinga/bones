@@ -40,6 +40,9 @@ impl Editor {
     pub fn pointer_down(&mut self, pos: Vec2, vp: &Viewport, radius: f32) -> bool {
         self.drag_moved = false;
         self.playing = false;
+        if self.manipulator_down(pos, vp, radius) {
+            return true;
+        }
         match self.mode {
             Mode::Pose => self.pose_down(pos, vp, radius),
             Mode::Edit => self.edit_down(pos, vp, radius),
