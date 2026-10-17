@@ -11,8 +11,9 @@
 use super::Editor;
 use crate::presets::apply::{ApplyOptions, ApplyReport, bake_preset, merge};
 use crate::presets::create::{CreateOptions, from_animation};
-use crate::presets::error::PresetError;
-use crate::presets::model::Preset;
+use crate::presets::error::{PresetError, incompatible};
+use crate::presets::expression::{self, ExpressionReport};
+use crate::presets::model::{Preset, PresetKind};
 use crate::presets::roles::{RoleMap, detect};
 
 impl Editor {
@@ -62,5 +63,57 @@ impl Editor {
     /// n'est pas modifié). L'intervalle par défaut couvre tout le clip.
     pub fn create_preset(&self, options: &CreateOptions) -> Result<Preset, PresetError> {
         from_animation(&self.rig.skeleton, &self.rig.clip, options)
+    }
+
+    /// Applique une expression faciale au visage du personnage (une seule
+    /// étape d'annulation). Ne touche que les os du visage présents ; le reste
+    /// de la pose (le corps) est inchangé.
+    ///
+    /// - `intensity` : 0 = repos, 1 = pleine amplitude, > 1 exagère ;
+    /// - `mirror` : échange gauche ↔ droite ;
+    /// - `additive` : superpose à la pose actuelle du visage (sinon la
+    ///   remplace, les autres os du visage revenant au repos) ;
+    /// - `as_key` : écrit une clé à l'image courante (sinon met seulement à
+    ///   jour la pose, et la clé déjà présente le cas échéant).
+    pub fn apply_expression(
+        &mut self,
+        preset: &Preset,
+        intensity: f32,
+        mirror: bool,
+        additive: bool,
+        as_key: bool,
+    ) -> Result<ExpressionReport, PresetError> {
+        let PresetKind::Expression(data) = &preset.kind else {
+            return Err(incompatible("not a facial expression"));
+        };
+        let present = expression::present_mapped(&self.rig.skeleton);
+        if present.is_empty() {
+            return Err(incompatible("the model has no face bones"));
+        }
+        let (face, report) = expression::face_pose(data, &self.rig.skeleton, intensity, mirror);
+        self.checkpoint();
+        for (_, id) in &present {
+            let i = id.index();
+            let delta = face.get(*id);
+            self.rig.pose.bones[i] = if additive {
+                self.rig.pose.bones[i].mul(&delta)
+            } else {
+                delta
+            };
+        }
+        if as_key {
+            let frame = self.current_frame();
+            let pose = self.rig.pose.clone();
+            self.rig.clip_mut().set_key(frame, pose);
+            self.frame = frame as f32;
+        } else {
+            self.store_key_if_any();
+        }
+        self.status = Some(format!(
+            "{}: {} face bones",
+            preset.info.name,
+            report.applied.len()
+        ));
+        Ok(report)
     }
 }

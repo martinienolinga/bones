@@ -7,6 +7,7 @@
 mod actions;
 mod bones;
 mod brush;
+pub mod presets;
 mod settings;
 mod studio;
 mod view;
@@ -17,6 +18,7 @@ use bones_ui::icons::Icon;
 use bones_ui::{theme, widgets};
 
 pub use brush::tool_icon as brush_tool_icon;
+pub use presets::PresetsState;
 pub use weights_tools::{State as WeightsToolsState, confirm_dialog as confirm_automatic};
 
 use super::{BAR_H, EDGE, UiAction, UiState};
@@ -31,11 +33,16 @@ pub enum Popover {
     Brush,
     /// Menu des outils du menu « Weights » de Blender.
     WeightsTools,
+    /// Bibliothèque de préréglages d'animation.
+    Presets,
+    /// Bibliothèque d'expressions faciales.
+    Expressions,
 }
 
 impl Popover {
     fn width(self) -> f32 {
         match self {
+            Popover::Presets | Popover::Expressions => 900.0,
             Popover::Outliner => 720.0,
             Popover::Settings | Popover::Brush => 640.0,
             Popover::Actions => 420.0,
@@ -45,7 +52,10 @@ impl Popover {
     }
 
     fn is_studio(self) -> bool {
-        matches!(self, Popover::Outliner | Popover::Settings | Popover::Brush)
+        matches!(
+            self,
+            Popover::Outliner | Popover::Settings | Popover::Brush | Popover::Presets | Popover::Expressions
+        )
     }
 }
 
@@ -90,6 +100,24 @@ pub fn show(
                     Popover::Settings => close = settings::show(ui, state, studio_height(max_height) - 120.0),
                     Popover::Brush => close = brush::show(ui, editor, state, studio_height(max_height)),
                     Popover::WeightsTools => close = weights_tools::show(ui, editor, state, max_height),
+                    Popover::Presets => {
+                        close = presets::show(
+                            ui,
+                            editor,
+                            state,
+                            presets::Kind::Animations,
+                            gallery_height(max_height),
+                        )
+                    }
+                    Popover::Expressions => {
+                        close = presets::show(
+                            ui,
+                            editor,
+                            state,
+                            presets::Kind::Expressions,
+                            gallery_height(max_height),
+                        )
+                    }
                 }
             });
             let rect = panel.response.rect;
@@ -115,6 +143,11 @@ pub fn show(
                 .interact_pos()
                 .is_some_and(|p| !rect.contains(p) && p.y > BAR_H)
     });
+    // Les messages de la galerie de préréglages (application, import…)
+    // deviennent des pastilles temporaires.
+    if let Some(message) = state.presets.pending_toast.take() {
+        state.notify(message);
+    }
     let picked = actions.iter().any(|a| matches!(a, UiAction::Export(_)));
     if close || picked || (tapped_outside && !popover.is_studio()) {
         state.popover = None;
@@ -125,6 +158,12 @@ pub fn show(
 /// Hauteur d'un studio : 620 pt au plus, moins sur les petits écrans.
 fn studio_height(max_height: f32) -> f32 {
     (max_height - 20.0).clamp(360.0, 620.0)
+}
+
+/// Hauteur d'une galerie de préréglages : plus grande qu'un studio pour la
+/// grille de cartes.
+fn gallery_height(max_height: f32) -> f32 {
+    (max_height - 20.0).clamp(420.0, 760.0)
 }
 
 fn anim_id() -> egui::Id {

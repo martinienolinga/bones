@@ -29,3 +29,7 @@ pub const SUBDIVIDE: &str = r##"<path d="M6 26L9.7 22.3M15.64 16.36L16.36 15.64M
 pub const FLIP: &str = r##"<path d="M10.4 25.4V6.6M6.2 10.8 10.4 6.6 14.6 10.8" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M21.6 6.6V25.4M17.4 21.2 21.6 25.4 25.8 21.2" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>"##;
 
 pub const XMIRROR: &str = r##"<path d="M16 3.5V28.5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" stroke-dasharray=".1 3.4"/><g fill="#fff"><circle cx="4.66" cy="7.81" r="2.5"/><circle cx="7.34" cy="6.99" r="2.5"/><circle cx="9.86" cy="25.01" r="2.5"/><circle cx="12.54" cy="24.19" r="2.5"/><path d="M4.66 7.81 9.86 25.01 12.54 24.19 7.34 6.99Z"/></g><g fill="#fff" fill-opacity=".45"><circle cx="24.66" cy="6.99" r="2.5"/><circle cx="27.34" cy="7.81" r="2.5"/><circle cx="19.46" cy="24.19" r="2.5"/><circle cx="22.14" cy="25.01" r="2.5"/><path d="M24.66 6.99 19.46 24.19 22.14 25.01 27.34 7.81Z"/></g>"##;
+
+/// Visage souriant : galerie d'expressions faciales et étape « Face » de
+/// l'auto-rig.
+pub const FACE: &str = r##"<circle cx="16" cy="16" r="11" stroke="#fff" stroke-width="2.4" fill="none"/><circle cx="11.8" cy="13.4" r="1.8" fill="#fff"/><circle cx="20.2" cy="13.4" r="1.8" fill="#fff"/><path d="M10.4 18.4Q16 23.6 21.6 18.4" stroke="#fff" stroke-width="2.4" stroke-linecap="round" fill="none"/>"##;

@@ -152,6 +152,14 @@ fn to_rig(preset: &Preset) -> Result<Rig, PresetError> {
             )?;
             (skeleton, clip)
         }
+        // Expression faciale : pose unique sur une tête de référence.
+        PresetKind::Expression(data) => {
+            let skeleton = super::expression::reference_head();
+            let (pose, _) = super::expression::face_pose(data, &skeleton, 1.0, false);
+            let mut clip = Clip::new(preset.info.fps.max(1.0), 2);
+            clip.set_key(0, pose);
+            (skeleton, clip)
+        }
     };
     if skeleton.is_empty() {
         return Err(incompatible("the preset has no skeleton"));

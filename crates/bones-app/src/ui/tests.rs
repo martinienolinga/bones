@@ -348,6 +348,172 @@ fn brush_library_picks_a_tool() {
     assert_eq!(h.editor.weight_paint.brush.tool, PaintTool::Blur);
 }
 
+// ----------------------------------------------------------------------
+// Galeries de préréglages et étape « Face » de l'auto-rig.
+
+use super::autorig_panel::Step;
+use super::popovers::presets::Kind;
+
+/// Dossier temporaire propre à un test de préréglages.
+fn temp_presets_dir(tag: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("bones-presets-ui-{}-{tag}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+/// Ouvre une galerie de préréglages et stabilise les zones ancrées.
+fn open_gallery(h: &mut Harness, popover: Popover) {
+    h.editor.set_mode(Mode::Pose);
+    h.state.popover = Some(popover);
+    h.state.popover_anchor = 700.0;
+    for _ in 0..5 {
+        h.frame(vec![]);
+    }
+}
+
+#[test]
+fn animation_gallery_opens_and_lists_every_section() {
+    let mut h = Harness::new();
+    h.state.docs_dir = temp_presets_dir("sections");
+    open_gallery(&mut h, Popover::Presets);
+    // Un studio ne se ferme pas d'un toucher à l'extérieur.
+    assert_eq!(h.state.popover, Some(Popover::Presets));
+    assert!(!h.state.rects.is_empty());
+    // Chaque section (Human … Imported) se construit sans panique.
+    for section in 0..7 {
+        h.state.presets.test_section(section);
+        for _ in 0..3 {
+            h.frame(vec![]);
+        }
+        assert!(h.state.presets.test_is_grid());
+    }
+}
+
+#[test]
+fn applying_a_builtin_animation_fills_the_clip() {
+    let mut h = Harness::new();
+    h.state.docs_dir = temp_presets_dir("apply");
+    open_gallery(&mut h, Popover::Presets);
+    h.state.presets.test_section(0); // Human
+    assert!(
+        h.state.presets.test_open_first(Kind::Animations),
+        "section Human non vide"
+    );
+    h.frame(vec![]);
+    h.state.presets.test_apply(&mut h.editor, Kind::Animations);
+    assert!(
+        h.state.presets.test_report_is_some(),
+        "un compte rendu est affiché"
+    );
+    assert!(
+        h.editor.rig.clip.frame_count >= 2,
+        "l'animation remplit le clip : {} images",
+        h.editor.rig.clip.frame_count
+    );
+}
+
+#[test]
+fn creating_a_preset_from_the_animation_saves_a_file() {
+    let mut h = Harness::new();
+    let docs = temp_presets_dir("create");
+    h.state.docs_dir = docs.clone();
+    open_gallery(&mut h, Popover::Presets);
+    // D'abord une animation à capturer.
+    h.state.presets.test_section(0);
+    assert!(h.state.presets.test_open_first(Kind::Animations));
+    h.state.presets.test_apply(&mut h.editor, Kind::Animations);
+    // Puis la création d'un préréglage utilisateur.
+    h.state.presets.test_create_save(&mut h.editor, &docs);
+    assert!(
+        h.state.presets.test_is_grid(),
+        "retour à la grille après création"
+    );
+    assert_eq!(
+        h.state.presets.test_user_count(),
+        1,
+        "un préréglage utilisateur enregistré"
+    );
+    let saved: Vec<_> = std::fs::read_dir(docs.join(super::popovers::presets::DIR))
+        .unwrap()
+        .flatten()
+        .filter(|e| e.path().extension().is_some_and(|x| x == "kb3da"))
+        .collect();
+    assert_eq!(saved.len(), 1, "fichier .kb3da créé");
+    let _ = std::fs::remove_dir_all(&docs);
+}
+
+#[test]
+fn import_view_builds_with_an_empty_folder() {
+    let mut h = Harness::new();
+    h.state.docs_dir = temp_presets_dir("import");
+    open_gallery(&mut h, Popover::Presets);
+    h.state.presets.test_open_import();
+    for _ in 0..3 {
+        h.frame(vec![]);
+    }
+    assert_eq!(h.state.popover, Some(Popover::Presets));
+}
+
+#[test]
+fn expressions_gallery_lists_the_facial_category() {
+    let mut h = Harness::new();
+    h.state.docs_dir = temp_presets_dir("expr");
+    open_gallery(&mut h, Popover::Expressions);
+    assert_eq!(h.state.popover, Some(Popover::Expressions));
+    // Les expressions intégrées existent indépendamment du rig ouvert.
+    assert!(
+        h.state.presets.test_open_first(Kind::Expressions),
+        "des expressions faciales sont listées"
+    );
+}
+
+#[test]
+fn face_marker_step_shows_draggable_markers() {
+    use bones_core::autorig::face::FaceMarkers;
+    let mut h = Harness::new();
+    h.editor.set_mode(Mode::AutoRig);
+    h.editor.guess_markers();
+    // Marqueurs du visage posés autour de la cible de la caméra : ils se
+    // projettent au centre de l'écran, donc tous visibles (le mannequin de
+    // démo n'a pas forcément un visage détectable).
+    let t = h.editor.camera.target;
+    let at = |dx, dy, dz| t + glam::Vec3::new(dx, dy, dz);
+    h.editor.face_markers = Some(FaceMarkers {
+        eye: at(0.06, 0.03, 0.09),
+        eye_radius: 0.018,
+        brow: at(0.055, 0.06, 0.1),
+        nose_tip: at(0.0, 0.0, 0.12),
+        lip_top: at(0.0, -0.03, 0.11),
+        lip_bottom: at(0.0, -0.05, 0.11),
+        mouth_corner: at(0.03, -0.04, 0.1),
+        chin: at(0.0, -0.08, 0.1),
+        jaw: at(0.0, -0.01, 0.02),
+        ear: None,
+        teeth_top: None,
+        teeth_bottom: None,
+        tongue: None,
+    });
+    // Référence : l'étape « Body » ne dessine pas les marqueurs du visage.
+    h.state.autorig_step = Step::Body;
+    for _ in 0..3 {
+        h.frame(vec![]);
+    }
+    let body_rects = h.state.rects.len();
+    h.state.autorig_step = Step::Face;
+    for _ in 0..3 {
+        h.frame(vec![]);
+    }
+    assert_eq!(h.editor.mode, Mode::AutoRig);
+    assert!(h.editor.face_markers.is_some());
+    assert!(
+        h.state.rects.len() > body_rects,
+        "l'overlay du visage ajoute des points touchables ({} → {})",
+        body_rects,
+        h.state.rects.len()
+    );
+}
+
 #[test]
 fn weights_tools_menu_applies_and_closes() {
     let mut h = Harness::new();

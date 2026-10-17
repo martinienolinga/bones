@@ -6,6 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::autorig::face::FaceMarkers;
 use crate::editor::{EditTool, Editor, Mode, PoseTool, ViewOptions};
 use crate::{AutoRigOptions, BindMethod, BoneId, ManipulatorSettings, Markers, Mesh, OrbitCamera, Rig};
 
@@ -26,6 +27,8 @@ pub(crate) struct EditorState {
     pub view: ViewOptions,
     pub frame: f32,
     pub markers: Option<Markers>,
+    /// Marqueurs du visage ajustés à la main (étape « Face » de l'auto-rig).
+    pub face_markers: Option<FaceMarkers>,
     pub autorig_options: AutoRigOptions,
     pub mirror_edit: bool,
     pub manipulator: ManipulatorSettings,
@@ -54,6 +57,7 @@ impl EditorState {
             view: editor.view,
             frame: editor.frame,
             markers: editor.markers,
+            face_markers: editor.face_markers,
             autorig_options: editor.autorig_options,
             mirror_edit: editor.mirror_edit,
             manipulator: editor.manipulator,
@@ -73,6 +77,7 @@ impl EditorState {
         editor.view = self.view;
         editor.frame = self.frame;
         editor.markers = self.markers;
+        editor.face_markers = self.face_markers;
         editor.autorig_options = self.autorig_options;
         editor.mirror_edit = self.mirror_edit;
         editor.manipulator = self.manipulator;
@@ -97,6 +102,11 @@ impl EditorState {
         };
         if self.markers.is_some_and(|m| !markers_ok(&m)) {
             self.markers = None;
+        }
+        // Marqueurs du visage : rejetés s'ils contiennent une valeur non finie
+        // ou un rayon d'œil nul (voir [`FaceMarkers::is_valid`]).
+        if self.face_markers.is_some_and(|m| !m.is_valid()) {
+            self.face_markers = None;
         }
         let o = &mut self.autorig_options;
         o.spine_count = o.spine_count.clamp(1, 6);

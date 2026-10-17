@@ -151,6 +151,13 @@ pub fn bake_preset(
                 options.loops,
             )?
         }
+        // Les expressions faciales ont leur propre voie d'application, qui ne
+        // touche que le visage : voir [`crate::Editor::apply_expression`].
+        PresetKind::Expression(_) => {
+            return Err(PresetError::Incompatible(
+                "facial expressions are applied with apply_expression".into(),
+            ));
+        }
     };
     if options.in_place {
         root::strip_travel(skeleton, roles, &mut poses);

@@ -1,0 +1,220 @@
+//! Feuille d'application d'un préréglage : aperçu animé en bandeau, réglages
+//! ([`ApplyOptions`] pour une animation ; intensité / miroir / additif /
+//! « as key » pour une expression), bouton « Apply » et compte rendu
+//! ([`ApplyReport`] : os non reconnus).
+
+use bones_core::Editor;
+use bones_core::presets::{ApplyMode, ApplyOptions};
+use bones_ui::icons::Icon;
+use bones_ui::{theme, widgets};
+
+use super::library::Entry;
+use super::{Kind, PresetsState};
+
+/// Compte rendu d'une application, pour les deux genres (animation et
+/// expression), déjà réduit à ce que l'interface affiche.
+#[derive(Default)]
+pub struct Report {
+    mapped: usize,
+    unmapped: Vec<String>,
+    warnings: Vec<String>,
+}
+
+/// Réglages de la feuille d'application (persistants entre deux ouvertures).
+pub struct ApplyForm {
+    options: ApplyOptions,
+    /// Expressions : force, miroir (dans `options`), additif, pose-clé.
+    intensity: f32,
+    additive: bool,
+    as_key: bool,
+}
+
+impl Default for ApplyForm {
+    fn default() -> Self {
+        Self {
+            options: ApplyOptions::default(),
+            intensity: 1.0,
+            additive: false,
+            as_key: true,
+        }
+    }
+}
+
+pub fn show(
+    ui: &mut egui::Ui,
+    editor: &mut Editor,
+    p: &mut PresetsState,
+    entry: Entry,
+    kind: Kind,
+    body: f32,
+) {
+    let time = ui.input(|i| i.time) as f32;
+    ui.ctx().request_repaint();
+    egui::ScrollArea::vertical()
+        .id_salt("preset-apply")
+        .auto_shrink([false, false])
+        .max_height(body)
+        .show(ui, |ui| {
+            banner(ui, p, entry, time);
+            ui.add_space(10.0);
+            let info = p.library.info(entry);
+            if !info.description.trim().is_empty() {
+                ui.label(
+                    egui::RichText::new(info.description.clone())
+                        .size(14.0)
+                        .color(theme::TEXT_DIM),
+                );
+                ui.add_space(8.0);
+            }
+            meta(ui, info);
+            ui.add_space(10.0);
+            match kind {
+                Kind::Animations => animation_options(ui, &mut p.apply, info.looping),
+                Kind::Expressions => expression_options(ui, &mut p.apply),
+            }
+            ui.add_space(14.0);
+            if widgets::pill_button(ui, Some(Icon::Check), "Apply", true).clicked() {
+                run(editor, p, entry, kind);
+            }
+            if let Some(report) = &p.report {
+                ui.add_space(12.0);
+                report_note(ui, report);
+            }
+        });
+}
+
+/// Bandeau d'aperçu animé en tête de la feuille.
+fn banner(ui: &mut egui::Ui, p: &mut PresetsState, entry: Entry, time: f32) {
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 150.0), egui::Sense::hover());
+    ui.painter()
+        .rect_filled(rect, egui::CornerRadius::same(14), theme::WIDGET);
+    let preset = p.library.preset(entry);
+    p.previews.warm(std::slice::from_ref(&preset), 1);
+    let painter = ui.painter().with_clip_rect(rect);
+    p.previews.draw(&painter, rect, preset, time);
+}
+
+/// Métadonnées : images, fréquence, boucle.
+fn meta(ui: &mut egui::Ui, info: &bones_core::presets::PresetInfo) {
+    let mut parts = Vec::new();
+    if info.frames > 0 {
+        parts.push(format!("{} frames", info.frames));
+        parts.push(format!("{:.0} fps", info.fps));
+    }
+    parts.push(if info.looping {
+        "loops".to_owned()
+    } else {
+        "one-shot".to_owned()
+    });
+    if info.root_motion {
+        parts.push("root motion".to_owned());
+    }
+    ui.label(
+        egui::RichText::new(parts.join("  ·  "))
+            .size(13.0)
+            .color(theme::TEXT_DIM),
+    );
+}
+
+fn animation_options(ui: &mut egui::Ui, form: &mut ApplyForm, looping: bool) {
+    let o = &mut form.options;
+    widgets::section_title(ui, "How to add it");
+    let mut mode = match o.mode {
+        ApplyMode::Replace => 0,
+        ApplyMode::Insert => 1,
+        ApplyMode::Blend => 2,
+    };
+    if widgets::segmented(ui, &["Replace", "Insert", "Blend"], &mut mode).changed() {
+        o.mode = [ApplyMode::Replace, ApplyMode::Insert, ApplyMode::Blend][mode];
+    }
+    ui.add_space(10.0);
+    widgets::section_title(ui, "Playback");
+    widgets::slider_row(ui, &mut o.speed, 0.25..=3.0, "Speed", "×");
+    if looping {
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new("Loops").size(17.0).color(theme::TEXT_LIST));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let mut loops = o.loops.max(1) as usize;
+                if widgets::stepper(ui, &mut loops, 1..=16).changed() {
+                    o.loops = loops as u32;
+                }
+            });
+        });
+    }
+    ui.add_space(6.0);
+    widgets::switch_row(ui, &mut o.mirror, "Mirror", "Swap left and right");
+    widgets::switch_row(ui, &mut o.in_place, "In place", "Remove forward travel");
+}
+
+/// Réglages d'une expression : force, miroir, additif, écriture d'une clé.
+fn expression_options(ui: &mut egui::Ui, form: &mut ApplyForm) {
+    widgets::section_title(ui, "Expression");
+    widgets::slider_row(ui, &mut form.intensity, 0.0..=1.5, "Intensity", "×");
+    ui.add_space(6.0);
+    widgets::switch_row(ui, &mut form.options.mirror, "Mirror", "Swap left and right");
+    widgets::switch_row(
+        ui,
+        &mut form.additive,
+        "Additive",
+        "Add on top of the current face pose",
+    );
+    widgets::switch_row(
+        ui,
+        &mut form.as_key,
+        "Apply as key",
+        "Set a keyframe at the current frame",
+    );
+}
+
+/// Applique le préréglage (animation ou expression) et mémorise le compte
+/// rendu.
+pub(super) fn run(editor: &mut Editor, p: &mut PresetsState, entry: Entry, kind: Kind) {
+    let preset = p.library.preset(entry);
+    let name = preset.info.name.clone();
+    let outcome = match kind {
+        Kind::Animations => editor.apply_preset(preset, &p.apply.options).map(|r| Report {
+            mapped: r.mapped.len(),
+            unmapped: r.unmapped,
+            warnings: r.warnings,
+        }),
+        Kind::Expressions => {
+            let f = &p.apply;
+            editor
+                .apply_expression(preset, f.intensity, f.options.mirror, f.additive, f.as_key)
+                .map(|r| Report {
+                    mapped: r.applied.len(),
+                    unmapped: r.skipped,
+                    warnings: Vec::new(),
+                })
+        }
+    };
+    match outcome {
+        Ok(report) => {
+            let n = report.unmapped.len();
+            p.notify(if n == 0 {
+                format!("Applied “{name}”")
+            } else {
+                format!("Applied “{name}” — {n} bones skipped")
+            });
+            p.report = Some(report);
+        }
+        Err(e) => p.notify(format!("Error: {e}")),
+    }
+}
+
+/// Compte rendu : os posés, os ignorés et avertissements.
+fn report_note(ui: &mut egui::Ui, report: &Report) {
+    widgets::section_title(ui, "Result");
+    widgets::group(ui, |g| {
+        g.value_row("Bones posed", &report.mapped.to_string());
+        if !report.unmapped.is_empty() {
+            g.value_row("Skipped", &report.unmapped.len().to_string());
+        }
+    });
+    for warning in &report.warnings {
+        super::manage::hook_note(ui, warning);
+    }
+    if !report.unmapped.is_empty() {
+        super::manage::hook_note(ui, &format!("Skipped: {}", report.unmapped.join(", ")));
+    }
+}

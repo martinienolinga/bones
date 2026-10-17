@@ -34,7 +34,7 @@ fn made_preset(name: &str) -> Preset {
 fn source(preset: &Preset) -> (&Skeleton, &Clip) {
     match &preset.kind {
         PresetKind::Keyframes(d) => (&d.skeleton, &d.clip),
-        PresetKind::Procedural(_) => panic!("préréglage à clés attendu"),
+        PresetKind::Procedural(_) | PresetKind::Expression(_) => panic!("préréglage à clés attendu"),
     }
 }
 

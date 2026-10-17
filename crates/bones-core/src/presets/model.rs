@@ -5,6 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::Generator;
+use super::expression::ExpressionData;
 use super::params::Params;
 use super::reference::RefRig;
 use super::roles::{RigType, RoleMap};
@@ -18,14 +19,17 @@ pub enum Category {
     Vegetation,
     /// Créatures et objets : queues, tentacules, cordes, pendules, machines.
     Misc,
+    /// Expressions faciales (pose unique du visage) pour les êtres vivants.
+    FacialExpression,
 }
 
 impl Category {
-    pub const ALL: [Category; 4] = [
+    pub const ALL: [Category; 5] = [
         Category::Human,
         Category::Animals,
         Category::Vegetation,
         Category::Misc,
+        Category::FacialExpression,
     ];
 
     pub fn label(self) -> &'static str {
@@ -34,6 +38,7 @@ impl Category {
             Category::Animals => "Animals",
             Category::Vegetation => "Vegetation",
             Category::Misc => "Creatures & Misc",
+            Category::FacialExpression => "Facial Expressions",
         }
     }
 
@@ -170,6 +175,9 @@ impl Procedural {
 pub enum PresetKind {
     Keyframes(Box<KeyframeData>),
     Procedural(Procedural),
+    /// Expression faciale : pose unique du visage, appliquée via
+    /// [`crate::Editor::apply_expression`] (voir [`super::expression`]).
+    Expression(Box<ExpressionData>),
 }
 
 /// Préréglage complet.
@@ -190,11 +198,12 @@ pub enum Section {
 }
 
 impl Section {
-    pub const ALL: [Section; 6] = [
+    pub const ALL: [Section; 7] = [
         Section::Category(Category::Human),
         Section::Category(Category::Animals),
         Section::Category(Category::Vegetation),
         Section::Category(Category::Misc),
+        Section::Category(Category::FacialExpression),
         Section::MyPresets,
         Section::Imported,
     ];

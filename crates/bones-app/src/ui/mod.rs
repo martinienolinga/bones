@@ -14,6 +14,7 @@
 //!   ([`overlay`]).
 
 mod autorig_panel;
+mod face_markers;
 mod overlay;
 mod popovers;
 mod shortcuts;
@@ -28,7 +29,7 @@ use std::path::PathBuf;
 use bones_core::io::Format;
 use bones_core::{EditTool, Editor, Mode, Viewport};
 
-pub use popovers::Popover;
+pub use popovers::{Popover, PresetsState};
 
 use crate::settings::Settings;
 
@@ -80,6 +81,10 @@ pub struct UiState {
     toast: Option<(String, f64)>,
     /// Bouton « Gallery » touché à cette image.
     gallery_requested: bool,
+    /// État des galeries de préréglages (animations et expressions).
+    presets: PresetsState,
+    /// Étape courante de l'auto-rig (corps ou visage).
+    autorig_step: autorig_panel::Step,
 }
 
 impl UiState {
@@ -104,6 +109,8 @@ impl UiState {
             rename: String::new(),
             toast: None,
             gallery_requested: false,
+            presets: PresetsState::default(),
+            autorig_step: autorig_panel::Step::Body,
         }
     }
 
@@ -119,6 +126,8 @@ impl UiState {
         self.weights_tools.confirm_automatic = false;
         self.weight_paint_loaded = false;
         self.gallery_requested = false;
+        self.presets.reset();
+        self.autorig_step = autorig_panel::Step::Body;
     }
 
     /// Ouvre ou ferme une fenêtre ; `anchor_x` est le centre du bouton.
@@ -164,7 +173,12 @@ pub fn show(
             bottom = timeline.top();
             rects.push(timeline);
         }
-        Mode::AutoRig => rects.push(autorig_panel::show(ctx, editor)),
+        Mode::AutoRig => {
+            rects.push(autorig_panel::show(ctx, editor, state));
+            if state.autorig_step == autorig_panel::Step::Face {
+                rects.extend(face_markers::show(ctx, editor, viewport));
+            }
+        }
         Mode::Edit | Mode::WeightPaint => {}
     }
     if transform_bar::available(editor) {

@@ -14,6 +14,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use glam::{Quat, Vec2, Vec3};
 
 use super::ProjectSnapshot;
+use crate::autorig::face::FaceMarkers;
 use crate::editor::{EditTool, Mode, PoseTool, ViewOptions};
 use crate::manipulator::{ManipulatorMode, TransformSpace};
 use crate::{
@@ -172,6 +173,23 @@ pub(super) fn full_editor() -> Editor {
     };
     e.frame = 12.0;
     e.markers = Markers::guess(&e.rig.mesh);
+    // Marqueurs du visage ajustés à la main (toutes les pièces facultatives
+    // présentes, pour couvrir l'aller-retour de chaque champ).
+    e.face_markers = Some(FaceMarkers {
+        eye: Vec3::new(0.06, 1.62, 0.09),
+        eye_radius: 0.018,
+        brow: Vec3::new(0.055, 1.66, 0.1),
+        nose_tip: Vec3::new(0.0, 1.58, 0.12),
+        lip_top: Vec3::new(0.0, 1.54, 0.11),
+        lip_bottom: Vec3::new(0.0, 1.52, 0.11),
+        mouth_corner: Vec3::new(0.03, 1.53, 0.1),
+        chin: Vec3::new(0.0, 1.49, 0.1),
+        jaw: Vec3::new(0.0, 1.57, 0.02),
+        ear: Some(Vec3::new(0.09, 1.6, -0.02)),
+        teeth_top: Some(Vec3::new(0.0, 1.535, 0.1)),
+        teeth_bottom: Some(Vec3::new(0.0, 1.525, 0.1)),
+        tongue: Some([Vec3::new(0.0, 1.53, 0.05), Vec3::new(0.0, 1.53, 0.09)]),
+    });
     e.autorig_options = AutoRigOptions {
         spine_count: 4,
         neck_count: 2,

@@ -25,6 +25,7 @@ pub mod apply;
 pub mod create;
 pub mod error;
 pub mod exchange;
+pub mod expression;
 pub mod file;
 #[cfg(test)]
 mod io_tests;
@@ -46,6 +47,7 @@ pub use apply::{ApplyMode, ApplyOptions, ApplyReport};
 pub use create::CreateOptions;
 pub use error::PresetError;
 pub use exchange::{export_file, import_bytes, import_file};
+pub use expression::{ExpressionData, ExpressionReport};
 pub use file::{EXTENSION, load, read_info, save};
 pub use library::{builtin, find_builtin};
 pub use model::{Category, KeyframeData, Preset, PresetInfo, PresetKind, PresetSource, Procedural, Section};

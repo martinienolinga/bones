@@ -19,3 +19,7 @@ pub const WEIGHTS: &str = r##"<clipPath id="w"><path d="M16 4.2C16 4.2 7.2 13.6 
 pub const BALLISTIC: &str = r##"<path d="M4 27.6H28" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M5.4 24.4C8 8 18.4 5.6 22.8 18.4" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none" stroke-dasharray=".1 3.7"/><circle cx="24.4" cy="22.8" r="3.4" fill="#fff"/>"##;
 
 pub const CENTER_OF_MASS: &str = r##"<circle cx="16" cy="16" r="10.4" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M16 16V5.6A10.4 10.4 0 0 0 5.6 16ZM16 16V26.4A10.4 10.4 0 0 0 26.4 16Z" fill="#fff"/>"##;
+
+/// Silhouette courant vers l'avant avec traits de vitesse : bibliothèque de
+/// préréglages d'animation.
+pub const MOTION: &str = r##"<circle cx="20.6" cy="6.6" r="3" fill="#fff"/><path d="M19.4 9.8 13.4 17" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M17.8 11.8 23.6 13.6M17.8 11.8 13.6 10.8" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M13.4 17 9 25.4M13.4 17 19 20 17.4 27.4" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M2.6 9H7.4M1.8 14H6.2M3.4 19H7" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>"##;

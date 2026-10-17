@@ -80,9 +80,13 @@ pub enum Icon {
     Gradient,
     Sample,
     Normalize,
+    /// Bibliothèque de préréglages d'animation (silhouette en mouvement).
+    Motion,
+    /// Visage : galerie d'expressions et étape « Face » de l'auto-rig.
+    Face,
 }
 
-const ALL: [Icon; 66] = [
+const ALL: [Icon; 68] = [
     Icon::Gallery,
     Icon::Actions,
     Icon::Adjust,
@@ -149,6 +153,8 @@ const ALL: [Icon; 66] = [
     Icon::Gradient,
     Icon::Sample,
     Icon::Normalize,
+    Icon::Motion,
+    Icon::Face,
 ];
 
 /// Toutes les icônes (aperçus, tests).

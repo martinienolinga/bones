@@ -79,5 +79,7 @@ pub fn source(icon: Icon) -> &'static str {
         Icon::Gradient => paint::GRADIENT,
         Icon::Sample => paint::SAMPLE,
         Icon::Normalize => paint::NORMALIZE,
+        Icon::Motion => anim::MOTION,
+        Icon::Face => rig::FACE,
     }
 }

@@ -50,7 +50,8 @@ pub fn find_builtin(id: &str) -> Option<&'static Preset> {
 
 fn build() -> Vec<Preset> {
     let rows: Vec<Row> = serde_json::from_str(CATALOG).expect("catalogue des préréglages intégrés");
-    rows.into_iter()
+    let mut presets: Vec<Preset> = rows
+        .into_iter()
         .map(|row| {
             let procedural = Procedural {
                 generator: row.generator,
@@ -63,6 +64,7 @@ fn build() -> Vec<Preset> {
                 Category::Animals => "animals",
                 Category::Vegetation => "vegetation",
                 Category::Misc => "misc",
+                Category::FacialExpression => "face",
             };
             Preset {
                 info: PresetInfo {
@@ -86,7 +88,10 @@ fn build() -> Vec<Preset> {
                 kind: PresetKind::Procedural(procedural),
             }
         })
-        .collect()
+        .collect();
+    // Expressions faciales (poses uniques du visage, créées comme données).
+    presets.extend(super::expression::builtin());
+    presets
 }
 
 /// Durée (images à 30 i/s) et déplacement du corps, mesurés sur le

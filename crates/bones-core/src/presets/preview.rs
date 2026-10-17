@@ -31,13 +31,27 @@ impl Preview {
                 (s, r)
             }
             PresetKind::Keyframes(data) => (data.skeleton.clone(), data.roles.clone()),
+            // Expression faciale : rendue sur une tête de référence.
+            PresetKind::Expression(_) => {
+                let s = super::expression::reference_head();
+                let r = RoleMap::empty(&s);
+                (s, r)
+            }
         };
-        let options = ApplyOptions {
-            in_place: true,
-            ..ApplyOptions::default()
+        let poses = match &preset.kind {
+            PresetKind::Expression(data) => {
+                let (pose, _) = super::expression::face_pose(data, &skeleton, 1.0, false);
+                vec![pose]
+            }
+            _ => {
+                let options = ApplyOptions {
+                    in_place: true,
+                    ..ApplyOptions::default()
+                };
+                let base = Pose::rest(&skeleton);
+                bake_preset(preset, &skeleton, &roles, &base, &options, 30.0)?.0
+            }
         };
-        let base = Pose::rest(&skeleton);
-        let (poses, _) = bake_preset(preset, &skeleton, &roles, &base, &options, 30.0)?;
         let mut clip = Clip::new(30.0, poses.len().max(2) as u32);
         let (mut lo, mut hi) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN));
         for (f, pose) in poses.into_iter().enumerate() {

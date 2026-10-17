@@ -61,6 +61,9 @@ fn full_project_round_trips_every_field() {
     let reopened = loaded.snapshot.into_editor();
     assert_eq!(EditorState::capture(&reopened), state);
     assert_eq!(serde_json::to_value(&reopened.rig).unwrap(), rig_json);
+    // Les marqueurs du visage ajustés à la main survivent à l'enregistrement.
+    assert_eq!(reopened.face_markers, editor.face_markers);
+    assert!(reopened.face_markers.is_some());
 }
 
 #[test]

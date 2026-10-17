@@ -87,6 +87,7 @@ fn tools(ui: &mut egui::Ui, editor: &mut Editor, state: &mut UiState) {
             }
         }
         Mode::Pose => {
+            let open = state.popover;
             let tools = [
                 (PoseTool::Move, Icon::Move, "Move (IK)"),
                 (PoseTool::Rotate, Icon::Rotate, "Rotate"),
@@ -95,6 +96,28 @@ fn tools(ui: &mut egui::Ui, editor: &mut Editor, state: &mut UiState) {
             for (tool, icon, hint) in tools.into_iter().rev() {
                 if widgets::bar_tool(ui, icon, editor.pose_tool == tool, hint).clicked() {
                     editor.pose_tool = tool;
+                }
+            }
+            widgets::separator_dot(ui);
+            // Bibliothèque d'animations, et expressions si le rig a un visage.
+            let library = widgets::bar_tool(
+                ui,
+                Icon::Motion,
+                open == Some(Popover::Presets),
+                "Animation library",
+            );
+            if library.clicked() {
+                state.toggle(Popover::Presets, library.rect.center().x);
+            }
+            if bones_core::autorig::face::present(&editor.rig.skeleton).len() >= 2 {
+                let expr = widgets::bar_tool(
+                    ui,
+                    Icon::Face,
+                    open == Some(Popover::Expressions),
+                    "Facial expressions",
+                );
+                if expr.clicked() {
+                    state.toggle(Popover::Expressions, expr.rect.center().x);
                 }
             }
         }
