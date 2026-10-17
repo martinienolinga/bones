@@ -26,9 +26,20 @@ avant d'exporter le résultat vers Blender, Unity, Unreal ou Godot. Le moteur de
   nombre d'os de cou (1 à 3), doigts à trois phalanges, orteils.
 - **Membres IK/FK** (bras et jambes) : IK analytique à deux os avec vecteur de pôle, bascule IK ⇄ FK
   avec recalage (« snap ») sur la pose courante, conservation de l'orientation de la main ou du pied.
-- **Édition du squelette** : ajout d'os par glisser (extrusion depuis l'os sélectionné), déplacement
-  de la queue d'un os (les enfants connectés suivent), suppression (les enfants sont rattachés au
-  parent), renommage, **symétrisation** gauche → droite ou droite → gauche.
+- **Édition complète du squelette** (mode Édition), avec annulation :
+  - ajouter un os par glisser (extrusion depuis l'os sélectionné ou nouvel os racine) ;
+  - outils **Ajuster** (pointe), **Base**, **Déplacer** (os entier), **Rouler** (roulis autour de
+    l'axe de l'os) et **Parent** (toucher l'enfant puis le nouveau parent ; toucher le vide le rend
+    racine) — une articulation connectée bouge d'un seul tenant, comme dans Blender ;
+  - réaffecter le parent sans bouger les os (boucles refusées, hiérarchie réordonnée, pose,
+    animation, poids, membres et épingles remappés), connecter / déconnecter ;
+  - dupliquer (avec ou sans les enfants, côté `.l` / `.r` conservé), subdiviser en 2 à 8 os,
+    inverser, aligner sur X / Y / Z, supprimer (les enfants remontent au parent) ou supprimer avec
+    les enfants, renommer ;
+  - saisie numérique de la tête, de la queue, de la longueur et du roulis ;
+  - os **non déformants** (os de contrôle), exclus des poids automatiques ;
+  - **édition en miroir X** (comme l'option *X-Axis Mirror* de Blender) et **symétrisation**
+    gauche → droite ou droite → gauche.
 
 ### Skinning
 
@@ -235,6 +246,11 @@ Ce qui **n'est pas encore** fait :
 - Sélecteur de documents de l'app Fichiers (UIDocumentPicker) et ouverture « sur place ».
 - Icônes, captures et métadonnées pour l'App Store.
 - Localisation anglaise.
+
+## Langue
+
+L'interface est pour l'instant en **anglais**. La documentation et les commentaires du code sont en
+français.
 
 ## Licence
 
