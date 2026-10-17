@@ -37,28 +37,48 @@ impl LineVertex {
     }
 }
 
+/// Affichage des poids d'un os en carte de chaleur, comme le mode Weight
+/// Paint de Blender : bleu (0) → cyan → vert → jaune → rouge (1).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct WeightView {
+    /// Os dont on affiche les poids ; `None` : carte entièrement à zéro.
+    pub bone: Option<u32>,
+    /// Sommets sans poids pour cet os en noir (« Zero Weights »), sinon bleus.
+    pub zero_black: bool,
+    /// Arêtes du maillage par-dessus (si le GPU sait tracer en fil de fer).
+    pub wire: bool,
+}
+
+/// Indice d'os qui ne correspond à aucun joint : carte à zéro partout.
+const NO_BONE: f32 = 1.0e9;
+
 /// Uniformes partagés par tous les shaders (voir `Globals` en WGSL).
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub(crate) struct Globals {
     pub view_proj: [[f32; 4]; 4],
     pub eye: [f32; 4],
-    /// x : os en carte de poids (-1 : aucun), y : nombre de joints,
+    /// x : os en carte de poids (-1 : pas de carte), y : nombre de joints,
     /// z : opacité du maillage, w : matériaux et textures affichés.
     pub params: [f32; 4],
+    /// x : poids nuls en noir ; y, z, w : réservés.
+    pub paint: [f32; 4],
 }
 
 impl Globals {
     pub fn from_scene(scene: &Scene) -> Self {
+        let heat = scene.weights.map_or(-1.0, |w| w.bone.map_or(NO_BONE, |b| b as f32));
+        let zero_black = scene.weights.is_some_and(|w| w.zero_black);
         Self {
             view_proj: scene.view_proj.to_cols_array_2d(),
             eye: scene.eye.extend(1.0).to_array(),
             params: [
-                scene.weight_bone.map(|b| b as f32).unwrap_or(-1.0),
+                heat,
                 scene.joints.len() as f32,
                 1.0,
                 f32::from(u8::from(scene.textured)),
             ],
+            paint: [f32::from(u8::from(zero_black)), 0.0, 0.0, 0.0],
         }
     }
 }
@@ -74,8 +94,8 @@ pub struct Scene<'a> {
     pub show_mesh: bool,
     /// Matériaux et textures du modèle ; sinon rendu « argile » uniforme.
     pub textured: bool,
-    /// Os dont on affiche la carte de poids (prioritaire sur les textures).
-    pub weight_bone: Option<u32>,
+    /// Carte de poids (prioritaire sur les textures).
+    pub weights: Option<WeightView>,
     /// Lignes testées en profondeur (grille).
     pub lines: &'a [LineVertex],
     /// Os, fantômes et poignées, dessinés par-dessus le maillage.
@@ -92,6 +112,6 @@ mod tests {
     fn layouts_match_shaders() {
         assert_eq!(std::mem::size_of::<BoneInstance>(), 80);
         assert_eq!(std::mem::size_of::<LineVertex>(), 28);
-        assert_eq!(std::mem::size_of::<Globals>(), 96);
+        assert_eq!(std::mem::size_of::<Globals>(), 112);
     }
 }

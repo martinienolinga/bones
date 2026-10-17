@@ -1,22 +1,17 @@
 # Travaux en cours (mis en pause)
 
-Les travaux ont été mis en pause à la demande de l'utilisateur. Tout ce qui était terminé et
-vérifié est commité normalement. Le travail inachevé de quatre agents, qui ne passe pas encore
-les vérifications (format, clippy, tests), est sauvegardé dans `travaux-en-cours.patch`, pour ne
-pas casser la CI.
+Les travaux ont été mis en pause à la demande de l'utilisateur, et tout a été commité tel
+quel à sa demande, terminé ou non. Le travail inachevé de quatre agents est donc dans le
+code : il peut ne pas passer les vérifications (format, clippy, tests) ni la CI.
 
 ## Reprendre
 
-```sh
-git apply --index wip/travaux-en-cours.patch   # restaure le travail en cours
-git rm -r wip                                   # une fois le patch appliqué
-```
-
-Puis terminer chaque chantier et vérifier : `cargo fmt --all --check`,
+Terminer chaque chantier ci-dessous, puis vérifier : `cargo fmt --all --check`,
 `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`,
-`cargo check -p bones-app --target aarch64-apple-ios`.
+`cargo check -p bones-app --target aarch64-apple-ios`. Supprimer ce dossier `wip/` quand
+tout est vert.
 
-## Contenu du patch (106 fichiers)
+## Chantiers inachevés (106 fichiers)
 
 1. **Moteur de presets d'animation** (`crates/bones-core/src/presets/**`, `editor/presets.rs`,
    parties animation de `io/`) : bibliothèque procédurale (humain, animaux, végétation, divers),

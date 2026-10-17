@@ -1,14 +1,21 @@
 //! Lecteur positionnel d'un fichier partagé entre plusieurs fils : chacun a
 //! sa propre position et lit le même fichier ouvert, même si un
-//! enregistrement le remplace entre-temps sur le disque.
+//! enregistrement le remplace entre-temps sur le disque. Le contenu peut
+//! aussi être déjà en mémoire (projet embarqué dans l'application).
 
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
 use std::sync::Arc;
 
 #[derive(Clone)]
+enum Source {
+    File(Arc<File>),
+    Memory(Arc<[u8]>),
+}
+
+#[derive(Clone)]
 pub(super) struct SharedFile {
-    file: Arc<File>,
+    source: Source,
     len: u64,
     pos: u64,
 }
@@ -17,16 +24,33 @@ impl SharedFile {
     pub fn new(file: File) -> io::Result<Self> {
         let len = file.metadata()?.len();
         Ok(Self {
-            file: Arc::new(file),
+            source: Source::File(Arc::new(file)),
             len,
             pos: 0,
         })
+    }
+
+    /// Contenu déjà en mémoire, partagé sans copie entre les clones.
+    pub fn memory(bytes: Arc<[u8]>) -> Self {
+        Self {
+            len: bytes.len() as u64,
+            source: Source::Memory(bytes),
+            pos: 0,
+        }
     }
 }
 
 impl Read for SharedFile {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let n = read_at(&self.file, buf, self.pos)?;
+        let n = match &self.source {
+            Source::File(file) => read_at(file, buf, self.pos)?,
+            Source::Memory(bytes) => {
+                let start = usize::try_from(self.pos).map_or(bytes.len(), |p| p.min(bytes.len()));
+                let n = buf.len().min(bytes.len() - start);
+                buf[..n].copy_from_slice(&bytes[start..start + n]);
+                n
+            }
+        };
         self.pos += n as u64;
         Ok(n)
     }

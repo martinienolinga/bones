@@ -1,5 +1,6 @@
 use glam::Vec3;
 
+use super::sanity;
 use super::surface::Surface;
 use crate::autorig::{AutoRigOptions, Layout, build, fit_layout, generate_fitted};
 use crate::skinning::distance_to_segment;
@@ -92,4 +93,54 @@ fn fitting_the_t_pose_demo_keeps_a_valid_rig() {
     assert_eq!(skeleton.len(), demo.skeleton.len());
     assert!(limbs.iter().all(|l| l.is_valid(&skeleton)));
     assert!(skeleton.rest_world().iter().all(|t| t.translation.is_finite()));
+}
+
+#[test]
+fn unrecognized_parts_keep_the_generic_layout() {
+    // Une « pilule » sans bras ni jambes : seul le tronc peut être recentré.
+    let blob = Mesh::capsule(Vec3::new(0.0, 0.3, 0.0), Vec3::new(0.0, 1.5, 0.0), 0.3, 24, 24);
+    let markers = Markers::guess(&blob).unwrap();
+    let generic = Layout::from_markers(&markers, &AutoRigOptions::default());
+    let mut fitted = generic.clone();
+    fit_layout(&mut fitted, &blob);
+    let mut expected = generic.clone();
+    expected.restore_torso(&fitted);
+    assert_eq!(fitted, expected);
+
+    // Sans ajustement demandé : exactement les marqueurs.
+    let options = AutoRigOptions {
+        fit_to_mesh: false,
+        ..Default::default()
+    };
+    let demo = Rig::demo();
+    let markers = Markers::guess(&demo.mesh).unwrap();
+    let plain = crate::autorig::generate(&markers, &options).0;
+    let same = generate_fitted(&markers, &options, &demo.mesh).0;
+    assert_eq!(plain.rest_world(), same.rest_world());
+}
+
+#[test]
+fn implausible_fits_are_rejected() {
+    let mesh = a_pose();
+    let markers = Markers::guess(&mesh).unwrap();
+    let generic = Layout::from_markers(&markers, &AutoRigOptions::default());
+    let mut fitted = generic.clone();
+    fit_layout(&mut fitted, &mesh);
+    assert!(sanity::arm_ok(&fitted, &generic) && sanity::leg_ok(&fitted, &generic));
+
+    let mut bad = fitted.clone();
+    bad.elbow = bad.wrist + (bad.wrist - bad.shoulder);
+    assert!(!sanity::arm_ok(&bad, &generic));
+    let mut bad = fitted.clone();
+    bad.wrist.x = -bad.wrist.x;
+    assert!(!sanity::arm_ok(&bad, &generic));
+    let mut bad = fitted.clone();
+    bad.knee.y = bad.hip.y + 0.1;
+    assert!(!sanity::leg_ok(&bad, &generic));
+    let mut bad = fitted.clone();
+    bad.ankle = Vec3::splat(f32::NAN);
+    assert!(!sanity::leg_ok(&bad, &generic));
+    let mut bad = fitted;
+    bad.fingers[1][3] = bad.fingers[1][2];
+    assert!(!sanity::hand_ok(&bad));
 }

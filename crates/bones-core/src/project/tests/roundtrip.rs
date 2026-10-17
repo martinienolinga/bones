@@ -5,7 +5,7 @@ use std::sync::Arc;
 use serde_json::Value;
 
 use super::super::state::EditorState;
-use super::super::{ProjectSnapshot, decode_thumbnail, encode_thumbnail, load, read_info};
+use super::super::{ProjectSnapshot, decode_thumbnail, encode_thumbnail, load, load_bytes, read_info};
 use super::{TempDir, edit_document, full_editor, save, thumbnail};
 use crate::editor::Mode;
 use crate::{Editor, Mesh, Rig};
@@ -61,6 +61,19 @@ fn full_project_round_trips_every_field() {
     let reopened = loaded.snapshot.into_editor();
     assert_eq!(EditorState::capture(&reopened), state);
     assert_eq!(serde_json::to_value(&reopened.rig).unwrap(), rig_json);
+}
+
+#[test]
+fn project_loads_from_memory_like_from_disk() {
+    let dir = TempDir::new("memory");
+    let path = save(&full_editor(), &dir, "On disk");
+    let from_disk = load(&path).unwrap();
+    let from_memory = load_bytes(&std::fs::read(&path).unwrap(), "Embedded").unwrap();
+    assert_eq!(from_memory.info.name, "Embedded");
+    let json = |p: &ProjectSnapshot| serde_json::to_value(&p.rig).unwrap();
+    assert_eq!(json(&from_memory.snapshot), json(&from_disk.snapshot));
+    assert_eq!(from_memory.snapshot.state, from_disk.snapshot.state);
+    assert!(load_bytes(b"not a project", "Junk").is_err());
 }
 
 #[test]

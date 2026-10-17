@@ -3,10 +3,10 @@ use std::sync::OnceLock;
 use glam::{Quat, Vec3};
 
 use super::*;
-use crate::Rig;
+use crate::autorig::{self, AutoRigOptions};
+use crate::{Markers, Rig};
 
-/// Le mannequin n'est construit qu'une fois pour tous les tests (liaison
-/// par diffusion de chaleur : quelques secondes en debug).
+/// Mannequin embarqué, lu une fois pour tous les tests.
 fn rig() -> &'static Rig {
     static RIG: OnceLock<Rig> = OnceLock::new();
     RIG.get_or_init(mannequin)
@@ -73,7 +73,8 @@ fn joints_sit_where_the_body_bends() {
     // Hauteurs humaines plausibles pour 1,75 m.
     assert!((1.35..1.48).contains(&shoulder.y), "épaule {shoulder}");
     assert!((1.05..1.2).contains(&elbow.y), "coude {elbow}");
-    assert!((0.85..0.97).contains(&wrist.y), "poignet {wrist}");
+    // Poignet au plus étroit de l'avant-bras (le générique serait vers 0,945).
+    assert!((0.85..0.935).contains(&wrist.y), "poignet {wrist}");
     assert!(
         (0.82..0.95).contains(&hip.y) && (0.06..0.13).contains(&hip.x),
         "hanche {hip}"
@@ -136,4 +137,49 @@ fn posed_arm_moves_the_arm_but_not_the_legs() {
     assert!(arm_moves.iter().all(|d| *d > 0.05), "bras immobile");
     assert!(leg_moves.iter().all(|d| *d < 1e-4), "jambes déplacées");
     assert!(other_arm.iter().all(|d| *d < 1e-4), "bras droit déplacé");
+}
+
+#[test]
+fn embedded_project_is_small_and_complete() {
+    assert!(MANNEQUIN_KBRIG.len() < 2 * 1024 * 1024, "{} octets", MANNEQUIN_KBRIG.len());
+    let rig = load_mannequin(MANNEQUIN_KBRIG).unwrap();
+    assert_eq!(rig.mesh.vertex_count(), mannequin_mesh().vertex_count());
+    assert_eq!(rig.mesh.triangle_count(), mannequin_mesh().triangle_count());
+    assert_eq!(rig.skin.weights.len(), rig.mesh.vertex_count());
+    assert_eq!((rig.skeleton.len(), rig.limbs.len()), (52, 4));
+    assert!(!rig.needs_bind());
+    assert!(load_mannequin(&MANNEQUIN_KBRIG[..100]).is_err());
+}
+
+/// Le projet embarqué correspond à l'auto-rig actuel (squelette recalculé
+/// sans les poids, rapide). En cas d'échec, le régénérer : voir
+/// [`rebuild_embedded_mannequin`].
+#[test]
+fn embedded_project_matches_the_current_autorig() {
+    let mesh = mannequin_mesh();
+    let markers = Markers::guess(&mesh).unwrap();
+    let (fresh, limbs) = autorig::generate_fitted(&markers, &AutoRigOptions::default(), &mesh);
+    let baked = &rig().skeleton;
+    let stale = "mannequin.kbrig périmé : cargo test -p bones-core --lib \
+                 samples::tests::rebuild_embedded_mannequin -- --ignored";
+    assert_eq!(fresh.len(), baked.len(), "{stale}");
+    for (id, bone) in fresh.ids().zip(fresh.bones()) {
+        let other = baked.find(&bone.name).expect(stale);
+        let (a, b) = (fresh.rest_head_tail(id), baked.rest_head_tail(other));
+        assert!(a.0.abs_diff_eq(b.0, 1e-4) && a.1.abs_diff_eq(b.1, 1e-4), "{} : {stale}", bone.name);
+    }
+    let names = |l: &[crate::Limb]| l.iter().map(|l| l.name.clone()).collect::<Vec<_>>();
+    assert_eq!(names(&limbs), names(&rig().limbs), "{stale}");
+}
+
+/// Régénère `assets/mannequin/mannequin.kbrig` (maillage, squelette, poids)
+/// après une modification du maillage, de l'auto-rig ou des poids :
+/// `cargo test -p bones-core --lib samples::tests::rebuild_embedded_mannequin -- --ignored`
+#[test]
+#[ignore]
+fn rebuild_embedded_mannequin() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/mannequin/mannequin.kbrig");
+    let info = bake_mannequin(&path).unwrap();
+    let size = std::fs::metadata(&path).unwrap().len();
+    println!("{} : {size} octets, {} os, {} sommets", path.display(), info.bones, info.vertices);
 }

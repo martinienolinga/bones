@@ -49,6 +49,7 @@ impl Editor {
             Mode::Pose => self.pose_down(pos, vp, radius),
             Mode::Edit => self.edit_down(pos, vp, radius),
             Mode::AutoRig => self.marker_down(pos, vp, radius),
+            Mode::WeightPaint => self.paint_down(pos, vp, radius),
         }
     }
 

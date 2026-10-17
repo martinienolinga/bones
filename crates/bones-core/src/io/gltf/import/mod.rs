@@ -8,6 +8,7 @@
 //! diffère de la pose de liaison.
 
 mod anim;
+mod clips;
 mod mesh;
 
 use std::path::Path;
@@ -15,6 +16,8 @@ use std::sync::Arc;
 
 use base64::Engine;
 use glam::Mat4;
+
+pub(crate) use clips::animations;
 
 use crate::Rig;
 use crate::io::rigging::{Joint, assemble, build_skeleton, weights_from_joints};

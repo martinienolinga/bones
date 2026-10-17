@@ -28,6 +28,9 @@ pub(crate) struct Pipelines {
     pub line: wgpu::RenderPipeline,
     /// Lignes toujours visibles (trajectoires, repères).
     pub overlay_line: wgpu::RenderPipeline,
+    /// Arêtes du maillage (fil de fer) : seulement si le GPU sait tracer
+    /// les triangles en lignes (`POLYGON_MODE_LINE`).
+    pub wire: Option<wgpu::RenderPipeline>,
 }
 
 /// Paramètres variables d'un pipeline.
@@ -42,6 +45,8 @@ struct Spec<'a> {
     blend: Option<wgpu::BlendState>,
     depth_write: bool,
     depth_compare: wgpu::CompareFunction,
+    /// Triangles tracés en lignes, rapprochés de la caméra (fil de fer).
+    wire: bool,
 }
 
 impl Pipelines {
@@ -77,6 +82,11 @@ impl Pipelines {
                 primitive: wgpu::PrimitiveState {
                     topology: s.topology,
                     cull_mode: s.cull,
+                    polygon_mode: if s.wire {
+                        wgpu::PolygonMode::Line
+                    } else {
+                        wgpu::PolygonMode::Fill
+                    },
                     ..Default::default()
                 },
                 depth_stencil: Some(wgpu::DepthStencilState {
@@ -84,7 +94,15 @@ impl Pipelines {
                     depth_write_enabled: Some(s.depth_write),
                     depth_compare: Some(s.depth_compare),
                     stencil: wgpu::StencilState::default(),
-                    bias: wgpu::DepthBiasState::default(),
+                    bias: if s.wire {
+                        wgpu::DepthBiasState {
+                            constant: -4,
+                            slope_scale: -1.0,
+                            clamp: 0.0,
+                        }
+                    } else {
+                        wgpu::DepthBiasState::default()
+                    },
                 }),
                 multisample: wgpu::MultisampleState {
                     count: samples,
@@ -122,6 +140,7 @@ impl Pipelines {
             blend,
             depth_write: false,
             depth_compare,
+            wire: false,
         };
 
         Self {
@@ -136,6 +155,7 @@ impl Pipelines {
                 blend: None,
                 depth_write: true,
                 depth_compare: wgpu::CompareFunction::Less,
+                wire: false,
             }),
             bone: create(Spec {
                 label: "bones",
@@ -148,9 +168,28 @@ impl Pipelines {
                 blend,
                 depth_write: true,
                 depth_compare: wgpu::CompareFunction::Less,
+                wire: false,
             }),
             line: create(line("lines", wgpu::CompareFunction::LessEqual)),
             overlay_line: create(line("overlay-lines", wgpu::CompareFunction::Always)),
+            wire: device
+                .features()
+                .contains(wgpu::Features::POLYGON_MODE_LINE)
+                .then(|| {
+                    create(Spec {
+                        label: "wire",
+                        layout: &mesh_layout,
+                        vs: "vs_mesh",
+                        fs: "fs_wire",
+                        buffers: &mesh_buffers(),
+                        topology: wgpu::PrimitiveTopology::TriangleList,
+                        cull: None,
+                        blend,
+                        depth_write: false,
+                        depth_compare: wgpu::CompareFunction::LessEqual,
+                        wire: true,
+                    })
+                }),
             bind_layout,
             material_layout,
         }
@@ -168,7 +207,7 @@ mod tests {
         )
         .validate(&module)
         .expect("validation naga");
-        for entry in ["vs_mesh", "fs_mesh", "vs_bone", "fs_bone", "vs_line", "fs_line"] {
+        for entry in ["vs_mesh", "fs_mesh", "fs_wire", "vs_bone", "fs_bone", "vs_line", "fs_line"] {
             assert!(
                 module.entry_points.iter().any(|e| e.name == entry),
                 "{entry} manquant"

@@ -73,7 +73,7 @@ fn magenta_pixels(mesh: &Mesh, textured: bool) -> Option<usize> {
         joints: &[],
         show_mesh: true,
         textured,
-        weight_bone: None,
+        weights: None,
         lines: &[],
         bones: &[],
         overlay_lines: &[],

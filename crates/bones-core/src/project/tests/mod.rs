@@ -174,6 +174,7 @@ pub(super) fn full_editor() -> Editor {
         neck_count: 2,
         fingers: false,
         toes: false,
+        fit_to_mesh: false,
     };
     e.mirror_edit = true;
     e.manipulator = ManipulatorSettings {

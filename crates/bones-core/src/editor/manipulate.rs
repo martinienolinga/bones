@@ -57,7 +57,7 @@ impl Editor {
             Mode::Pose => self.pose_tool != PoseTool::Pin,
             // Les outils d'édition directe (tête, os, roulis…) gardent la main.
             Mode::Edit => self.edit_tool == EditTool::Select,
-            Mode::AutoRig => false,
+            Mode::AutoRig | Mode::WeightPaint => false,
         };
         if !tool_ok {
             return None;

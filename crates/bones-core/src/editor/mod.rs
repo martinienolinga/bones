@@ -11,6 +11,7 @@ mod manip_apply;
 mod manipulate;
 mod pointer;
 mod pose_ops;
+mod presets;
 mod rig_ops;
 #[cfg(test)]
 mod tests;
@@ -20,6 +21,7 @@ mod tests_bones;
 mod tests_manip;
 mod timeline;
 mod view;
+mod weight_paint;
 
 pub use bone_info::BoneInfo;
 pub use rig_ops::BindJob;
@@ -41,6 +43,8 @@ pub enum Mode {
     Edit,
     /// Marqueurs du rigging assisté (Auto-Rig Pro « Smart »).
     AutoRig,
+    /// Peinture des poids de l'os sélectionné (« Weight Paint » de Blender).
+    WeightPaint,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -132,6 +136,10 @@ pub struct Editor {
     /// Échelle de l'interface (pixels physiques par point), réglée par
     /// l'application : taille du manipulateur à l'écran.
     pub pixels_per_point: f32,
+    /// Réglages du mode « Weight Paint » (pinceau, symétrie, normalisation).
+    pub weight_paint: crate::WeightPaintSettings,
+    /// Caches et trait en cours de la peinture de poids.
+    paint: crate::weight_paint::PaintState,
     /// Outil « Parent » : enfant choisi, en attente de son nouveau parent.
     reparent_child: Option<BoneId>,
     /// Dernière retouche numérique (os, propriété) : les réglages continus
@@ -175,6 +183,8 @@ impl Editor {
             mirror_edit: false,
             manipulator: ManipulatorSettings::default(),
             pixels_per_point: 1.0,
+            weight_paint: Default::default(),
+            paint: Default::default(),
             reparent_child: None,
             coalesce: None,
             undo: Vec::new(),

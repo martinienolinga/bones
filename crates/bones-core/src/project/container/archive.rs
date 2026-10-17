@@ -38,7 +38,15 @@ pub(crate) struct Archive {
 
 impl Archive {
     pub fn open(path: &Path) -> Result<Self, ProjectError> {
-        let file = SharedFile::new(File::open(path)?)?;
+        Self::with_source(SharedFile::new(File::open(path)?)?)
+    }
+
+    /// Conteneur déjà en mémoire (projet embarqué dans l'application).
+    pub fn from_bytes(bytes: Arc<[u8]>) -> Result<Self, ProjectError> {
+        Self::with_source(SharedFile::memory(bytes))
+    }
+
+    fn with_source(file: SharedFile) -> Result<Self, ProjectError> {
         // Conteneur toujours au début du fichier : la recherche (coûteuse)
         // d'un décalage éventuel est inutile.
         let config = Config {

@@ -7,6 +7,7 @@
 //! tangentes de courbes (interpolation linéaire entre clés).
 
 mod anim;
+mod clips;
 mod document;
 mod geometry;
 mod material;
@@ -20,6 +21,7 @@ use std::path::Path;
 use fbxcel::tree::any::AnyTree;
 use glam::{DMat3, DMat4, DVec3};
 
+pub(crate) use clips::animations;
 use document::Document;
 use models::Models;
 

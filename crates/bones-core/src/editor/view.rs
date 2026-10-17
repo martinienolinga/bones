@@ -11,14 +11,15 @@ impl Editor {
     /// Transformations monde des os telles qu'affichées.
     pub fn display_world(&self) -> Vec<Transform> {
         match self.mode {
-            Mode::Pose => self.rig.world(),
+            // La peinture de poids se fait sur le maillage posé, comme dans Blender.
+            Mode::Pose | Mode::WeightPaint => self.rig.world(),
             Mode::Edit | Mode::AutoRig => self.rig.skeleton.rest_world(),
         }
     }
 
     pub fn skinning_matrices(&self) -> Vec<glam::Mat4> {
         match self.mode {
-            Mode::Pose => self.rig.skinning_matrices(),
+            Mode::Pose | Mode::WeightPaint => self.rig.skinning_matrices(),
             Mode::Edit | Mode::AutoRig => vec![glam::Mat4::IDENTITY; self.rig.skeleton.len()],
         }
     }
@@ -99,7 +100,7 @@ impl Editor {
                     }
                 }
             }
-            Mode::Edit => {}
+            Mode::Edit | Mode::WeightPaint => {}
         }
         out
     }

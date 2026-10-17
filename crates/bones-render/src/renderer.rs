@@ -20,6 +20,8 @@ pub(crate) struct Frame {
     pub lines: u32,
     pub overlay_lines: u32,
     pub show_mesh: bool,
+    /// Arêtes du maillage par-dessus la carte de poids.
+    pub wire: bool,
     pub viewport: [f32; 4],
     pub background: [f64; 3],
 }
@@ -145,6 +147,7 @@ impl Renderer {
             lines: scene.lines.len() as u32,
             overlay_lines: scene.overlay_lines.len() as u32,
             show_mesh: scene.show_mesh,
+            wire: scene.weights.is_some_and(|w| w.wire),
             viewport: scene.viewport,
             background: scene.background,
         };

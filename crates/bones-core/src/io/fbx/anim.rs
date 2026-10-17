@@ -70,6 +70,7 @@ fn curve(o: &super::document::Object) -> Option<Curve> {
     Some(Curve { times, values })
 }
 
+/// Animation de la première pile (import d'un modèle).
 pub(super) fn sample(
     doc: &Document,
     models: &Models,
@@ -80,7 +81,38 @@ pub(super) fn sample(
 ) -> Option<Clip> {
     let mut stacks: Vec<_> = doc.of_class("AnimationStack").collect();
     stacks.sort_by_key(|s| s.id);
-    let stack = stacks.first()?;
+    sample_stack(doc, models, rigging, axis, fps, built, stacks.first()?)
+}
+
+/// Toutes les piles d'animation (prises Maya, clips Mixamo…) avec leur nom.
+pub(super) fn sample_all(
+    doc: &Document,
+    models: &Models,
+    rigging: &Rigging,
+    axis: glam::DMat4,
+    fps: f32,
+    built: &BuiltSkeleton,
+) -> Vec<(String, Clip)> {
+    let mut stacks: Vec<_> = doc.of_class("AnimationStack").collect();
+    stacks.sort_by_key(|s| s.id);
+    stacks
+        .into_iter()
+        .filter_map(|stack| {
+            let name = stack.name.rsplit("::").next().unwrap_or(&stack.name).to_owned();
+            sample_stack(doc, models, rigging, axis, fps, built, stack).map(|c| (name, c))
+        })
+        .collect()
+}
+
+fn sample_stack(
+    doc: &Document,
+    models: &Models,
+    rigging: &Rigging,
+    axis: glam::DMat4,
+    fps: f32,
+    built: &BuiltSkeleton,
+    stack: &super::document::Object,
+) -> Option<Clip> {
     let layer = doc.children_of(stack.id, "AnimationLayer").into_iter().next()?;
 
     let mut tracks: HashMap<i64, Tracks> = HashMap::new();

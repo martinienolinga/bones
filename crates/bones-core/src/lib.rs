@@ -22,7 +22,10 @@
 //! - [`project`] : projets `.kbrig` (un fichier compressé par projet, galerie) ;
 //! - [`manipulator`] : manipulateurs 3D (translation, rotation, échelle) ;
 //! - [`editor`] : état de l'éditeur et gestes, indépendants de la plateforme ;
-//! - [`samples`] : modèles d'exemple embarqués (mannequin par défaut).
+//! - [`presets`] : galeries de préréglages d'animation (procéduraux,
+//!   utilisateur, importés), reciblage et fichiers `.kb3da` ;
+//! - [`samples`] : modèles d'exemple embarqués (mannequin par défaut) ;
+//! - [`weight_paint`] : peinture de poids (mode « Weight Paint » de Blender).
 
 pub mod anim;
 pub mod autorig;
@@ -32,10 +35,12 @@ pub mod io;
 pub mod manipulator;
 pub mod math;
 pub mod mesh;
+pub mod presets;
 pub mod project;
 pub mod rig;
 pub mod samples;
 pub mod skinning;
+pub mod weight_paint;
 
 pub use glam;
 
@@ -51,3 +56,4 @@ pub use mesh::{Material, Mesh, Submesh, Texture};
 pub use rig::mirror::{Side, mirror_name, side_of};
 pub use rig::{Bone, BoneId, BoneRemap, Pose, Revisions, Rig, Skeleton, head_tail, next_revision};
 pub use skinning::{BindMethod, Skin, VertexWeights};
+pub use weight_paint::{WeightPaintSettings, WeightsTool};

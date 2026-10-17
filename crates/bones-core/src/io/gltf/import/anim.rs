@@ -70,11 +70,7 @@ impl Track {
     }
 }
 
-fn tracks(doc: &gltf::Document, buffers: &[Arc<[u8]>]) -> Vec<Track> {
-    // Animation la plus longue en nombre de canaux.
-    let Some(animation) = doc.animations().max_by_key(|a| a.channels().count()) else {
-        return Vec::new();
-    };
+fn tracks(animation: &gltf::Animation, buffers: &[Arc<[u8]>]) -> Vec<Track> {
     animation
         .channels()
         .filter_map(|channel| {
@@ -104,6 +100,7 @@ fn tracks(doc: &gltf::Document, buffers: &[Arc<[u8]>]) -> Vec<Track> {
         .collect()
 }
 
+/// Animation la plus riche (import d'un modèle).
 pub(super) fn sample(
     doc: &gltf::Document,
     buffers: &[Arc<[u8]>],
@@ -111,7 +108,35 @@ pub(super) fn sample(
     joint_nodes: &[usize],
     built: &BuiltSkeleton,
 ) -> Option<Clip> {
-    let tracks = tracks(doc, buffers);
+    let animation = doc.animations().max_by_key(|a| a.channels().count())?;
+    sample_one(&animation, doc, buffers, scene, joint_nodes, built)
+}
+
+/// Toutes les animations du fichier, avec leur nom.
+pub(super) fn sample_all(
+    doc: &gltf::Document,
+    buffers: &[Arc<[u8]>],
+    scene: &Scene,
+    joint_nodes: &[usize],
+    built: &BuiltSkeleton,
+) -> Vec<(String, Clip)> {
+    doc.animations()
+        .filter_map(|a| {
+            let name = a.name().map_or_else(|| format!("Animation {}", a.index() + 1), str::to_owned);
+            sample_one(&a, doc, buffers, scene, joint_nodes, built).map(|c| (name, c))
+        })
+        .collect()
+}
+
+fn sample_one(
+    animation: &gltf::Animation,
+    doc: &gltf::Document,
+    buffers: &[Arc<[u8]>],
+    scene: &Scene,
+    joint_nodes: &[usize],
+    built: &BuiltSkeleton,
+) -> Option<Clip> {
+    let tracks = tracks(animation, buffers);
     if tracks.is_empty() {
         return None;
     }

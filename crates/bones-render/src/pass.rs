@@ -83,6 +83,14 @@ impl Renderer {
                 pass.set_bind_group(1, materials.group(ctx, *material), &[]);
                 pass.draw_indexed(range.clone(), 0, 0..1);
             }
+            // Fil de fer par-dessus la carte de poids (mêmes sommets skinnés).
+            if f.wire
+                && let Some(wire) = &self.pipelines.wire
+            {
+                let end = materials.parts.iter().map(|(r, _)| r.end).max().unwrap_or(0);
+                pass.set_pipeline(wire);
+                pass.draw_indexed(0..end, 0, 0..1);
+            }
         }
         if f.lines > 0 {
             pass.set_pipeline(&self.pipelines.line);

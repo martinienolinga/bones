@@ -67,7 +67,7 @@ impl ThumbnailScene {
             joints: &self.joints,
             show_mesh: has_mesh,
             textured: editor.view.textures,
-            weight_bone: None,
+            weights: None,
             lines: &[],
             bones: &self.bones,
             overlay_lines: &[],

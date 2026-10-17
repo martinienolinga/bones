@@ -62,7 +62,13 @@ impl SceneBuilder {
             joints: &self.joints,
             show_mesh: editor.view.mesh,
             textured: editor.view.textures,
-            weight_bone: editor.selected.filter(|_| editor.view.weights).map(|b| b.0),
+            weights: editor
+                .selected
+                .filter(|_| editor.view.weights)
+                .map(|b| bones_render::WeightView {
+                    bone: Some(b.0),
+                    ..Default::default()
+                }),
             lines: &self.lines,
             bones: &self.bones,
             overlay_lines: &self.overlay,

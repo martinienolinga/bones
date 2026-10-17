@@ -17,7 +17,7 @@ use std::sync::Arc;
 use glam::Mat4;
 use serde_json::{Value, json};
 
-pub(crate) use import::import;
+pub(crate) use import::{animations, import};
 
 use crate::io::{IoError, safe_file_name};
 use crate::{BoneId, Rig, Transform};

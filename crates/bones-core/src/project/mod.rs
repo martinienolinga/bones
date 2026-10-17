@@ -82,6 +82,12 @@ pub fn load(path: &Path) -> Result<LoadedProject, ProjectError> {
     read::load(path)
 }
 
+/// Ouvre un projet déjà en mémoire (projet d'exemple embarqué dans
+/// l'application) ; `name` tient lieu de nom de fichier.
+pub fn load_bytes(bytes: &[u8], name: &str) -> Result<LoadedProject, ProjectError> {
+    read::load_bytes(bytes, name)
+}
+
 /// Lecture rapide : manifeste + vignette encodée, sans décompresser le reste.
 pub fn read_info(path: &Path) -> Result<(ProjectInfo, Option<Vec<u8>>), ProjectError> {
     read::read_info(path)

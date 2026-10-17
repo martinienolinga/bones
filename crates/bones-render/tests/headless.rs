@@ -45,7 +45,10 @@ fn renders_demo_rig_with_and_without_msaa() {
         joints: &joints,
         show_mesh: true,
         textured: true,
-        weight_bone: Some(0),
+        weights: Some(bones_render::WeightView {
+            bone: Some(0),
+            ..Default::default()
+        }),
         lines: &lines,
         bones: &bones,
         overlay_lines: &lines,

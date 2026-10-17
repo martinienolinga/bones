@@ -25,6 +25,8 @@ struct MeshOut {
     @location(1) world: vec3<f32>,
     @location(2) heat: f32,
     @location(3) uv: vec2<f32>,
+    // 1 si l'os de la carte influence le sommet (poids non nul).
+    @location(4) referenced: f32,
 };
 
 @vertex
@@ -34,6 +36,7 @@ fn vs_mesh(v: MeshIn) -> MeshOut {
     var skin = mat4x4<f32>(vec4<f32>(0.0), vec4<f32>(0.0), vec4<f32>(0.0), vec4<f32>(0.0));
     var total = 0.0;
     var heat = 0.0;
+    var referenced = 0.0;
     for (var i = 0u; i < 4u; i = i + 1u) {
         let w = v.weights[i];
         let b = v.bones[i];
@@ -42,6 +45,7 @@ fn vs_mesh(v: MeshIn) -> MeshOut {
             total = total + w;
             if (selected >= 0.0 && b == u32(selected)) {
                 heat = heat + w;
+                referenced = 1.0;
             }
         }
     }
@@ -58,6 +62,7 @@ fn vs_mesh(v: MeshIn) -> MeshOut {
     out.world = world.xyz;
     out.heat = heat;
     out.uv = v.uv;
+    out.referenced = referenced;
     return out;
 }
 
@@ -75,8 +80,17 @@ fn fs_mesh(in: MeshOut, @builtin(front_facing) front: bool) -> @location(0) vec4
         base = material.base_color.rgb * mix(vec3<f32>(1.0), texel, material.flags.x);
     }
     if (globals.params.x >= 0.0) {
-        base = mix(vec3<f32>(0.05, 0.08, 0.35), heat_color(in.heat), 0.92);
+        base = to_linear(heat_color(in.heat));
+        if (globals.paint.x > 0.5) {
+            base = base * clamp(in.referenced, 0.0, 1.0);
+        }
     }
     return vec4<f32>(to_srgb(shade(base, n, in.world)), globals.params.z);
+}
+
+// Arêtes du maillage (tracé en fil de fer) sur la carte de poids.
+@fragment
+fn fs_wire() -> @location(0) vec4<f32> {
+    return vec4<f32>(0.0, 0.0, 0.0, 0.32);
 }
 

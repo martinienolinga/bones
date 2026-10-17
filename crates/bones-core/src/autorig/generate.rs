@@ -15,6 +15,13 @@ pub struct AutoRigOptions {
     pub neck_count: u8,
     pub fingers: bool,
     pub toes: bool,
+    /// Recale les articulations sur le volume du maillage ([`generate_fitted`]).
+    #[serde(default = "enabled")]
+    pub fit_to_mesh: bool,
+}
+
+fn enabled() -> bool {
+    true
 }
 
 impl Default for AutoRigOptions {
@@ -24,6 +31,7 @@ impl Default for AutoRigOptions {
             neck_count: 1,
             fingers: true,
             toes: true,
+            fit_to_mesh: true,
         }
     }
 }
@@ -34,11 +42,15 @@ pub fn generate(markers: &Markers, options: &AutoRigOptions) -> (Skeleton, Vec<L
     build(&Layout::from_markers(markers, options), options)
 }
 
-/// Comme [`generate`], puis ajuste les articulations au volume du maillage
-/// (centrage dans les membres, hanches, coudes, genoux, pieds, doigts).
+/// Comme [`generate`], puis, si `options.fit_to_mesh`, ajuste les
+/// articulations au volume du maillage (centrage dans les membres, hanches,
+/// coudes, genoux, pieds, doigts). Une partie mal reconnue garde sa position
+/// générique : le résultat n'est jamais moins bon que celui de [`generate`].
 pub fn generate_fitted(markers: &Markers, options: &AutoRigOptions, mesh: &Mesh) -> (Skeleton, Vec<Limb>) {
     let mut layout = Layout::from_markers(markers, options);
-    super::fit_layout(&mut layout, mesh);
+    if options.fit_to_mesh {
+        super::fit_layout(&mut layout, mesh);
+    }
     build(&layout, options)
 }
 

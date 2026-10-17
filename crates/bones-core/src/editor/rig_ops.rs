@@ -59,7 +59,8 @@ impl Editor {
     pub fn generate_rig(&mut self) {
         let Some(markers) = self.markers else { return };
         self.checkpoint();
-        let (skeleton, limbs) = autorig::generate(&markers, &self.autorig_options);
+        // Recalé sur le maillage si l'option est active (sinon marqueurs seuls).
+        let (skeleton, limbs) = autorig::generate_fitted(&markers, &self.autorig_options, &self.rig.mesh);
         let count = skeleton.len();
         self.rig.set_skeleton(skeleton, limbs);
         self.selected = None;

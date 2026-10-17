@@ -110,6 +110,24 @@ fn autorig_generates_and_binds() {
 }
 
 #[test]
+fn autorig_fits_to_the_mesh_unless_disabled() {
+    let (mut e, _) = front_editor();
+    e.set_mode(Mode::AutoRig);
+    let markers = e.markers.unwrap();
+    let mesh = e.rig.mesh.clone();
+    let rest = |e: &Editor| e.rig.skeleton.rest_world();
+    e.generate_rig();
+    let fitted = crate::autorig::generate_fitted(&markers, &e.autorig_options, &mesh).0;
+    assert_eq!(rest(&e), fitted.rest_world());
+
+    e.set_mode(Mode::AutoRig);
+    e.autorig_options.fit_to_mesh = false;
+    e.generate_rig();
+    let plain = crate::autorig::generate(&markers, &e.autorig_options).0;
+    assert_eq!(rest(&e), plain.rest_world());
+}
+
+#[test]
 fn tapping_a_bone_selects_without_history_entry() {
     let (mut e, vp) = front_editor();
     e.add_key();

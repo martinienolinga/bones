@@ -46,5 +46,5 @@ mod textures;
 pub use blur::{Backdrop, Region};
 pub use geometry::{bone_matrix, handle_matrix};
 pub use renderer::Renderer;
-pub use scene::{BoneInstance, LineVertex, Scene};
+pub use scene::{BoneInstance, LineVertex, Scene, WeightView};
 pub use snapshot::Readback;

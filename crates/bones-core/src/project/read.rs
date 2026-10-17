@@ -22,7 +22,15 @@ pub(super) fn read_info(path: &Path) -> Result<(ProjectInfo, Option<Vec<u8>>), P
 }
 
 pub(super) fn load(path: &Path) -> Result<LoadedProject, ProjectError> {
-    let mut archive = Archive::open(path)?;
+    load_archive(Archive::open(path)?, &project_name(path))
+}
+
+/// Projet complet lu en mémoire ; `name` remplace le nom de fichier.
+pub(super) fn load_bytes(bytes: &[u8], name: &str) -> Result<LoadedProject, ProjectError> {
+    load_archive(Archive::from_bytes(Arc::from(bytes))?, name)
+}
+
+fn load_archive(mut archive: Archive, name: &str) -> Result<LoadedProject, ProjectError> {
     let manifest = read_manifest(&mut archive)?;
     let thumbnail = archive.read(THUMBNAIL, MAX_THUMBNAIL)?;
     let json = archive
@@ -46,7 +54,7 @@ pub(super) fn load(path: &Path) -> Result<LoadedProject, ProjectError> {
         .collect::<Result<Vec<_>, ProjectError>>()?;
 
     let snapshot = assemble(document, arrays, textures)?;
-    let info = snapshot.info(&project_name(path), manifest.created, manifest.modified);
+    let info = snapshot.info(name, manifest.created, manifest.modified);
     Ok(LoadedProject {
         info,
         snapshot,
