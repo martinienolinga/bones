@@ -17,6 +17,20 @@ pub fn section_title(ui: &mut Ui, text: &str) {
     ui.add_space(2.0);
 }
 
+/// Note discrète sous une liste (13 pt gris, retrait de 16 pt).
+pub fn note(ui: &mut Ui, text: &str) {
+    egui::Frame::new()
+        .inner_margin(egui::Margin {
+            left: 16,
+            right: 16,
+            top: 2,
+            bottom: 2,
+        })
+        .show(ui, |ui| {
+            ui.label(egui::RichText::new(text).size(13.0).color(TEXT_DIM));
+        });
+}
+
 /// Ligne touchable : glyphe gris, titre, sous-titre et pastille à droite
 /// (format de fichier…).
 pub fn list_row(

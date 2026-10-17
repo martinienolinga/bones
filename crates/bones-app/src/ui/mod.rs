@@ -8,7 +8,8 @@
 //!   ([`sidebar`]) ;
 //! - bandeau droit : actions et bascules du mode ([`toolbox`]) ;
 //! - en bas : frise d'animation ([`timeline`]) ou panneau d'auto-rig
-//!   ([`autorig_panel`]) ;
+//!   ([`autorig_panel`]), et la barre du manipulateur 3D
+//!   ([`transform_bar`]) ;
 //! - fenêtres contextuelles et studios ([`popovers`]), informations
 //!   ([`overlay`]).
 
@@ -20,6 +21,7 @@ mod sidebar;
 mod timeline;
 mod toolbox;
 mod top;
+mod transform_bar;
 
 use std::path::PathBuf;
 
@@ -69,6 +71,8 @@ pub struct UiState {
     subdivide_parts: usize,
     /// Consigne de l'outil « Parent » (pastille en bas de l'écran).
     hint: Option<String>,
+    /// Barre du manipulateur 3D (fenêtre d'options).
+    transform: transform_bar::BarState,
     rename: String,
     toast: Option<(String, f64)>,
     /// Documents `.bones` et fichiers importables du dossier Documents.
@@ -90,6 +94,7 @@ impl UiState {
             bones_section: 0,
             subdivide_parts: 2,
             hint: None,
+            transform: transform_bar::BarState::default(),
             rename: String::new(),
             toast: None,
             files: None,
@@ -143,24 +148,55 @@ pub fn show(
     let mut actions = Vec::new();
     let mut rects = Vec::new();
     route_status(editor, state);
+    apply_manipulator(editor, state);
     shortcuts::handle(ctx, editor, state);
 
     rects.push(top::show(ctx, editor, state));
     rects.push(sidebar::show(ctx, editor, state));
     rects.push(toolbox::show(ctx, editor, state));
     rects.extend(crate::gizmo::show(ctx, editor, state.settings.gizmo));
+    let mut bottom = ctx.content_rect().bottom() - EDGE;
     match editor.mode {
-        Mode::Pose => rects.push(timeline::show(ctx, editor)),
+        Mode::Pose => {
+            let timeline = timeline::show(ctx, editor);
+            bottom = timeline.top();
+            rects.push(timeline);
+        }
         Mode::AutoRig => rects.push(autorig_panel::show(ctx, editor)),
         Mode::Edit => {}
+    }
+    if transform_bar::available(editor) {
+        rects.extend(transform_bar::show(ctx, editor, state, bottom));
+    } else {
+        state.transform.options = false;
     }
     if let Some(rect) = popovers::show(ctx, editor, state, &mut actions) {
         rects.push(rect);
     }
     rects.extend(overlay::show(ctx, editor, state, viewport, busy));
 
+    store_manipulator(editor, state);
     state.rects = rects;
     actions
+}
+
+/// Les réglages du manipulateur vivent dans les réglages de l'application
+/// (enregistrés) : ils sont appliqués à l'éditeur au début de chaque image…
+fn apply_manipulator(editor: &mut Editor, state: &UiState) {
+    let invert = editor.manipulator.invert_snap;
+    editor.manipulator = state.settings.manipulator;
+    editor.manipulator.invert_snap = invert;
+}
+
+/// … et les changements faits pendant l'image (barre, raccourcis) y sont
+/// recopiés.
+fn store_manipulator(editor: &Editor, state: &mut UiState) {
+    let mut current = editor.manipulator;
+    current.invert_snap = false;
+    if current != state.settings.manipulator {
+        state.settings.manipulator = current;
+        state.settings_dirty = true;
+    }
 }
 
 /// Messages de l'éditeur : ceux de l'outil « Parent » restent affichés en

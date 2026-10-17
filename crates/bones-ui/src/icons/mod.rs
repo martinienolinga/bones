@@ -68,9 +68,14 @@ pub enum Icon {
     Flip,
     XMirror,
     Plus,
+    Scale,
+    Transform,
+    Globe,
+    Local,
+    Magnet,
 }
 
-const ALL: [Icon; 54] = [
+const ALL: [Icon; 59] = [
     Icon::Gallery,
     Icon::Actions,
     Icon::Adjust,
@@ -125,6 +130,11 @@ const ALL: [Icon; 54] = [
     Icon::Flip,
     Icon::XMirror,
     Icon::Plus,
+    Icon::Scale,
+    Icon::Transform,
+    Icon::Globe,
+    Icon::Local,
+    Icon::Magnet,
 ];
 
 /// Toutes les icônes (aperçus, tests).

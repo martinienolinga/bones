@@ -66,5 +66,10 @@ pub fn source(icon: Icon) -> &'static str {
         Icon::Flip => rig::FLIP,
         Icon::XMirror => rig::XMIRROR,
         Icon::Plus => misc::PLUS,
+        Icon::Scale => motion::SCALE,
+        Icon::Transform => motion::TRANSFORM,
+        Icon::Globe => view::GLOBE,
+        Icon::Local => view::LOCAL,
+        Icon::Magnet => misc::MAGNET,
     }
 }

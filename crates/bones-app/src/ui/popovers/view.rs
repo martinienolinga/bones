@@ -30,6 +30,11 @@ pub fn show(ui: &mut egui::Ui, editor: &mut Editor, max_height: f32) {
             widgets::group(ui, |g| {
                 g.switch_row(&mut v.bones, "Bones", Some("X-ray skeleton"));
                 g.switch_row(&mut v.grid, "Ground grid", Some("One-metre reference"));
+                g.switch_row(
+                    &mut editor.manipulator.visible,
+                    "Transform gizmo",
+                    Some("Move, rotate and scale handles"),
+                );
             });
             widgets::section_title(ui, "Motion");
             widgets::group(ui, |g| {

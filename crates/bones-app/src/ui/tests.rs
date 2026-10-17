@@ -93,3 +93,70 @@ fn reparent_messages_become_a_hint_others_a_toast() {
     h.frame(vec![]);
     assert!(h.state.hint.is_none());
 }
+
+fn key(key: egui::Key) -> Event {
+    Event::Key {
+        key,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: Default::default(),
+    }
+}
+
+#[test]
+fn transform_bar_follows_the_manipulator_context() {
+    use super::transform_bar::available;
+    use bones_core::{EditTool, PoseTool};
+    let mut h = Harness::new();
+    let bone = h.editor.rig.skeleton.find("arm.l").expect("os du mannequin");
+    assert!(!available(&h.editor), "Pose sans sélection");
+    h.editor.select(Some(bone));
+    assert!(available(&h.editor));
+    h.editor.pose_tool = PoseTool::Pin;
+    assert!(!available(&h.editor), "outil Épingler");
+    h.editor.set_mode(Mode::Edit);
+    h.editor.select(None);
+    assert!(available(&h.editor), "Édition : modèle entier");
+    h.editor.edit_tool = EditTool::Roll;
+    assert!(!available(&h.editor), "outils d'édition directe");
+    h.editor.set_mode(Mode::AutoRig);
+    assert!(!available(&h.editor));
+}
+
+#[test]
+fn manipulator_keys_change_mode_and_are_saved() {
+    use bones_core::manipulator::ManipulatorMode;
+    let mut h = Harness::new();
+    h.frame(vec![]);
+    h.state.settings_dirty = false;
+    for (k, mode) in [
+        (egui::Key::W, ManipulatorMode::Translate),
+        (egui::Key::E, ManipulatorMode::Rotate),
+        (egui::Key::R, ManipulatorMode::Scale),
+        (egui::Key::Q, ManipulatorMode::Combined),
+    ] {
+        h.frame(vec![key(k)]);
+        assert_eq!(h.editor.manipulator.mode, mode);
+        assert_eq!(h.state.settings.manipulator.mode, mode);
+    }
+    assert!(h.state.settings_dirty);
+    let space = h.editor.manipulator.space;
+    h.frame(vec![key(egui::Key::X)]);
+    assert_ne!(h.editor.manipulator.space, space);
+    assert_eq!(h.state.settings.manipulator.space, h.editor.manipulator.space);
+}
+
+#[test]
+fn saved_manipulator_settings_reach_the_editor() {
+    let mut h = Harness::new();
+    h.state.settings.manipulator.snap = true;
+    h.state.settings.manipulator.angle_step_deg = 30.0;
+    h.editor.manipulator.invert_snap = true;
+    h.frame(vec![]);
+    assert!(h.editor.manipulator.snap);
+    assert_eq!(h.editor.manipulator.angle_step_deg, 30.0);
+    // L'inversion par Maj appartient au geste en cours, pas aux réglages.
+    assert!(h.editor.manipulator.invert_snap);
+    assert!(!h.state.settings.manipulator.invert_snap);
+}

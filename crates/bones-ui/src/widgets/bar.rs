@@ -2,11 +2,11 @@
 //! glyphes dans des puits ronds, outils sans fond (bleus quand actifs),
 //! petit carré cerclé, onglets glyphe + libellé.
 
-use egui::{CornerRadius, FontId, Rect, Response, Sense, Stroke, StrokeKind, Ui, vec2};
+use egui::{Color32, CornerRadius, FontId, Rect, Response, Sense, Stroke, StrokeKind, Ui, vec2};
 
 use super::{Motion, anim, glyph_color};
 use crate::icons::{self, Icon};
-use crate::theme::{ACCENT, ICON, TEXT, TEXT_DIM, WELL, WIDGET, mix};
+use crate::theme::{ACCENT, DISABLED, ICON, TEXT, TEXT_DIM, WELL, WIDGET, mix};
 
 /// Glyphe centré dans un puits rond de 32 pt (zone tactile 44 pt) ; actif :
 /// puits bleu plein et glyphe blanc.
@@ -57,7 +57,7 @@ pub fn square_button(ui: &mut Ui, hint: &str) -> Response {
         let square = Rect::from_center_size(rect.center(), vec2(20.0, 20.0));
         let painter = ui.painter();
         if motion.press > 0.0 {
-            let fill = egui::Color32::from_white_alpha((60.0 * motion.press) as u8);
+            let fill = Color32::from_white_alpha((60.0 * motion.press) as u8);
             painter.rect_filled(square, CornerRadius::same(5), fill);
         }
         painter.rect_stroke(
@@ -73,16 +73,25 @@ pub fn square_button(ui: &mut Ui, hint: &str) -> Response {
 /// Onglet : glyphe de 22 pt au-dessus d'un libellé de 12 pt ; gris au
 /// repos, bleu actif.
 pub fn tab(ui: &mut Ui, icon: Icon, label: &str, active: bool) -> Response {
+    tab_with(ui, icon, label, active, TEXT_DIM)
+}
+
+/// Onglet d'une barre contextuelle sombre (outil Transformer) : blanc au
+/// repos, bleu actif, gris désactivé.
+pub fn bar_tab(ui: &mut Ui, icon: Icon, label: &str, active: bool) -> Response {
+    let idle = if ui.is_enabled() { ICON } else { DISABLED };
+    tab_with(ui, icon, label, active, idle)
+}
+
+fn tab_with(ui: &mut Ui, icon: Icon, label: &str, active: bool, idle: Color32) -> Response {
     let font = FontId::proportional(12.0);
-    let galley = ui
-        .painter()
-        .layout_no_wrap(label.to_owned(), font.clone(), TEXT_DIM);
+    let galley = ui.painter().layout_no_wrap(label.to_owned(), font.clone(), idle);
     let width = (galley.size().x + 16.0).max(64.0);
     let (rect, response) = ui.allocate_exact_size(vec2(width, 54.0), Sense::click());
     if ui.is_rect_visible(rect) {
         let motion = Motion::of(ui, &response);
         let on = anim(ui, response.id.with("active"), active);
-        let color = mix(TEXT_DIM, ACCENT, on).gamma_multiply(1.0 - 0.3 * motion.press);
+        let color = mix(idle, ACCENT, on).gamma_multiply(1.0 - 0.3 * motion.press);
         let glyph = Rect::from_center_size(rect.center_top() + vec2(0.0, 17.0), vec2(22.0, 22.0));
         icons::paint(ui.painter(), glyph, icon, color);
         let galley = ui.painter().layout_no_wrap(label.to_owned(), font, color);

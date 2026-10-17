@@ -3,6 +3,7 @@
 
 use std::path::{Path, PathBuf};
 
+use bones_core::manipulator::ManipulatorSettings;
 use bones_core::{Editor, Mode, PoseTool};
 use serde::{Deserialize, Serialize};
 
@@ -61,6 +62,8 @@ pub struct Settings {
     pub pick_radius: f32,
     /// Apparence du guide de rotation 3D.
     pub gizmo: GizmoStyle,
+    /// Manipulateur 3D : jeu de poignées, repère, magnétisme, taille.
+    pub manipulator: ManipulatorSettings,
 }
 
 impl Default for Settings {
@@ -69,6 +72,7 @@ impl Default for Settings {
             pencil: PencilPolicy::default(),
             pick_radius: 22.0,
             gizmo: GizmoStyle::default(),
+            manipulator: ManipulatorSettings::default(),
         }
     }
 }

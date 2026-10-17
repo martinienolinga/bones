@@ -16,10 +16,10 @@ mod studio;
 mod switch;
 mod timeline;
 
-pub use bar::{bar_tool, square_button, tab, well_button};
+pub use bar::{bar_tab, bar_tool, square_button, tab, well_button};
 pub use buttons::{pill_button, separator_dot, text_button, tool_button, tool_cell};
 pub use group::{Group, group};
-pub use rows::{list_row, section_title};
+pub use rows::{list_row, note, section_title};
 pub use segmented::segmented;
 pub use slider::{vertical_slider, vertical_slider_with_icon};
 pub use slider_row::{slider_row, slider_row_with};

@@ -19,3 +19,5 @@ pub const CLOSE: &str = r##"<path d="M8.5 8.5 23.5 23.5M23.5 8.5 8.5 23.5" strok
 pub const CHECK: &str = r##"<path d="M6.6 16.8 13 23.2 25.4 9.4" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>"##;
 
 pub const PLUS: &str = r##"<path d="M16 6.5V25.5M6.5 16H25.5" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>"##;
+
+pub const MAGNET: &str = r##"<path d="M6 20V14A10 10 0 0 1 26 14V20H20V14A4 4 0 0 0 12 14V20Z" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M6 22.6H12V27.4H6ZM20 22.6H26V27.4H20Z" fill="#fff" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/>"##;
