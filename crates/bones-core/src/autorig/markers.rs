@@ -88,11 +88,12 @@ impl Markers {
         let cz = (lo.z + hi.z) * 0.5;
         let at = |t: f32| lo.y + t * h;
 
-        // Bras : sommet le plus à gauche dans la bande des épaules/mains.
+        // Bras : sommet le plus à gauche entre les cuisses et le haut des
+        // épaules (bout des doigts, en pose en T comme en A).
         let arm_tip = mesh
             .positions
             .iter()
-            .filter(|p| p.y > at(0.55) && p.y < at(0.92))
+            .filter(|p| p.y > at(0.3) && p.y < at(0.92))
             .max_by(|a, b| a.x.total_cmp(&b.x))
             .copied()
             .unwrap_or(Vec3::new(hi.x, at(0.8), cz));
@@ -109,13 +110,22 @@ impl Markers {
         };
         let shoulder_y = at(0.81);
         let reach = (arm_tip.x - cx).max(0.1 * h);
+        let shoulder = Vec3::new(cx + 0.11 * h, shoulder_y, cz);
+        // Pose en T : poignet à l'horizontale de la main. Pose en A (main
+        // nettement plus basse que l'épaule) : sur la droite épaule – bout des
+        // doigts, la main faisant environ le quart du bras.
+        let wrist = if arm_tip.y > shoulder_y - 0.1 * h {
+            Vec3::new(cx + reach * 0.88, arm_tip.y.min(shoulder_y), cz)
+        } else {
+            shoulder + (Vec3::new(arm_tip.x, arm_tip.y, cz) - shoulder) * 0.76
+        };
 
         Some(Markers {
             head_top: Vec3::new(cx, hi.y, cz),
             chin: Vec3::new(cx, at(0.87), cz),
             neck: Vec3::new(cx, at(0.835), cz),
-            shoulder: Vec3::new(cx + 0.11 * h, shoulder_y, cz),
-            wrist: Vec3::new(cx + reach * 0.88, arm_tip.y.min(shoulder_y), cz),
+            shoulder,
+            wrist,
             root: Vec3::new(cx, at(0.53), cz),
             ankle: Vec3::new(ankle_x, at(0.045), cz),
         })

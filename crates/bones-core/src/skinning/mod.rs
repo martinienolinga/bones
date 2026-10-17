@@ -7,6 +7,9 @@ pub mod heat;
 mod sparse;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_visibility;
+mod visibility;
 mod weights;
 
 use glam::Vec3;

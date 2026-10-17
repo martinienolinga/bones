@@ -3,25 +3,31 @@
 //! SIGGRAPH 2007 — l'algorithme des poids automatiques de Blender.
 //!
 //! Pour chaque os i on résout −Δwᵢ + H·wᵢ = H·pᵢ sur la surface, où Δ est le
-//! Laplacien cotangent, H_jj = k/d(j)² (d : distance à l'os le plus proche,
-//! k : nombre d'os à égalité) et pᵢⱼ = 1/k si i fait partie des plus proches.
+//! Laplacien cotangent, H_jj = c·k/d(j)² (d : distance à l'os le plus proche,
+//! k : nombre d'os à égalité, c : `HEAT_STRENGTH`) et pᵢⱼ = 1/k si i fait
+//! partie des plus proches.
 //!
 //! Mise en œuvre : le système est multiplié par la matrice de masse pour être
 //! symétrique défini positif, puis résolu par gradient conjugué préconditionné
 //! (Jacobi), un os par tâche rayon. Les cotangentes négatives sont tronquées
 //! à 0 pour garantir le principe du maximum (poids dans [0, 1]).
 //!
-//! Simplification par rapport à l'article : le test de visibilité (le segment
-//! sommet–os doit rester dans le volume) n'est pas encore fait.
+//! Comme dans l'article et dans Blender, un os le plus proche ne chauffe le
+//! sommet que s'il est « visible » (le segment sommet–os ne traverse pas la
+//! surface) ; sinon k = 0 et le sommet ne reçoit ses poids que par diffusion.
 
 use rayon::prelude::*;
 
-use super::envelope::distance_to_segment;
 use super::sparse::{conjugate_gradient, cotangent_laplacian};
+use super::visibility::nearest_visible;
 use crate::{BoneId, Mesh, Skeleton, Skin, VertexWeights};
 
 /// Poids en dessous duquel une influence est ignorée.
 const MIN_WEIGHT: f64 = 1e-3;
+/// Constante c de H = c/d² : 1 dans l'article ; 4 divise par deux la portée
+/// de la diffusion, ce qui évite que les os des membres débordent largement
+/// sur un tronc épais (flancs, ventre) sans durcir les articulations.
+const HEAT_STRENGTH: f64 = 4.0;
 
 pub fn heat_weights(mesh: &Mesh, skeleton: &Skeleton) -> Skin {
     let n = mesh.positions.len();
@@ -36,32 +42,17 @@ pub fn heat_weights(mesh: &Mesh, skeleton: &Skeleton) -> Skin {
         return Skin::automatic(mesh, skeleton);
     }
 
-    // Os les plus proches de chaque sommet (avec égalités à 0,1 % près).
-    let nearest: Vec<(f32, Vec<u16>)> = mesh
-        .positions
-        .par_iter()
-        .map(|&p| {
-            let d: Vec<f32> = segments
-                .iter()
-                .map(|(a, b)| distance_to_segment(p, *a, *b))
-                .collect();
-            let min = d.iter().copied().fold(f32::INFINITY, f32::min);
-            let ties = d
-                .iter()
-                .enumerate()
-                .filter(|(_, x)| **x <= min * 1.001 + 1e-7)
-                .map(|(i, _)| i as u16)
-                .collect();
-            (min.max(1e-4), ties)
-        })
-        .collect();
+    // Os les plus proches de chaque sommet (égalités à 0,1 % près) qu'il voit.
+    let nearest = nearest_visible(mesh, &segments);
 
     let (laplacian, stiffness_diag, mass) = cotangent_laplacian(mesh);
     // Diagonale du système (L + M·H) et coefficient M·H de chaque sommet.
     let heat: Vec<f64> = nearest
         .iter()
         .zip(&mass)
-        .map(|((d, ties), m)| m * ties.len() as f64 / (*d as f64 * *d as f64))
+        .map(|(near, m)| {
+            HEAT_STRENGTH * m * near.ties.len() as f64 / (near.distance as f64 * near.distance as f64)
+        })
         .collect();
     let diag: Vec<f64> = stiffness_diag
         .iter()
@@ -77,9 +68,9 @@ pub fn heat_weights(mesh: &Mesh, skeleton: &Skeleton) -> Skin {
             let b: Vec<f64> = nearest
                 .iter()
                 .zip(&heat)
-                .map(|((_, ties), h)| {
-                    if ties.contains(&(bone as u16)) {
-                        h / ties.len() as f64
+                .map(|(near, h)| {
+                    if near.ties.contains(&(bone as u16)) {
+                        h / near.ties.len() as f64
                     } else {
                         0.0
                     }
@@ -91,9 +82,9 @@ pub fn heat_weights(mesh: &Mesh, skeleton: &Skeleton) -> Skin {
             // Point de départ : affectation au plus proche.
             let mut x: Vec<f64> = nearest
                 .iter()
-                .map(|(_, ties)| {
-                    if ties.contains(&(bone as u16)) {
-                        1.0 / ties.len() as f64
+                .map(|near| {
+                    if near.ties.contains(&(bone as u16)) {
+                        1.0 / near.ties.len() as f64
                     } else {
                         0.0
                     }
@@ -119,8 +110,9 @@ pub fn heat_weights(mesh: &Mesh, skeleton: &Skeleton) -> Skin {
         .enumerate()
         .map(|(v, inf)| {
             if inf.is_empty() {
-                // Sommet isolé (sans triangle) : os le plus proche.
-                VertexWeights::single(ids[nearest[v].1[0] as usize])
+                // Sommet isolé (sans triangle) ou partie qui ne voit aucun os
+                // (œil dans son orbite) : os le plus proche.
+                VertexWeights::single(ids[nearest[v].closest as usize])
             } else {
                 VertexWeights::from_influences(inf)
             }

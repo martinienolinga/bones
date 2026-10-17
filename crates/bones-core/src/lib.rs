@@ -21,7 +21,8 @@
 //!   STL, PLY, BVH) en import et en export ;
 //! - [`project`] : projets `.kbrig` (un fichier compressé par projet, galerie) ;
 //! - [`manipulator`] : manipulateurs 3D (translation, rotation, échelle) ;
-//! - [`editor`] : état de l'éditeur et gestes, indépendants de la plateforme.
+//! - [`editor`] : état de l'éditeur et gestes, indépendants de la plateforme ;
+//! - [`samples`] : modèles d'exemple embarqués (mannequin par défaut).
 
 pub mod anim;
 pub mod autorig;
@@ -33,6 +34,7 @@ pub mod math;
 pub mod mesh;
 pub mod project;
 pub mod rig;
+pub mod samples;
 pub mod skinning;
 
 pub use glam;
