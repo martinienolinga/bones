@@ -42,14 +42,70 @@ pub(super) struct NameHint {
 
 /// Préfixes et mots sans signification anatomique.
 const NOISE: &[&str] = &[
-    "mixamorig", "def", "org", "mch", "bip", "b", "j", "jnt", "bn", "cc", "base", "skeleton", "armature", "sk",
-    "skel", "character", "rig", "deform", "valvebiped", "x", "c", "m", "bone", "anim",
+    "mixamorig",
+    "def",
+    "org",
+    "mch",
+    "bip",
+    "b",
+    "j",
+    "jnt",
+    "bn",
+    "cc",
+    "base",
+    "skeleton",
+    "armature",
+    "sk",
+    "skel",
+    "character",
+    "rig",
+    "deform",
+    "valvebiped",
+    "x",
+    "c",
+    "m",
+    "bone",
+    "anim",
 ];
 
 const IGNORE: &[&str] = &[
-    "twist", "roll", "helper", "pole", "target", "ik", "ctrl", "control", "ctr", "socket", "weapon", "prop",
-    "attach", "corrective", "eye", "eyes", "ear", "ears", "tongue", "hair", "brow", "lid", "lip", "lips", "cheek",
-    "nose", "teeth", "breast", "belt", "cloth", "skirt", "cape", "bag", "camera", "light", "mesh", "geo",
+    "twist",
+    "roll",
+    "helper",
+    "pole",
+    "target",
+    "ik",
+    "ctrl",
+    "control",
+    "ctr",
+    "socket",
+    "weapon",
+    "prop",
+    "attach",
+    "corrective",
+    "eye",
+    "eyes",
+    "ear",
+    "ears",
+    "tongue",
+    "hair",
+    "brow",
+    "lid",
+    "lip",
+    "lips",
+    "cheek",
+    "nose",
+    "teeth",
+    "breast",
+    "belt",
+    "cloth",
+    "skirt",
+    "cape",
+    "bag",
+    "camera",
+    "light",
+    "mesh",
+    "geo",
 ];
 
 const END: &[&str] = &["end", "nub", "tip", "site", "top"];
@@ -141,7 +197,9 @@ fn classify(words: &[String], sided: bool) -> Option<Part> {
     if any(&["wing"]) {
         return Some(Part::Wing);
     }
-    let leg_words = ["leg", "thigh", "shin", "calf", "foot", "paw", "toe", "hoof", "knee", "ankle"];
+    let leg_words = [
+        "leg", "thigh", "shin", "calf", "foot", "paw", "toe", "hoof", "knee", "ankle",
+    ];
     let front = has("front") || has("fore") || any(&["frontleg", "foreleg", "frontpaw"]);
     let hind = has("back") || has("hind") || has("rear") || any(&["hindleg", "backleg", "rearleg"]);
     if (front || hind) && any(&leg_words) {
@@ -150,9 +208,17 @@ fn classify(words: &[String], sided: bool) -> Option<Part> {
     }
     if any(&["hip"]) && !any(&["hips"]) && sided {
         // `LHipJoint` (BVH CMU) : court os vers la cuisse ; `LeftHip` : la cuisse.
-        return Some(if has("joint") { Part::Ignore } else { Part::Leg(Some(0)) });
+        return Some(if has("joint") {
+            Part::Ignore
+        } else {
+            Part::Leg(Some(0))
+        });
     }
-    if any(&leg_words) || any(&["upleg", "femur", "tibia", "crus", "shank", "heel", "tarsus", "ball", "digit"]) {
+    if any(&leg_words)
+        || any(&[
+            "upleg", "femur", "tibia", "crus", "shank", "heel", "tarsus", "ball", "digit",
+        ])
+    {
         return Some(Part::Leg(leg_segment(&s)));
     }
     if any(&["forearm", "lowerarm", "elbow", "ulna", "radius"]) {
@@ -175,10 +241,23 @@ fn classify(words: &[String], sided: bool) -> Option<Part> {
         (&["jaw", "chin", "mouth", "mandible"], Part::Jaw),
         (&["tail"], Part::Tail),
         (&["hips", "pelvis", "cog", "hip"], Part::Hips),
-        (&["spine", "chest", "abdomen", "torso", "belly", "thorax", "ribcage", "waist"], Part::Spine),
+        (
+            &[
+                "spine", "chest", "abdomen", "torso", "belly", "thorax", "ribcage", "waist",
+            ],
+            Part::Spine,
+        ),
         (&["root", "ground", "master", "trajectory"], Part::RootWord),
-        (&["trunk", "stem", "stalk", "branch", "twig", "leaf", "leaves", "frond", "petal", "flower"], Part::Plant),
-        (&["tentacle", "rope", "chain", "pendulum", "cable", "whip"], Part::Generic),
+        (
+            &[
+                "trunk", "stem", "stalk", "branch", "twig", "leaf", "leaves", "frond", "petal", "flower",
+            ],
+            Part::Plant,
+        ),
+        (
+            &["tentacle", "rope", "chain", "pendulum", "cable", "whip"],
+            Part::Generic,
+        ),
     ];
     if let Some((_, part)) = table.iter().find(|(k, _)| any(k)) {
         return Some(*part);

@@ -33,14 +33,19 @@ pub(super) fn rig_type(skeleton: &Skeleton, hints: &[NameHint], geo: &Geo, map: 
     let legs = has(Chain::Leg(Lr::Left)) && has(Chain::Leg(Lr::Right));
     let arms = has(Chain::Arm(Lr::Left)) && has(Chain::Arm(Lr::Right));
     let ground = geo.lo.y;
-    let height = map.root().map_or(geo.size, |r| (geo.heads[r.index()].y - ground).max(1e-3));
+    let height = map
+        .root()
+        .map_or(geo.size, |r| (geo.heads[r.index()].y - ground).max(1e-3));
     let reaches_ground = |side| {
         map.chain(Chain::Arm(side))
             .last()
             .is_some_and(|b| geo.tails[b.index()].y < ground + 0.2 * height)
     };
     // Colonne verticale : du bassin à la poitrine (ou à la tête).
-    let vertical = match (map.root(), map.chain(Chain::Spine).last().or(map.chain(Chain::Head).first())) {
+    let vertical = match (
+        map.root(),
+        map.chain(Chain::Spine).last().or(map.chain(Chain::Head).first()),
+    ) {
         (Some(r), Some(top)) => {
             let d = geo.heads[top.index()] - geo.heads[r.index()];
             d.normalize_or(Vec3::Y).y > 0.7
@@ -60,7 +65,11 @@ pub(super) fn rig_type(skeleton: &Skeleton, hints: &[NameHint], geo: &Geo, map: 
         };
     }
     if legs {
-        return if vertical { RigType::Humanoid } else { RigType::Bird };
+        return if vertical {
+            RigType::Humanoid
+        } else {
+            RigType::Bird
+        };
     }
     if word(Part::Fin) {
         return RigType::Fish;
@@ -71,11 +80,21 @@ pub(super) fn rig_type(skeleton: &Skeleton, hints: &[NameHint], geo: &Geo, map: 
     // Long corps sans membres : serpent au sol, poisson dans l'eau.
     let body = map.chain(Chain::Spine);
     if body.len() >= 5 {
-        let (first, last) = (geo.heads[body[0].index()], geo.tails[body[body.len() - 1].index()]);
+        let (first, last) = (
+            geo.heads[body[0].index()],
+            geo.tails[body[body.len() - 1].index()],
+        );
         let length: f32 = body.iter().map(|b| geo.len(*b)).sum();
         if (last - first).normalize_or(Vec3::Y).y.abs() < 0.4 {
-            let top = body.iter().map(|b| geo.heads[b.index()].y).fold(f32::MIN, f32::max);
-            return if top - geo.lo.y < 0.15 * length { RigType::Serpent } else { RigType::Fish };
+            let top = body
+                .iter()
+                .map(|b| geo.heads[b.index()].y)
+                .fold(f32::MIN, f32::max);
+            return if top - geo.lo.y < 0.15 * length {
+                RigType::Serpent
+            } else {
+                RigType::Fish
+            };
         }
     }
     if word(Part::Plant) {
@@ -90,7 +109,10 @@ fn shape_type(skeleton: &Skeleton, hints: &[NameHint], geo: &Geo) -> RigType {
         return RigType::Any;
     };
     let path = geo.main_path(main, hints);
-    let branching = skeleton.ids().filter(|b| geo.significant(*b, hints).len() >= 2).count();
+    let branching = skeleton
+        .ids()
+        .filter(|b| geo.significant(*b, hints).len() >= 2)
+        .count();
     let start = geo.heads[main.index()];
     let end = geo.tails[path.last().unwrap().index()];
     let d = (end - start).normalize_or(Vec3::Y);
@@ -108,8 +130,15 @@ fn shape_type(skeleton: &Skeleton, hints: &[NameHint], geo: &Geo) -> RigType {
         return RigType::Chain;
     }
     if d.y.abs() < 0.4 && path.len() >= 6 {
-        let top = path.iter().map(|b| geo.heads[b.index()].y).fold(f32::MIN, f32::max);
-        return if top - geo.lo.y < 0.15 * length { RigType::Serpent } else { RigType::Fish };
+        let top = path
+            .iter()
+            .map(|b| geo.heads[b.index()].y)
+            .fold(f32::MIN, f32::max);
+        return if top - geo.lo.y < 0.15 * length {
+            RigType::Serpent
+        } else {
+            RigType::Fish
+        };
     }
     RigType::Chain
 }

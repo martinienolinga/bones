@@ -27,7 +27,16 @@ fn a_pose(mut s: Skeleton) -> Skeleton {
 
 fn walk_data(skeleton: Skeleton) -> KeyframeData {
     let roles = detect(&skeleton);
-    let clip = bake(Generator::HumanLocomotion, &Params::of(&[("speed", 1.4)]), &skeleton, &roles, 30.0, 1.0, 1).unwrap();
+    let clip = bake(
+        Generator::HumanLocomotion,
+        &Params::of(&[("speed", 1.4)]),
+        &skeleton,
+        &roles,
+        30.0,
+        1.0,
+        1,
+    )
+    .unwrap();
     KeyframeData {
         skeleton,
         roles,
@@ -38,7 +47,17 @@ fn walk_data(skeleton: Skeleton) -> KeyframeData {
 
 fn retarget(data: &KeyframeData, target: &Skeleton, options: RetargetOptions) -> (Vec<Pose>, Report) {
     let roles = detect(target);
-    retarget_clip(data, true, (target, &roles), &options, &Pose::rest(target), 30.0, 1.0, 1).unwrap()
+    retarget_clip(
+        data,
+        true,
+        (target, &roles),
+        &options,
+        &Pose::rest(target),
+        30.0,
+        1.0,
+        1,
+    )
+    .unwrap()
 }
 
 /// Directions monde des os nommés `names` dans une pose.
@@ -79,7 +98,10 @@ fn a_pose_source_drives_t_pose_target_and_back() {
     let mut src = Pose::rest(&data.skeleton);
     for (f, pose) in poses.iter().enumerate() {
         data.clip.sample_into(f as f32, &mut src);
-        for (a, b) in dirs(&data.skeleton, &src, BONES).iter().zip(dirs(&t_pose, pose, BONES)) {
+        for (a, b) in dirs(&data.skeleton, &src, BONES)
+            .iter()
+            .zip(dirs(&t_pose, pose, BONES))
+        {
             assert!(a.angle_between(b).to_degrees() < 1.0, "image {f}: {a:?} / {b:?}");
         }
     }

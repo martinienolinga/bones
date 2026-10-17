@@ -122,7 +122,9 @@ pub(super) fn sample_all(
 ) -> Vec<(String, Clip)> {
     doc.animations()
         .filter_map(|a| {
-            let name = a.name().map_or_else(|| format!("Animation {}", a.index() + 1), str::to_owned);
+            let name = a
+                .name()
+                .map_or_else(|| format!("Animation {}", a.index() + 1), str::to_owned);
             sample_one(&a, doc, buffers, scene, joint_nodes, built).map(|c| (name, c))
         })
         .collect()

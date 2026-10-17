@@ -17,7 +17,11 @@ impl Editor {
 
     /// Applique un préréglage à l'animation du projet. Rien n'est modifié
     /// en cas d'erreur ; sinon une seule étape d'annulation est créée.
-    pub fn apply_preset(&mut self, preset: &Preset, options: &ApplyOptions) -> Result<ApplyReport, PresetError> {
+    pub fn apply_preset(
+        &mut self,
+        preset: &Preset,
+        options: &ApplyOptions,
+    ) -> Result<ApplyReport, PresetError> {
         let skeleton = &self.rig.skeleton;
         if skeleton.is_empty() {
             return Err(PresetError::Incompatible("the model has no skeleton".into()));

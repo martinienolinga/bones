@@ -135,7 +135,11 @@ impl<'r, 'a> Locomotion<'r, 'a> {
     fn pelvis_rotation(&self, yaw: f32, roll: f32) -> Quat {
         let pitch = if self.run { 0.08 } else { 0.02 };
         let rig = self.h.rig;
-        rig.basis * Quat::from_rotation_y(yaw) * Quat::from_rotation_z(roll) * Quat::from_rotation_x(pitch) * rig.basis.inverse()
+        rig.basis
+            * Quat::from_rotation_y(yaw)
+            * Quat::from_rotation_z(roll)
+            * Quat::from_rotation_x(pitch)
+            * rig.basis.inverse()
     }
 
     /// Cheville visée (monde), tangage du pied et orteils à plat (0..1).
@@ -181,7 +185,9 @@ impl<'r, 'a> Locomotion<'r, 'a> {
         // Le bassin passe au-dessus de la cheville un peu avant le milieu de
         // l'appui (le déroulé sur la pointe fait encore avancer la cheville).
         let mid = if self.run { 0.5 } else { 0.45 };
-        leg.ankle + left * lateral * (self.width - 1.0) + rig.w(Vec3::Z) * self.stride * (k + self.duty * mid - offset)
+        leg.ankle
+            + left * lateral * (self.width - 1.0)
+            + rig.w(Vec3::Z) * self.stride * (k + self.duty * mid - offset)
     }
 
     /// Abaissement imposé par la portée à l'instant `u` : chaque cheville
@@ -201,7 +207,11 @@ impl<'r, 'a> Locomotion<'r, 'a> {
             let dv = d.dot(up);
             let dh = (d - up * dv).length();
             let max = 0.99 * leg.length;
-            drop = drop.max(if dh < max { dv - (max * max - dh * dh).sqrt() } else { dv });
+            drop = drop.max(if dh < max {
+                dv - (max * max - dh * dh).sqrt()
+            } else {
+                dv
+            });
         }
         drop
     }
@@ -211,7 +221,9 @@ impl<'r, 'a> Locomotion<'r, 'a> {
     /// pendule inversé.
     fn drop_curve(&self) -> Vec<f32> {
         let n = DROP_SAMPLES;
-        let need: Vec<f32> = (0..n).map(|i| self.reach_drop(i as f32 / n as f32) + 0.002).collect();
+        let need: Vec<f32> = (0..n)
+            .map(|i| self.reach_drop(i as f32 / n as f32) + 0.002)
+            .collect();
         envelope(&need, self.period / n as f32, if self.run { 6.0 } else { 3.5 })
     }
 }
@@ -231,7 +243,11 @@ impl Motion for Locomotion<'_, '_> {
         offset.y -= periodic(&self.drops, u);
         let pitch = if self.run { 0.08 } else { 0.02 } + 0.15 * self.crouch;
         h.pelvis(body, offset, yaw, pitch, roll);
-        let flex = if self.run { 0.04 * cwave(2.0 * (u - self.duty * 0.5)) } else { 0.0 };
+        let flex = if self.run {
+            0.04 * cwave(2.0 * (u - self.duty * 0.5))
+        } else {
+            0.0
+        };
         h.bend_spine(body, self.lean + flex - pitch, -1.5 * yaw, -0.8 * roll);
         let fist = if self.run { 0.55 } else { 0.25 };
         for side in Lr::BOTH {

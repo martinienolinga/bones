@@ -71,7 +71,9 @@ impl Editor {
 
     /// Tâche de liaison à lancer, s'il y en a une de nouvelle.
     pub fn bind_job(&mut self) -> Option<BindJob> {
-        if !self.rig.needs_bind() || self.drag.is_some() {
+        // Poids peints : les retouches du squelette remappent les indices sans
+        // relancer de liaison automatique (jusqu'à « Automatic »).
+        if !self.rig.needs_bind() || self.drag.is_some() || self.rig.weights_painted() {
             return None;
         }
         let revs = self.rig.revisions();

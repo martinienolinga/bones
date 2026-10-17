@@ -8,8 +8,8 @@ use rayon::prelude::*;
 use super::{Mapping, Report, RetargetOptions, Retargeter};
 use crate::presets::error::{PresetError, invalid};
 use crate::presets::model::KeyframeData;
-use crate::presets::procedural::ctx::Body;
 use crate::presets::procedural::MAX_FRAMES;
+use crate::presets::procedural::ctx::Body;
 use crate::presets::roles::RoleMap;
 use crate::{Pose, Skeleton};
 
@@ -37,7 +37,9 @@ pub fn retarget_clip(
     let mapping = Mapping::new((&data.skeleton, &data.roles), &data.bones, (tgt, roles), options);
     let mut report = mapping.report.clone();
     if mapping.mapped() == 0 {
-        return Err(PresetError::Incompatible("no bone of the skeleton matches the preset".into()));
+        return Err(PresetError::Incompatible(
+            "no bone of the skeleton matches the preset".into(),
+        ));
     }
     if data.roles.rig_type != roles.rig_type && !data.roles.rig_type.fits(roles.rig_type) {
         report.warnings.push(format!(
@@ -52,8 +54,16 @@ pub fn retarget_clip(
     let clip = &data.clip;
     let (first, last) = (clip.keys()[0].frame, clip.keys()[clip.keys().len() - 1].frame);
     let span = (last - first) as f32 / clip.fps.max(1.0);
-    let fps = if fps.is_finite() { fps.clamp(1.0, 240.0) } else { 30.0 };
-    let speed = if speed.is_finite() { speed.clamp(0.05, 20.0) } else { 1.0 };
+    let fps = if fps.is_finite() {
+        fps.clamp(1.0, 240.0)
+    } else {
+        30.0
+    };
+    let speed = if speed.is_finite() {
+        speed.clamp(0.05, 20.0)
+    } else {
+        1.0
+    };
     let cycles = if looping { loops.max(1) } else { 1 };
     let count = ((span * cycles as f32 / speed * fps).round() as u32 + 1).min(MAX_FRAMES);
 
@@ -65,8 +75,13 @@ pub fn retarget_clip(
         pose.world(src)
     };
     let up = data.roles.frame.up;
-    let step = world_at(last as f32)[root.index()].translation - world_at(first as f32)[root.index()].translation;
-    let step = if looping { step - up * step.dot(up) } else { Vec3::ZERO };
+    let step =
+        world_at(last as f32)[root.index()].translation - world_at(first as f32)[root.index()].translation;
+    let step = if looping {
+        step - up * step.dot(up)
+    } else {
+        Vec3::ZERO
+    };
 
     let poses = (0..count)
         .into_par_iter()
@@ -74,7 +89,11 @@ pub fn retarget_clip(
             || (Body::new(&retargeter.rig), Pose::rest(src)),
             |(body, src_pose), j| {
                 let time = j as f32 / fps * speed;
-                let cycle = if span > 0.0 { ((time / span).floor() as u32).min(cycles - 1) } else { 0 };
+                let cycle = if span > 0.0 {
+                    ((time / span).floor() as u32).min(cycles - 1)
+                } else {
+                    0
+                };
                 let local = (time - cycle as f32 * span).clamp(0.0, span);
                 clip.sample_into(first as f32 + local * clip.fps, src_pose);
                 let world = src_pose.world(src);

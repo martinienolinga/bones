@@ -54,7 +54,11 @@ impl Motion for Crouch<'_, '_> {
         };
         let d = self.depth * k;
         let leg = h.legs[0].length;
-        let breath = if t >= down && t < hold { 0.01 * leg * wave((t - down) / 2.5) } else { 0.0 };
+        let breath = if t >= down && t < hold {
+            0.01 * leg * wave((t - down) / 2.5)
+        } else {
+            0.0
+        };
         body.reset();
         let offset = Vec3::new(0.0, -0.5 * leg * d + breath, -0.12 * leg * d);
         h.pelvis(body, offset, 0.0, 0.25 * d, 0.0);
@@ -117,7 +121,13 @@ impl Motion for Sit<'_, '_> {
         let thigh = h.rig.len(h.legs[0].thigh);
         let drop = h.hip_height * (1.0 - self.seat);
         body.reset();
-        h.pelvis(body, Vec3::new(0.0, -drop * k, -0.85 * thigh * k), 0.0, 0.3 * lean, 0.0);
+        h.pelvis(
+            body,
+            Vec3::new(0.0, -drop * k, -0.85 * thigh * k),
+            0.0,
+            0.3 * lean,
+            0.0,
+        );
         h.bend_spine(body, 0.7 * lean, 0.0, 0.0);
         for side in Lr::BOTH {
             h.curl(body, side, 0.3);

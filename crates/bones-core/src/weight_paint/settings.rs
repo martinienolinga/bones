@@ -42,6 +42,19 @@ impl Blend {
             Self::Multiply => "Multiply",
         }
     }
+
+    /// Poids visé d'un sommet avant atténuation, à partir de son poids courant
+    /// `current` et du poids du pinceau `weight` (menu « Blend » de Blender).
+    pub fn target(self, current: f32, weight: f32) -> f32 {
+        match self {
+            Self::Mix => weight,
+            Self::Add => current + weight,
+            Self::Subtract => current - weight,
+            Self::Lighten => current.max(weight),
+            Self::Darken => current.min(weight),
+            Self::Multiply => current * weight,
+        }
+    }
 }
 
 /// Outil de peinture (barre d'outils du mode « Weight Paint »).
@@ -146,7 +159,8 @@ impl Falloff {
     /// Intensité à la distance relative `t` du centre (0 au centre, 1 au
     /// bord), entre 0 et 1 ; nulle au-delà du bord.
     pub fn strength(self, t: f32) -> f32 {
-        if !(t < 1.0) {
+        // Au bord, au-delà, ou pour une valeur non définie : nul.
+        if t >= 1.0 || t.is_nan() {
             return 0.0;
         }
         let p = 1.0 - t.max(0.0);

@@ -47,7 +47,13 @@ impl Motion for QuadIdle<'_, '_> {
         // Trois respirations, un léger transfert de poids.
         let breath = wave(3.0 * u) * self.breath;
         let shift = noise(u, 2, &[1, 2]);
-        body.pelvis(q.root, Vec3::new(0.01 * h * shift, -0.01 * h + 0.004 * h * breath, 0.0), 0.0, 0.0, 0.03 * shift);
+        body.pelvis(
+            q.root,
+            Vec3::new(0.01 * h * shift, -0.01 * h + 0.004 * h * breath, 0.0),
+            0.0,
+            0.0,
+            0.03 * shift,
+        );
         body.spread(&q.spine, -0.02 * breath, 0.03 * shift, -0.02 * shift);
         body.ripple(&q.tail, Vec3::Y, 0.18 * self.tail, 2.0 * u, 0.3);
         body.ripple(&q.tail, Vec3::X, 0.05 * self.tail, u, 0.2);
@@ -101,7 +107,13 @@ impl Motion for QuadSit<'_, '_> {
         body.reset();
         // Le bassin descend et recule ; le corps se redresse autour des épaules.
         let tilt = -0.55 * k;
-        body.pelvis(q.root, Vec3::new(0.0, -0.62 * h * k, -0.08 * h * k), 0.0, tilt, 0.0);
+        body.pelvis(
+            q.root,
+            Vec3::new(0.0, -0.62 * h * k, -0.08 * h * k),
+            0.0,
+            tilt,
+            0.0,
+        );
         body.spread(&q.spine, 0.1 * k, 0.0, 0.0);
         body.ripple(&q.tail, Vec3::X, 0.3 * k, 0.25, 0.0);
         body.fk();

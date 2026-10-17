@@ -98,9 +98,11 @@ impl Chain {
 
     pub fn side(self) -> Option<Lr> {
         match self {
-            Chain::Clavicle(s) | Chain::Arm(s) | Chain::Leg(s) | Chain::Finger(s, _) | Chain::LegPair(_, s) => {
-                Some(s)
-            }
+            Chain::Clavicle(s)
+            | Chain::Arm(s)
+            | Chain::Leg(s)
+            | Chain::Finger(s, _)
+            | Chain::LegPair(_, s) => Some(s),
             _ => None,
         }
     }
@@ -115,7 +117,13 @@ impl Chain {
 
     /// Nom affiché (anglais).
     pub fn label(self) -> String {
-        let fingers = ["thumb", "index finger", "middle finger", "ring finger", "little finger"];
+        let fingers = [
+            "thumb",
+            "index finger",
+            "middle finger",
+            "ring finger",
+            "little finger",
+        ];
         match self {
             Chain::Ground => "Ground".into(),
             Chain::Root => "Hips".into(),
@@ -259,7 +267,10 @@ impl RoleMap {
             .roles
             .iter()
             .enumerate()
-            .filter_map(|(i, r)| r.filter(|r| r.chain == chain).map(|r| (r.index, BoneId(i as u32))))
+            .filter_map(|(i, r)| {
+                r.filter(|r| r.chain == chain)
+                    .map(|r| (r.index, BoneId(i as u32)))
+            })
             .collect();
         bones.sort_unstable();
         bones.into_iter().map(|(_, b)| b).collect()

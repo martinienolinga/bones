@@ -54,7 +54,14 @@ impl<'r, 'a> Jump<'r, 'a> {
             (t4, 0.5),
             (t5, 0.0),
         ]);
-        let lean = Curve::new(&[(0.0, 0.0), (t1, 0.45), (t2, -0.05), (t3, 0.1), (t4, 0.35), (t5, 0.0)]);
+        let lean = Curve::new(&[
+            (0.0, 0.0),
+            (t1, 0.45),
+            (t2, -0.05),
+            (t3, 0.1),
+            (t4, 0.35),
+            (t5, 0.0),
+        ]);
         Ok(Self {
             h,
             times: [t1, t2, t3, t4, t5],
@@ -76,10 +83,16 @@ impl<'r, 'a> Jump<'r, 'a> {
         let (x_to, x_land) = (0.06 * leg, 0.06 * leg + self.distance);
         let land = 0.75 * self.crouch;
         if t < t1 {
-            (hermite(0.0, 0.0, -0.04 * leg, 0.0, t, t1), hermite(0.0, 0.0, -self.crouch, 0.0, t, t1))
+            (
+                hermite(0.0, 0.0, -0.04 * leg, 0.0, t, t1),
+                hermite(0.0, 0.0, -self.crouch, 0.0, t, t1),
+            )
         } else if t < t2 {
             let s = t - t1;
-            (hermite(-0.04 * leg, 0.0, x_to, vx, s, t2 - t1), hermite(-self.crouch, 0.0, rise, self.v0, s, t2 - t1))
+            (
+                hermite(-0.04 * leg, 0.0, x_to, vx, s, t2 - t1),
+                hermite(-self.crouch, 0.0, rise, self.v0, s, t2 - t1),
+            )
         } else if t < t3 {
             let s = t - t2;
             (x_to + vx * s, rise + self.v0 * s - 0.5 * GRAVITY * s * s)
@@ -87,10 +100,16 @@ impl<'r, 'a> Jump<'r, 'a> {
             let s = t - t3;
             // Le bassin revient au-dessus des pieds en amortissant.
             let end = self.distance + 0.02 * leg;
-            (hermite(x_land, vx, end, 0.0, s, t4 - t3), hermite(rise, -self.v0, -land, 0.0, s, t4 - t3))
+            (
+                hermite(x_land, vx, end, 0.0, s, t4 - t3),
+                hermite(rise, -self.v0, -land, 0.0, s, t4 - t3),
+            )
         } else {
             let s = t - t4;
-            (self.distance + 0.02 * leg, hermite(-land, 0.0, -0.01 * leg, 0.0, s, t5 - t4))
+            (
+                self.distance + 0.02 * leg,
+                hermite(-land, 0.0, -0.01 * leg, 0.0, s, t5 - t4),
+            )
         }
     }
 }

@@ -41,7 +41,11 @@ pub fn merge(
             }
         }
     };
-    let start = if options.mode == ApplyMode::Replace { 0 } else { options.frame };
+    let start = if options.mode == ApplyMode::Replace {
+        0
+    } else {
+        options.frame
+    };
     if options.mode != ApplyMode::Replace && options.align_start && options.bones.is_empty() {
         let root = root_bone(skeleton, roles);
         let at = position(skeleton, &existing(clip, current, start), root);
@@ -50,9 +54,16 @@ pub fn merge(
     match options.mode {
         ApplyMode::Replace => {
             let old = std::mem::replace(clip, Clip::new(clip.fps, n.max(2)));
-            let total = if options.bones.is_empty() { n } else { n.max(old.frame_count) };
+            let total = if options.bones.is_empty() {
+                n
+            } else {
+                n.max(old.frame_count)
+            };
             for f in 0..total {
-                let mut pose = poses.get(f as usize).cloned().unwrap_or_else(|| existing(&old, current, f));
+                let mut pose = poses
+                    .get(f as usize)
+                    .cloned()
+                    .unwrap_or_else(|| existing(&old, current, f));
                 keep(&mut pose, &existing(&old, current, f));
                 put(clip, f, pose);
             }
@@ -76,7 +87,11 @@ pub fn merge(
                     }
                     clip.set_key(key.frame + n, pose);
                 }
-                if let Some(k) = clip.key_at_mut(if key.frame < start { key.frame } else { key.frame + n }) {
+                if let Some(k) = clip.key_at_mut(if key.frame < start {
+                    key.frame
+                } else {
+                    key.frame + n
+                }) {
                     k.interpolation = key.interpolation;
                 }
             }
@@ -97,7 +112,9 @@ pub fn merge(
                 let mut mixed = old.clone();
                 for (i, slot) in mixed.bones.iter_mut().enumerate() {
                     if !masked(i) {
-                        *slot = old.get(crate::BoneId(i as u32)).lerp(&pose.get(crate::BoneId(i as u32)), w);
+                        *slot = old
+                            .get(crate::BoneId(i as u32))
+                            .lerp(&pose.get(crate::BoneId(i as u32)), w);
                     }
                 }
                 put(clip, f, mixed);

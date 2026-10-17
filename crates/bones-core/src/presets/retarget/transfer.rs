@@ -4,8 +4,8 @@
 
 use glam::{Quat, Vec3};
 
-use super::mapping::{Mapping, mirror_quat, mirror_vec};
 use super::RetargetOptions;
+use super::mapping::{Mapping, mirror_quat, mirror_vec};
 use crate::presets::procedural::ctx::{Body, Rigging};
 use crate::presets::roles::{Chain, Lr, RigType, RoleMap};
 use crate::{BoneId, Pose, Skeleton, Transform, head_tail};
@@ -90,9 +90,13 @@ impl<'a> Retargeter<'a> {
     pub fn pose(&self, src_world: &[Transform], extra: Vec3, base: &Pose, body: &mut Body) {
         let tgt = self.rig.skeleton;
         let rest = &self.rig.rest;
-        let delta = |x: BoneId| (src_world[x.index()].rotation * self.src_rest[x.index()].rotation.inverse()).normalize();
+        let delta = |x: BoneId| {
+            (src_world[x.index()].rotation * self.src_rest[x.index()].rotation.inverse()).normalize()
+        };
         for (t, bone) in tgt.bones().iter().enumerate() {
-            let parent = bone.parent().map_or(Transform::IDENTITY, |p| body.world[p.index()]);
+            let parent = bone
+                .parent()
+                .map_or(Transform::IDENTITY, |p| body.world[p.index()]);
             let local = &bone.rest;
             let keep = base.get(BoneId(t as u32));
             let pose = match self.mapping.samples[t] {
@@ -142,7 +146,10 @@ impl<'a> Retargeter<'a> {
         };
         let saved: Vec<Quat> = t[2.min(t.len())..].iter().map(|b| body.rotation(*b)).collect();
         let (hip, knee) = (body.head(t[0]), body.head(t[1]));
-        let side = t.first().and_then(|b| self.rig.roles.role(*b)).and_then(|r| r.chain.side());
+        let side = t
+            .first()
+            .and_then(|b| self.rig.roles.role(*b))
+            .and_then(|r| r.chain.side());
         let fallback = rig.w(Vec3::Z) + rig.w(Vec3::X) * side.map_or(0.0, Lr::sign) * 0.1;
         let bend = (knee - (hip + target) * 0.5).try_normalize().unwrap_or(fallback);
         let reach = rig.len(t[0]) + rig.len(t[1]);

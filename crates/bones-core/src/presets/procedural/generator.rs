@@ -240,7 +240,11 @@ impl Generator {
         )
     }
 
-    pub(crate) fn build<'r>(self, rig: &'r Rigging<'_>, p: &Params) -> Result<Box<dyn Motion + 'r>, PresetError> {
+    pub(crate) fn build<'r>(
+        self,
+        rig: &'r Rigging<'_>,
+        p: &Params,
+    ) -> Result<Box<dyn Motion + 'r>, PresetError> {
         Ok(match self {
             Generator::HumanIdle => Box::new(human::idle::Idle::new(rig, p)?),
             Generator::HumanLookAround => Box::new(human::idle::LookAround::new(rig, p)?),

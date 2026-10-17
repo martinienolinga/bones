@@ -11,14 +11,20 @@ use crate::io::rigging::{Joint, build_skeleton};
 use crate::{Clip, Skeleton};
 
 /// Squelette et animations nommées.
-pub(crate) fn animations(bytes: &[u8], base: Option<&Path>) -> Result<(Skeleton, Vec<(String, Clip)>), IoError> {
+pub(crate) fn animations(
+    bytes: &[u8],
+    base: Option<&Path>,
+) -> Result<(Skeleton, Vec<(String, Clip)>), IoError> {
     let gltf = gltf::Gltf::from_slice(bytes).map_err(err)?;
     let doc = &gltf.document;
     let mut blob = gltf.blob.clone();
     let buffers: Vec<Arc<[u8]>> = doc
         .buffers()
         .map(|b| match b.source() {
-            gltf::buffer::Source::Bin => blob.take().map(Arc::from).ok_or_else(|| err("missing GLB buffer")),
+            gltf::buffer::Source::Bin => blob
+                .take()
+                .map(Arc::from)
+                .ok_or_else(|| err("missing GLB buffer")),
             gltf::buffer::Source::Uri(uri) => load_uri(uri, base).map(Arc::from),
         })
         .collect::<Result<_, _>>()?;
@@ -30,7 +36,10 @@ pub(crate) fn animations(bytes: &[u8], base: Option<&Path>) -> Result<(Skeleton,
         .next()
         .or_else(|| doc.skins().next());
     let (joints, joint_nodes): (Vec<Joint>, Vec<usize>) = match &skin {
-        Some(skin) => (skin_joints(skin, &scene, &buffers).joints, skin.joints().map(|j| j.index()).collect()),
+        Some(skin) => (
+            skin_joints(skin, &scene, &buffers).joints,
+            skin.joints().map(|j| j.index()).collect(),
+        ),
         None => {
             // Hiérarchie de nœuds animés sans peau.
             let nodes: Vec<usize> = scene.order.clone();

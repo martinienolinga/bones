@@ -57,7 +57,9 @@ impl Limb {
         let rig = body.rig;
         let c = &self.chain;
         let parent = rig.skeleton.bone(c[0]).parent();
-        let carried = parent.map_or(Quat::IDENTITY, |p| body.rotation(p) * rig.rest[p.index()].rotation.inverse());
+        let carried = parent.map_or(Quat::IDENTITY, |p| {
+            body.rotation(p) * rig.rest[p.index()].rotation.inverse()
+        });
         let attach = body.head(c[0]);
         if c.len() == 2 {
             let pole = (attach + paw) * 0.5 + carried * self.bend * self.reach;

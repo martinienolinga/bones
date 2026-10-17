@@ -34,7 +34,14 @@ impl<'r, 'a> Dance<'r, 'a> {
     pub fn new(rig: &'r Rigging<'a>, p: &Params) -> Result<Self, PresetError> {
         // Droit dehors (temps 0), gauche rejoint (1), gauche revient (2),
         // droit revient (3) ; les pas se posent sur les temps.
-        let left = Curve::new(&[(0.0, 0.0), (0.5, 0.0), (1.0, -1.0), (1.5, -1.0), (2.0, 0.0), (4.0, 0.0)]);
+        let left = Curve::new(&[
+            (0.0, 0.0),
+            (0.5, 0.0),
+            (1.0, -1.0),
+            (1.5, -1.0),
+            (2.0, 0.0),
+            (4.0, 0.0),
+        ]);
         let right = Curve::new(&[(0.0, -1.0), (2.5, -1.0), (3.0, 0.0), (3.5, 0.0), (4.0, -1.0)]);
         Ok(Self {
             h: Human::new(rig)?,
@@ -62,7 +69,13 @@ impl Motion for Dance<'_, '_> {
         let bounce = -0.035 * leg * e * (0.5 + 0.5 * cwave(b));
         let lean = 0.06 * e * cwave(b * 0.5);
         body.reset();
-        h.pelvis(body, Vec3::new(center, bounce - 0.02 * leg, 0.0), 0.1 * e * cwave(b * 0.5 + 0.25), 0.04, lean);
+        h.pelvis(
+            body,
+            Vec3::new(center, bounce - 0.02 * leg, 0.0),
+            0.1 * e * cwave(b * 0.5 + 0.25),
+            0.04,
+            lean,
+        );
         h.bend_spine(body, 0.05, -0.2 * e * cwave(b * 0.5 + 0.25), -0.8 * lean);
         for side in Lr::BOTH {
             h.shrug(body, side, 0.06 * e * (0.5 - 0.5 * cwave(b)), 0.0);
@@ -83,6 +96,11 @@ impl Motion for Dance<'_, '_> {
         for (side, s) in [(Lr::Left, swing), (Lr::Right, -swing)] {
             h.swing_arm(body, side, 0.35, 0.4 + s, 1.5 - 0.2 * s, 0.2);
         }
-        h.look(body, 0.07 * e * cwave(b), 0.1 * e * cwave(b * 0.5 + 0.25), -0.5 * lean);
+        h.look(
+            body,
+            0.07 * e * cwave(b),
+            0.1 * e * cwave(b * 0.5 + 0.25),
+            -0.5 * lean,
+        );
     }
 }

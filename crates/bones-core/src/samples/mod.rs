@@ -9,5 +9,6 @@ mod mannequin;
 mod tests;
 
 pub use mannequin::{
-    MANNEQUIN_GLB, MANNEQUIN_KBRIG, bake_mannequin, build_mannequin, load_mannequin, mannequin, mannequin_mesh,
+    MANNEQUIN_GLB, MANNEQUIN_KBRIG, bake_mannequin, build_mannequin, load_mannequin, mannequin,
+    mannequin_mesh,
 };

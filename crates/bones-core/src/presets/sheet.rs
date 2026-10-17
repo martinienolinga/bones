@@ -66,14 +66,30 @@ pub(crate) fn sheet(skeleton: &Skeleton, roles: &RoleMap, clip: &Clip, columns: 
                 Vec2::new(ox + h * scale, oy - v * scale)
             };
             // Sol gradué (les graduations défilent avec le déplacement).
-            let gy = if view == 1 { ((row + 1) * CELL) as f32 - 2.0 } else { oy };
-            line(&mut img, Vec2::new((c * CELL) as f32, gy), Vec2::new(((c + 1) * CELL) as f32, gy), Rgb([180, 180, 170]), 1);
+            let gy = if view == 1 {
+                ((row + 1) * CELL) as f32 - 2.0
+            } else {
+                oy
+            };
+            line(
+                &mut img,
+                Vec2::new((c * CELL) as f32, gy),
+                Vec2::new(((c + 1) * CELL) as f32, gy),
+                Rgb([180, 180, 170]),
+                1,
+            );
             let along = if view == 2 { follow.z } else { -follow.x };
             let first = ((along - size) / 0.25).floor() as i32;
             for k in first..first + (2.0 * size / 0.25) as i32 + 2 {
                 let x = ox + (k as f32 * 0.25 - along) * scale;
                 if x > (c * CELL) as f32 && x < ((c + 1) * CELL) as f32 {
-                    line(&mut img, Vec2::new(x, gy), Vec2::new(x, gy + 6.0), Rgb([150, 150, 140]), 1);
+                    line(
+                        &mut img,
+                        Vec2::new(x, gy),
+                        Vec2::new(x, gy + 6.0),
+                        Rgb([150, 150, 140]),
+                        1,
+                    );
                 }
             }
             for (i, (w, b)) in world.iter().zip(skeleton.bones()).enumerate() {
@@ -89,7 +105,13 @@ pub(crate) fn sheet(skeleton: &Skeleton, roles: &RoleMap, clip: &Clip, columns: 
             }
         }
         let x = ((c + 1) * CELL) as f32 - 0.5;
-        line(&mut img, Vec2::new(x, 0.0), Vec2::new(x, (3 * CELL) as f32), Rgb([220, 220, 215]), 1);
+        line(
+            &mut img,
+            Vec2::new(x, 0.0),
+            Vec2::new(x, (3 * CELL) as f32),
+            Rgb([220, 220, 215]),
+            1,
+        );
     }
     img
 }

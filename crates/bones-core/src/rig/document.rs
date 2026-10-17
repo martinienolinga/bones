@@ -57,6 +57,11 @@ pub struct Rig {
     pub limbs: Vec<Limb>,
     #[serde(default)]
     pub pins: Vec<Pin>,
+    /// Les poids ont été peints (ou retouchés par un outil « Weights ») : ils
+    /// ne sont plus recalculés automatiquement quand le squelette change,
+    /// jusqu'à ce que l'utilisateur relance les poids automatiques.
+    #[serde(default)]
+    pub(crate) painted: bool,
     #[serde(skip)]
     pub(crate) revisions: Revisions,
 }
@@ -75,12 +80,29 @@ impl Rig {
             clip: Arc::new(Clip::default()),
             limbs: Vec::new(),
             pins: Vec::new(),
+            painted: false,
             revisions: Revisions::default(),
         }
     }
 
     pub fn revisions(&self) -> Revisions {
         self.revisions
+    }
+
+    /// Vrai si les poids ont été peints à la main (voir [`Rig::painted`]).
+    pub fn weights_painted(&self) -> bool {
+        self.painted
+    }
+
+    /// Marque les poids comme peints (plus de recalcul automatique) ou non.
+    pub(crate) fn set_painted(&mut self, painted: bool) {
+        self.painted = painted;
+    }
+
+    /// Incrémente la révision des poids pour que le rendu les renvoie (après
+    /// une mutation de `skin` par un emprunt disjoint, pendant la peinture).
+    pub(crate) fn bump_skin(&mut self) {
+        self.revisions.skin = next_revision();
     }
 
     /// Vrai si les poids ne correspondent plus au squelette ou au maillage.
@@ -130,6 +152,8 @@ impl Rig {
         self.skeleton = skeleton;
         self.limbs = limbs;
         self.pins.clear();
+        // Squelette remplacé : les anciens poids peints ne correspondent plus.
+        self.painted = false;
         self.clip = Arc::new(Clip::new(self.clip.fps, self.clip.frame_count));
         self.touch_clip();
         self.touch_skeleton();
@@ -143,6 +167,8 @@ impl Rig {
         });
         self.revisions.mesh = next_revision();
         self.revisions.skin = next_revision();
+        // Nouveau maillage : poids remis à zéro, donc plus rien de peint.
+        self.painted = false;
     }
 
     pub fn add_bone_world(&mut self, name: &str, parent: Option<BoneId>, head: Vec3, tail: Vec3) -> BoneId {

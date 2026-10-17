@@ -14,7 +14,10 @@ pub enum PresetError {
     /// Ce n'est pas un préréglage, ou son contenu est incohérent.
     Invalid(String),
     /// Préréglage enregistré par une version plus récente de l'application.
-    TooNew { version: u32, supported: u32 },
+    TooNew {
+        version: u32,
+        supported: u32,
+    },
     /// Le squelette ne convient pas (os nécessaires introuvables).
     Incompatible(String),
     /// Import ou export dans un autre format.

@@ -42,7 +42,14 @@ fn stance(lift: f32) -> [Foot; 2] {
 
 /// Impulsion 0 → 1 → 0 : sortie rapide, maintien bref, retour plus lent.
 fn pulse(start: f32, out: f32, hold: f32, back: f32) -> Curve {
-    Curve::new(&[(0.0, 0.0), (start, 0.0), (start + out, 1.0), (start + out + hold, 1.0), (start + out + hold + back, 0.0), (10.0, 0.0)])
+    Curve::new(&[
+        (0.0, 0.0),
+        (start, 0.0),
+        (start + out, 1.0),
+        (start + out + hold, 1.0),
+        (start + out + hold + back, 0.0),
+        (10.0, 0.0),
+    ])
 }
 
 pub(crate) struct Punch<'r, 'a> {
@@ -80,7 +87,13 @@ impl Motion for Punch<'_, '_> {
         let bounce = 0.008 * leg * cwave(2.0 * u);
         body.reset();
         let yaw = -0.4 + 0.65 * hips - 0.08 * jab;
-        h.pelvis(body, Vec3::new(0.0, -0.06 * leg + bounce, 0.03 * leg * hips), yaw, 0.08, 0.0);
+        h.pelvis(
+            body,
+            Vec3::new(0.0, -0.06 * leg + bounce, 0.03 * leg * hips),
+            yaw,
+            0.08,
+            0.0,
+        );
         h.bend_spine(body, 0.08 + 0.05 * hips, 0.25 + 0.3 * hips - 0.15 * jab, 0.0);
         for side in Lr::BOTH {
             h.curl(body, side, 1.0);
@@ -133,7 +146,13 @@ impl Motion for Kick<'_, '_> {
         let leg = h.legs[0].length;
         body.reset();
         let rise = 0.04 * leg * chamber;
-        h.pelvis(body, Vec3::new(0.03 * leg * chamber, -0.06 * leg + rise, 0.0), -0.4 + 0.3 * chamber, 0.08 - 0.15 * extend, 0.0);
+        h.pelvis(
+            body,
+            Vec3::new(0.03 * leg * chamber, -0.06 * leg + rise, 0.0),
+            -0.4 + 0.3 * chamber,
+            0.08 - 0.15 * extend,
+            0.0,
+        );
         h.bend_spine(body, 0.08 - 0.25 * extend, 0.25 - 0.15 * chamber, 0.0);
         for side in Lr::BOTH {
             h.curl(body, side, 1.0);
@@ -149,7 +168,14 @@ impl Motion for Kick<'_, '_> {
             let armed = hip + h.rig.w(Vec3::new(0.0, -0.55, 0.3) * leg);
             let out = hip + h.rig.w(Vec3::new(0.0, -0.95 + self.height, 0.95) * leg);
             let target = rest.lerp(armed, chamber).lerp(out, extend);
-            h.place_foot(body, Lr::Right, target, -0.5 * chamber, -0.6 * (1.0 - chamber), 0.0);
+            h.place_foot(
+                body,
+                Lr::Right,
+                target,
+                -0.5 * chamber,
+                -0.6 * (1.0 - chamber),
+                0.0,
+            );
         }
         // Bras droit lancé en arrière pour l'équilibre pendant le coup.
         let arm = h.arm_of(Lr::Right).map_or(0.6, |a| a.length);

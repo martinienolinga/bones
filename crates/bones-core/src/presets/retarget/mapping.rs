@@ -49,18 +49,31 @@ impl Mapping {
         let mut report = Report::default();
         for t in tgt.ids() {
             let by_role = tgt_roles.role(t).and_then(|role| {
-                let chain = if options.mirror { role.chain.mirror() } else { role.chain };
+                let chain = if options.mirror {
+                    role.chain.mirror()
+                } else {
+                    role.chain
+                };
                 let bones = src_roles.chain(chain);
                 let n_t = tgt_roles.chain(role.chain).len();
                 pick(&bones, role.index as usize, n_t, chain.is_limb())
             });
             let by_name = || {
                 let name = &tgt.bone(t).name;
-                let wanted = if options.mirror { mirror_name(name).unwrap_or(name.clone()) } else { name.clone() };
+                let wanted = if options.mirror {
+                    mirror_name(name).unwrap_or(name.clone())
+                } else {
+                    name.clone()
+                };
                 let wanted = plain(&wanted);
-                src.ids().find(|s| plain(&src.bone(*s).name) == wanted).map(|s| (s, s, 0.0))
+                src.ids()
+                    .find(|s| plain(&src.bone(*s).name) == wanted)
+                    .map(|s| (s, s, 0.0))
             };
-            let Some((a, b, w)) = by_role.or_else(by_name).filter(|(a, b, _)| usable(*a) && usable(*b)) else {
+            let Some((a, b, w)) = by_role
+                .or_else(by_name)
+                .filter(|(a, b, _)| usable(*a) && usable(*b))
+            else {
                 report.unmapped.push(tgt.bone(t).name.clone());
                 continue;
             };
@@ -84,8 +97,16 @@ impl Mapping {
             } else {
                 Quat::IDENTITY
             };
-            samples[t.index()] = Some(Sample { a, b, w, align, translate });
-            report.mapped.push((tgt.bone(t).name.clone(), src.bone(a).name.clone()));
+            samples[t.index()] = Some(Sample {
+                a,
+                b,
+                w,
+                align,
+                translate,
+            });
+            report
+                .mapped
+                .push((tgt.bone(t).name.clone(), src.bone(a).name.clone()));
         }
         Self { samples, report }
     }

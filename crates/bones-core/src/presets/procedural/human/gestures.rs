@@ -50,7 +50,13 @@ impl Motion for Wave<'_, '_> {
         body.reset();
         let size = h.hip_height;
         let beat = wave(2.0 * u);
-        h.pelvis(body, Vec3::new(-s * 0.02 * size, -0.012 * size, 0.0), 0.0, 0.0, -s * 0.03);
+        h.pelvis(
+            body,
+            Vec3::new(-s * 0.02 * size, -0.012 * size, 0.0),
+            0.0,
+            0.0,
+            -s * 0.03,
+        );
         h.bend_spine(body, 0.0, s * 0.05, s * 0.06 + 0.01 * beat);
         h.shrug(body, side, 0.12, 0.05);
         h.curl(body, side, 0.05);
@@ -102,8 +108,19 @@ impl Motion for Talk<'_, '_> {
         body.reset();
         let size = h.hip_height;
         let shift = noise(u, 3, &[1, 2]);
-        h.pelvis(body, Vec3::new(0.015 * size * shift, -0.012 * size, 0.0), 0.04 * shift, 0.0, 0.02 * shift);
-        h.bend_spine(body, 0.03 + 0.03 * e * noise(u, 5, &[2, 3]), 0.08 * e * noise(u, 9, &[1, 3]), -0.01 * shift);
+        h.pelvis(
+            body,
+            Vec3::new(0.015 * size * shift, -0.012 * size, 0.0),
+            0.04 * shift,
+            0.0,
+            0.02 * shift,
+        );
+        h.bend_spine(
+            body,
+            0.03 + 0.03 * e * noise(u, 5, &[2, 3]),
+            0.08 * e * noise(u, 9, &[1, 3]),
+            -0.01 * shift,
+        );
         for side in Lr::BOTH {
             h.curl(body, side, 0.25);
         }
@@ -119,10 +136,21 @@ impl Motion for Talk<'_, '_> {
                 -0.62 + 0.12 * g(1, &[3, 4, 5]).max(-0.4),
                 0.42 + 0.1 * g(2, &[2, 5]),
             ) * arm;
-            h.reach_from_shoulder(body, side, hand, Vec3::new(s * 0.5, -1.0, -0.2), 0.1 * g(3, &[3, 4]));
+            h.reach_from_shoulder(
+                body,
+                side,
+                hand,
+                Vec3::new(s * 0.5, -1.0, -0.2),
+                0.1 * g(3, &[3, 4]),
+            );
             h.palm_towards(body, side, h.rig.w(Vec3::new(-s * 0.6, 0.8, 0.2)));
         }
         let nod = 0.07 * e * noise(u, 31, &[4, 6, 8]);
-        h.look(body, nod, 0.15 * e * noise(u, 37, &[1, 2]), 0.04 * noise(u, 41, &[2, 3]));
+        h.look(
+            body,
+            nod,
+            0.15 * e * noise(u, 37, &[1, 2]),
+            0.04 * noise(u, 41, &[2, 3]),
+        );
     }
 }

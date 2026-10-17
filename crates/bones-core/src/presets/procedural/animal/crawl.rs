@@ -41,7 +41,9 @@ pub(crate) struct Crawl<'r, 'a> {
 
 impl<'r, 'a> Crawl<'r, 'a> {
     pub fn new(rig: &'r Rigging<'a>, p: &Params) -> Result<Self, PresetError> {
-        let root = rig.bone(Chain::Root, 0).ok_or_else(|| incompatible("no body bone"))?;
+        let root = rig
+            .bone(Chain::Root, 0)
+            .ok_or_else(|| incompatible("no body bone"))?;
         let mut legs = Vec::new();
         for chain in rig.roles.chains() {
             if let Chain::LegPair(pair, side) = chain {
@@ -51,7 +53,12 @@ impl<'r, 'a> Crawl<'r, 'a> {
                 let flat = |v: Vec3| v - rig.frame.up * v.dot(rig.frame.up);
                 let reach = flat(contact - rig.head(bones[0])).length().max(1e-3);
                 let phase = ((pair as usize + (side == Lr::Right) as usize) % 2) as f32 * 0.5;
-                legs.push(Leg { bones, phase, contact, reach });
+                legs.push(Leg {
+                    bones,
+                    phase,
+                    contact,
+                    reach,
+                });
             }
         }
         if legs.len() < 6 {
@@ -105,7 +112,10 @@ impl<'r, 'a> Crawl<'r, 'a> {
                 let angle = now.cross(want).dot(up).atan2(now.dot(want));
                 body.rotate(b[0], Quat::from_axis_angle(up, angle));
                 // Segments distaux : orientation de repos (suivant le corps).
-                let distal: Vec3 = b[3..].iter().map(|d| carried * (rig.tail(*d) - rig.head(*d))).sum();
+                let distal: Vec3 = b[3..]
+                    .iter()
+                    .map(|d| carried * (rig.tail(*d) - rig.head(*d)))
+                    .sum();
                 let knee = target - distal;
                 let pole = (body.head(b[1]) + knee) * 0.5 + up * leg.reach;
                 body.two_bone(b[1], b[2], knee, pole);
@@ -125,7 +135,13 @@ impl Motion for Crawl<'_, '_> {
     fn pose(&self, u: f32, body: &mut Body) {
         body.reset();
         let bob = 0.04 * self.lift * cwave(2.0 * u);
-        body.pelvis(self.root, Vec3::new(0.0, bob, self.stride * u), 0.03 * wave(u), 0.0, 0.02 * wave(u));
+        body.pelvis(
+            self.root,
+            Vec3::new(0.0, bob, self.stride * u),
+            0.03 * wave(u),
+            0.0,
+            0.02 * wave(u),
+        );
         body.spread(&self.abdomen, 0.03 * cwave(2.0 * u), -0.06 * wave(u), 0.0);
         body.fk();
         for leg in &self.legs {

@@ -60,8 +60,16 @@ pub fn bake(
     }
     let rig = Rigging::new(skeleton, roles);
     let motion = generator.build(&rig, params)?;
-    let fps = if fps.is_finite() { fps.clamp(1.0, 240.0) } else { 30.0 };
-    let speed = if speed.is_finite() { speed.clamp(0.05, 20.0) } else { 1.0 };
+    let fps = if fps.is_finite() {
+        fps.clamp(1.0, 240.0)
+    } else {
+        30.0
+    };
+    let speed = if speed.is_finite() {
+        speed.clamp(0.05, 20.0)
+    } else {
+        1.0
+    };
     let duration = (motion.duration() / speed).clamp(1.0 / fps, 600.0);
     let per_cycle = ((duration * fps).round() as u32).max(1);
     let cycles = if generator.looping() { loops.max(1) } else { 1 };

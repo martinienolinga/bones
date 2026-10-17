@@ -53,7 +53,12 @@ impl BodyFrame {
     pub fn basis(&self) -> Quat {
         let forward = (self.forward - self.up * self.forward.dot(self.up)).normalize_or(Vec3::Z);
         let up = self.up.normalize_or(Vec3::Y);
-        Quat::from_mat3(&Mat3::from_cols(up.cross(forward).normalize_or(Vec3::X), up, forward)).normalize()
+        Quat::from_mat3(&Mat3::from_cols(
+            up.cross(forward).normalize_or(Vec3::X),
+            up,
+            forward,
+        ))
+        .normalize()
     }
 
     pub fn to_world(&self, v: Vec3) -> Vec3 {
@@ -75,7 +80,11 @@ pub(super) fn extent(skeleton: &Skeleton) -> (Vec3, Vec3) {
         lo = lo.min(h.min(t));
         hi = hi.max(h.max(t));
     }
-    if lo.x > hi.x { (Vec3::ZERO, Vec3::ZERO) } else { (lo, hi) }
+    if lo.x > hi.x {
+        (Vec3::ZERO, Vec3::ZERO)
+    } else {
+        (lo, hi)
+    }
 }
 
 /// Repère estimé d'après les rôles : côtés gauche/droite, position de la

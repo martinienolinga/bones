@@ -109,7 +109,11 @@ impl Motion for Sway {
             let seed = part.bone.0;
             let phase = cycles * u - delay * s;
             let lean = 0.5 * wind * g * soft;
-            let sway = 0.35 * wind * g * soft * (0.8 * wave(phase) + 0.4 * noise(u, seed, &[cycles as u32 + 1, 2 * cycles as u32 + 1]));
+            let sway = 0.35
+                * wind
+                * g
+                * soft
+                * (0.8 * wave(phase) + 0.4 * noise(u, seed, &[cycles as u32 + 1, 2 * cycles as u32 + 1]));
             let cross = 0.15 * wind * g * soft * wave(phase + 0.25 + 0.1 * noise(u, seed + 7, &[1, 2]));
             body.turn(Some(part.bone), bend_axis, (lean + sway) * part.weight * 2.0);
             body.turn(Some(part.bone), w, cross * part.weight * 2.0);
@@ -119,7 +123,10 @@ impl Motion for Sway {
                 body.turn(Some(part.bone), bend_axis, nod * part.weight * 3.0);
             }
             if part.leaf && flutter > 0.0 {
-                let f = 0.3 * flutter * (0.5 + wind) * noise(u, seed + 31, &[fast as u32, fast as u32 + 3, 2 * fast as u32 + 1]);
+                let f = 0.3
+                    * flutter
+                    * (0.5 + wind)
+                    * noise(u, seed + 31, &[fast as u32, fast as u32 + 3, 2 * fast as u32 + 1]);
                 body.turn(Some(part.bone), Vec3::Y, f);
                 body.turn(Some(part.bone), bend_axis, 0.6 * f);
             }

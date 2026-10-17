@@ -21,7 +21,12 @@ pub enum Category {
 }
 
 impl Category {
-    pub const ALL: [Category; 4] = [Category::Human, Category::Animals, Category::Vegetation, Category::Misc];
+    pub const ALL: [Category; 4] = [
+        Category::Human,
+        Category::Animals,
+        Category::Vegetation,
+        Category::Misc,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -206,7 +211,9 @@ impl Section {
     /// apparaît aussi dans sa catégorie).
     pub fn contains(self, info: &PresetInfo) -> bool {
         match self {
-            Section::Category(c) => info.category == c && !matches!(info.source, PresetSource::Imported { .. }),
+            Section::Category(c) => {
+                info.category == c && !matches!(info.source, PresetSource::Imported { .. })
+            }
             Section::MyPresets => info.source == PresetSource::User,
             Section::Imported => matches!(info.source, PresetSource::Imported { .. }),
         }

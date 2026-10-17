@@ -55,7 +55,11 @@ impl Body<'_, '_> {
         for (i, b) in bones.iter().enumerate() {
             let s = (i as f32 + 1.0) / n;
             let a = amplitude * (0.5 + s) / n * 2.0;
-            self.turn(Some(*b), axis, a * (std::f32::consts::TAU * (phase - lag * s)).sin());
+            self.turn(
+                Some(*b),
+                axis,
+                a * (std::f32::consts::TAU * (phase - lag * s)).sin(),
+            );
         }
     }
 }

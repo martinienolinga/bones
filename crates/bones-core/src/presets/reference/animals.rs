@@ -14,17 +14,34 @@ pub(super) fn quadruped() -> Skeleton {
     let chest = b.bone("spine_02.x", Some(s1), [0.0, 0.58, 0.05], [0.0, 0.58, 0.22]);
     let neck = b.bone("neck.x", Some(chest), [0.0, 0.58, 0.22], [0.0, 0.72, 0.36]);
     b.bone("head.x", Some(neck), [0.0, 0.72, 0.36], [0.0, 0.70, 0.54]);
-    let tail = [[0.0, 0.56, -0.31], [0.0, 0.52, -0.45], [0.0, 0.45, -0.56], [0.0, 0.38, -0.65]];
+    let tail = [
+        [0.0, 0.56, -0.31],
+        [0.0, 0.52, -0.45],
+        [0.0, 0.45, -0.56],
+        [0.0, 0.38, -0.65],
+    ];
     b.chain("tail_#.x", Some(root), &tail.map(Vec3::from_array));
     b.pair(|b, s, x| {
         let p = |v: [f32; 3]| Vec3::new(v[0] * x, v[1], v[2]);
-        let front = [[0.09, 0.50, 0.20], [0.09, 0.30, 0.15], [0.09, 0.10, 0.18], [0.09, 0.03, 0.20], [0.09, 0.0, 0.26]];
+        let front = [
+            [0.09, 0.50, 0.20],
+            [0.09, 0.30, 0.15],
+            [0.09, 0.10, 0.18],
+            [0.09, 0.03, 0.20],
+            [0.09, 0.0, 0.26],
+        ];
         let names = ["arm", "forearm", "hand", "toes_front"];
         let mut parent = Some(chest);
         for (i, name) in names.iter().enumerate() {
             parent = Some(b.0.add_bone_world(format!("{name}.{s}"), parent, p(front[i]), p(front[i + 1])));
         }
-        let hind = [[0.09, 0.50, -0.28], [0.09, 0.30, -0.20], [0.09, 0.13, -0.32], [0.09, 0.03, -0.30], [0.09, 0.0, -0.24]];
+        let hind = [
+            [0.09, 0.50, -0.28],
+            [0.09, 0.30, -0.20],
+            [0.09, 0.13, -0.32],
+            [0.09, 0.03, -0.30],
+            [0.09, 0.0, -0.24],
+        ];
         let names = ["thigh", "leg", "foot", "toes"];
         let mut parent = Some(root);
         for (i, name) in names.iter().enumerate() {
@@ -39,16 +56,37 @@ pub(super) fn bird() -> Skeleton {
     let mut b = Builder::new();
     let root = b.bone("root.x", None, [0.0, 0.20, -0.02], [0.0, 0.22, 0.04]);
     let chest = b.bone("spine_01.x", Some(root), [0.0, 0.22, 0.04], [0.0, 0.25, 0.10]);
-    let neck = [[0.0, 0.25, 0.10], [0.0, 0.29, 0.13], [0.0, 0.33, 0.15], [0.0, 0.36, 0.16]];
+    let neck = [
+        [0.0, 0.25, 0.10],
+        [0.0, 0.29, 0.13],
+        [0.0, 0.33, 0.15],
+        [0.0, 0.36, 0.16],
+    ];
     let neck = b.chain("neck_#.x", Some(chest), &neck.map(Vec3::from_array));
-    b.bone("head.x", neck.last().copied(), [0.0, 0.36, 0.16], [0.0, 0.37, 0.22]);
+    b.bone(
+        "head.x",
+        neck.last().copied(),
+        [0.0, 0.36, 0.16],
+        [0.0, 0.37, 0.22],
+    );
     let tail = [[0.0, 0.20, -0.03], [0.0, 0.18, -0.11], [0.0, 0.16, -0.19]];
     b.chain("tail_#.x", Some(root), &tail.map(Vec3::from_array));
     b.pair(|b, s, x| {
         let p = |v: [f32; 3]| Vec3::new(v[0] * x, v[1], v[2]);
-        let wing = [[0.03, 0.24, 0.08], [0.12, 0.24, 0.06], [0.25, 0.24, 0.05], [0.38, 0.24, 0.03]];
+        let wing = [
+            [0.03, 0.24, 0.08],
+            [0.12, 0.24, 0.06],
+            [0.25, 0.24, 0.05],
+            [0.38, 0.24, 0.03],
+        ];
         b.chain(&format!("wing_#.{s}"), Some(chest), &wing.map(p));
-        let leg = [[0.03, 0.19, 0.01], [0.04, 0.14, 0.05], [0.04, 0.08, 0.0], [0.04, 0.015, 0.01], [0.04, 0.0, 0.05]];
+        let leg = [
+            [0.03, 0.19, 0.01],
+            [0.04, 0.14, 0.05],
+            [0.04, 0.08, 0.0],
+            [0.04, 0.015, 0.01],
+            [0.04, 0.0, 0.05],
+        ];
         let names = ["thigh", "leg", "foot", "toes"];
         let mut parent = Some(root);
         for (i, name) in names.iter().enumerate() {
@@ -65,7 +103,13 @@ pub(super) fn fish() -> Skeleton {
     let root = b.bone("root.x", None, [0.0, 0.5, 0.0], [0.0, 0.5, 0.1]);
     let front = b.bone("spine_01.x", Some(root), [0.0, 0.5, 0.1], [0.0, 0.5, 0.18]);
     b.bone("head.x", Some(front), [0.0, 0.5, 0.18], [0.0, 0.5, 0.26]);
-    let tail = [[0.0, 0.5, 0.0], [0.0, 0.5, -0.07], [0.0, 0.5, -0.13], [0.0, 0.5, -0.18], [0.0, 0.5, -0.24]];
+    let tail = [
+        [0.0, 0.5, 0.0],
+        [0.0, 0.5, -0.07],
+        [0.0, 0.5, -0.13],
+        [0.0, 0.5, -0.18],
+        [0.0, 0.5, -0.24],
+    ];
     b.chain("tail_#.x", Some(root), &tail.map(Vec3::from_array));
     b.bone("fin_dorsal.x", Some(root), [0.0, 0.54, 0.03], [0.0, 0.58, -0.03]);
     b.pair(|b, s, x| {
@@ -84,7 +128,9 @@ pub(super) fn serpent() -> Skeleton {
     let mut b = Builder::new();
     let root = b.bone("root.x", None, [0.0, 0.03, 0.9], [0.0, 0.03, 0.78]);
     b.bone("head.x", Some(root), [0.0, 0.03, 0.9], [0.0, 0.03, 1.0]);
-    let points: Vec<Vec3> = (0..=14).map(|i| Vec3::new(0.0, 0.03, 0.78 - i as f32 * 0.12)).collect();
+    let points: Vec<Vec3> = (0..=14)
+        .map(|i| Vec3::new(0.0, 0.03, 0.78 - i as f32 * 0.12))
+        .collect();
     b.chain("spine_#.x", Some(root), &points);
     b.0
 }

@@ -107,7 +107,9 @@ impl Human<'_, '_> {
 
     /// Épaule : élévation et avancée de la clavicule (radians).
     pub fn shrug(&self, body: &mut Body, side: Lr, raise: f32, forward: f32) {
-        let Some(c) = self.arm_of(side).and_then(|a| a.clavicle) else { return };
+        let Some(c) = self.arm_of(side).and_then(|a| a.clavicle) else {
+            return;
+        };
         body.turn(Some(c), Vec3::Z, side.sign() * raise);
         body.turn(Some(c), Vec3::Y, -side.sign() * forward);
     }

@@ -140,6 +140,9 @@ pub(super) fn full_editor() -> Editor {
         bone: BoneId(5),
         target: Vec3::new(0.3, 1.2, 0.1),
     });
+    // Poids marqués comme peints : couvre le champ dans le test « tout champ
+    // diffère du défaut » et son aller-retour.
+    rig.set_painted(true);
 
     let mut e = Editor::new(rig);
     e.camera = OrbitCamera {

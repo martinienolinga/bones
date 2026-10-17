@@ -78,7 +78,7 @@ impl Editor {
     }
 
     pub fn set_mode(&mut self, mode: Mode) {
-        if self.drag.is_some() {
+        if self.drag.is_some() || self.paint.stroke.is_some() {
             self.pointer_cancel();
         }
         self.mode = mode;

@@ -74,14 +74,22 @@ impl Preview {
 
     /// Côté de chaque os (couleurs gauche/droite du dessin).
     pub fn sides(&self) -> Vec<Option<Lr>> {
-        self.roles.roles.iter().map(|r| r.and_then(|r| r.chain.side())).collect()
+        self.roles
+            .roles
+            .iter()
+            .map(|r| r.and_then(|r| r.chain.side()))
+            .collect()
     }
 
     /// Segments (tête, queue) monde de chaque os à l'instant `time`
     /// (secondes ; boucle si le préréglage boucle, sinon reste sur la fin).
     pub fn segments(&self, time: f32, out: &mut Vec<[Vec3; 2]>) {
         let d = self.duration().max(1e-3);
-        let t = if self.looping { time.rem_euclid(d) } else { time.clamp(0.0, d) };
+        let t = if self.looping {
+            time.rem_euclid(d)
+        } else {
+            time.clamp(0.0, d)
+        };
         let mut pose = Pose::rest(&self.skeleton);
         self.clip.sample_into(t * self.clip.fps, &mut pose);
         out.clear();

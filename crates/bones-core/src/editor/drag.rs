@@ -56,6 +56,14 @@ pub(super) enum Drag {
 
 impl Editor {
     pub fn pointer_move(&mut self, pos: Vec2, vp: &Viewport) {
+        // Peinture de poids : le trait n'utilise pas `self.drag`.
+        if self.mode == Mode::WeightPaint {
+            if self.paint.stroke.is_some() {
+                self.drag_moved = true;
+                self.paint_move(pos, vp);
+            }
+            return;
+        }
         // Manipulateur : son état évolue à chaque mouvement (angle déroulé),
         // il est donc repris puis remis en place, sans copie.
         if let Some(Drag::Manip(mut gesture)) = self.drag.take_if(|d| matches!(d, Drag::Manip(_))) {
@@ -183,6 +191,10 @@ impl Editor {
     }
 
     pub fn pointer_up(&mut self) {
+        if self.mode == Mode::WeightPaint {
+            self.paint_up();
+            return;
+        }
         let Some(drag) = self.drag.take() else { return };
         match drag {
             Drag::NewBone { bone, .. } => {
@@ -207,6 +219,10 @@ impl Editor {
 
     /// Annule le geste en cours (arrivée d'un second doigt, etc.).
     pub fn pointer_cancel(&mut self) {
+        if self.mode == Mode::WeightPaint {
+            self.paint_cancel();
+            return;
+        }
         if self.drag.take().is_some() && !matches!(self.mode, Mode::AutoRig) {
             self.drop_checkpoint(true);
         }

@@ -26,7 +26,10 @@ fn renamed(mut skeleton: Skeleton, table: &[(&str, &str)]) -> Skeleton {
 fn tokens_split_conventions() {
     assert_eq!(names::tokens("mixamorig:LeftUpLeg"), ["left", "up", "leg"]);
     assert_eq!(names::tokens("LHipJoint"), ["l", "hip", "joint"]);
-    assert_eq!(names::tokens("DEF-upper_arm.L.001"), ["def", "upper", "arm", "l", "001"]);
+    assert_eq!(
+        names::tokens("DEF-upper_arm.L.001"),
+        ["def", "upper", "arm", "l", "001"]
+    );
     assert_eq!(names::tokens("Bip01 R Forearm"), ["bip", "01", "r", "forearm"]);
 }
 
@@ -51,7 +54,11 @@ fn assert_humanoid(skeleton: &Skeleton, map: &RoleMap, root: &str) {
     assert_eq!(chain_names(skeleton, map, Chain::Arm(Lr::Right)).len(), 3);
     assert_eq!(chain_names(skeleton, map, Chain::Clavicle(Lr::Left)).len(), 1);
     assert_eq!(chain_names(skeleton, map, Chain::Head).len(), 1);
-    assert!(map.frame.forward.abs_diff_eq(Vec3::Z, 1e-3), "{:?}", map.frame.forward);
+    assert!(
+        map.frame.forward.abs_diff_eq(Vec3::Z, 1e-3),
+        "{:?}",
+        map.frame.forward
+    );
 }
 
 #[test]
@@ -61,8 +68,14 @@ fn demo_rig_is_humanoid() {
     assert_eq!(map.rig_type, RigType::Humanoid);
     let s = &rig.skeleton;
     assert_eq!(names(s, &[map.root().unwrap()]), ["root.x"]);
-    assert_eq!(chain_names(s, &map, Chain::Leg(Lr::Left)), ["thigh.l", "leg.l", "foot.l", "toes.l"]);
-    assert_eq!(chain_names(s, &map, Chain::Arm(Lr::Right)), ["arm.r", "forearm.r", "hand.r"]);
+    assert_eq!(
+        chain_names(s, &map, Chain::Leg(Lr::Left)),
+        ["thigh.l", "leg.l", "foot.l", "toes.l"]
+    );
+    assert_eq!(
+        chain_names(s, &map, Chain::Arm(Lr::Right)),
+        ["arm.r", "forearm.r", "hand.r"]
+    );
     assert_eq!(chain_names(s, &map, Chain::Clavicle(Lr::Left)), ["shoulder.l"]);
     assert_eq!(chain_names(s, &map, Chain::Spine).len(), 3);
     assert_eq!(chain_names(s, &map, Chain::Head), ["head.x"]);
@@ -106,7 +119,12 @@ fn mixamo_names() {
     assert_humanoid(&s, &map, "mixamorig:Hips");
     assert_eq!(
         chain_names(&s, &map, Chain::Leg(Lr::Left)),
-        ["mixamorig:LeftUpLeg", "mixamorig:LeftLeg", "mixamorig:LeftFoot", "mixamorig:LeftToeBase"]
+        [
+            "mixamorig:LeftUpLeg",
+            "mixamorig:LeftLeg",
+            "mixamorig:LeftFoot",
+            "mixamorig:LeftToeBase"
+        ]
     );
     let end = s.find("mixamorig:HeadTop_End").unwrap();
     assert_eq!(map.role(end), None);
@@ -159,8 +177,14 @@ fn unreal_names_with_ground_root_and_twist_bones() {
     assert_eq!(map.rig_type, RigType::Humanoid);
     assert_eq!(names(&s, &[map.root().unwrap()]), ["pelvis"]);
     assert_eq!(names(&s, &[map.bone(Chain::Ground, 0).unwrap()]), ["root"]);
-    assert_eq!(chain_names(&s, &map, Chain::Arm(Lr::Left)), ["upperarm_l", "lowerarm_l", "hand_l"]);
-    assert_eq!(chain_names(&s, &map, Chain::Leg(Lr::Right)), ["thigh_r", "calf_r", "foot_r", "ball_r"]);
+    assert_eq!(
+        chain_names(&s, &map, Chain::Arm(Lr::Left)),
+        ["upperarm_l", "lowerarm_l", "hand_l"]
+    );
+    assert_eq!(
+        chain_names(&s, &map, Chain::Leg(Lr::Right)),
+        ["thigh_r", "calf_r", "foot_r", "ball_r"]
+    );
     assert_eq!(map.role(s.find("upperarm_twist_01_l").unwrap()), None);
 }
 
@@ -178,16 +202,66 @@ fn cmu() -> Skeleton {
     for (s, x) in [("Left", 1.0f32), ("Right", -1.0)] {
         let c = &s[..1];
         let p = |v: [f32; 3]| [v[0] * x, v[1], v[2]];
-        let hj = b.bone(&format!("{c}HipJoint"), Some(hips), p([0.0, 0.95, 0.0]), p([0.1, 0.9, 0.0]));
-        let up = b.bone(&format!("{s}UpLeg"), Some(hj), p([0.1, 0.9, 0.0]), p([0.1, 0.5, 0.02]));
-        let leg = b.bone(&format!("{s}Leg"), Some(up), p([0.1, 0.5, 0.02]), p([0.1, 0.08, 0.0]));
-        let foot = b.bone(&format!("{s}Foot"), Some(leg), p([0.1, 0.08, 0.0]), p([0.1, 0.02, 0.13]));
-        b.bone(&format!("{s}ToeBase"), Some(foot), p([0.1, 0.02, 0.13]), p([0.1, 0.01, 0.18]));
-        let sh = b.bone(&format!("{s}Shoulder"), Some(spine1), p([0.02, 1.45, 0.0]), p([0.18, 1.45, 0.0]));
-        let arm = b.bone(&format!("{s}Arm"), Some(sh), p([0.18, 1.45, 0.0]), p([0.45, 1.45, 0.0]));
-        let fore = b.bone(&format!("{s}ForeArm"), Some(arm), p([0.45, 1.45, 0.0]), p([0.7, 1.45, 0.0]));
-        let hand = b.bone(&format!("{s}Hand"), Some(fore), p([0.7, 1.45, 0.0]), p([0.78, 1.45, 0.0]));
-        b.bone(&format!("{c}Thumb"), Some(hand), p([0.72, 1.45, 0.02]), p([0.76, 1.45, 0.05]));
+        let hj = b.bone(
+            &format!("{c}HipJoint"),
+            Some(hips),
+            p([0.0, 0.95, 0.0]),
+            p([0.1, 0.9, 0.0]),
+        );
+        let up = b.bone(
+            &format!("{s}UpLeg"),
+            Some(hj),
+            p([0.1, 0.9, 0.0]),
+            p([0.1, 0.5, 0.02]),
+        );
+        let leg = b.bone(
+            &format!("{s}Leg"),
+            Some(up),
+            p([0.1, 0.5, 0.02]),
+            p([0.1, 0.08, 0.0]),
+        );
+        let foot = b.bone(
+            &format!("{s}Foot"),
+            Some(leg),
+            p([0.1, 0.08, 0.0]),
+            p([0.1, 0.02, 0.13]),
+        );
+        b.bone(
+            &format!("{s}ToeBase"),
+            Some(foot),
+            p([0.1, 0.02, 0.13]),
+            p([0.1, 0.01, 0.18]),
+        );
+        let sh = b.bone(
+            &format!("{s}Shoulder"),
+            Some(spine1),
+            p([0.02, 1.45, 0.0]),
+            p([0.18, 1.45, 0.0]),
+        );
+        let arm = b.bone(
+            &format!("{s}Arm"),
+            Some(sh),
+            p([0.18, 1.45, 0.0]),
+            p([0.45, 1.45, 0.0]),
+        );
+        let fore = b.bone(
+            &format!("{s}ForeArm"),
+            Some(arm),
+            p([0.45, 1.45, 0.0]),
+            p([0.7, 1.45, 0.0]),
+        );
+        let hand = b.bone(
+            &format!("{s}Hand"),
+            Some(fore),
+            p([0.7, 1.45, 0.0]),
+            p([0.78, 1.45, 0.0]),
+        );
+        b.bone(
+            &format!("{c}Thumb"),
+            Some(hand),
+            p([0.72, 1.45, 0.02]),
+            p([0.76, 1.45, 0.05]),
+        );
     }
     b.0
 }
@@ -198,10 +272,19 @@ fn cmu_bvh_names() {
     let map = detect(&s);
     assert_eq!(map.rig_type, RigType::Humanoid);
     assert_eq!(names(&s, &[map.root().unwrap()]), ["Hips"]);
-    assert_eq!(chain_names(&s, &map, Chain::Spine), ["LowerBack", "Spine", "Spine1"]);
+    assert_eq!(
+        chain_names(&s, &map, Chain::Spine),
+        ["LowerBack", "Spine", "Spine1"]
+    );
     assert_eq!(chain_names(&s, &map, Chain::Neck), ["Neck", "Neck1"]);
-    assert_eq!(chain_names(&s, &map, Chain::Leg(Lr::Left)), ["LeftUpLeg", "LeftLeg", "LeftFoot", "LeftToeBase"]);
-    assert_eq!(chain_names(&s, &map, Chain::Arm(Lr::Right)), ["RightArm", "RightForeArm", "RightHand"]);
+    assert_eq!(
+        chain_names(&s, &map, Chain::Leg(Lr::Left)),
+        ["LeftUpLeg", "LeftLeg", "LeftFoot", "LeftToeBase"]
+    );
+    assert_eq!(
+        chain_names(&s, &map, Chain::Arm(Lr::Right)),
+        ["RightArm", "RightForeArm", "RightHand"]
+    );
     assert_eq!(map.role(s.find("LHipJoint").unwrap()), None);
 }
 
@@ -232,8 +315,14 @@ fn reference_rigs_have_expected_types() {
 fn quadruped_roles_and_frame() {
     let s = RefRig::Quadruped.skeleton();
     let map = detect(&s);
-    assert_eq!(chain_names(&s, &map, Chain::Arm(Lr::Left)), ["arm.l", "forearm.l", "hand.l", "toes_front.l"]);
-    assert_eq!(chain_names(&s, &map, Chain::Leg(Lr::Right)), ["thigh.r", "leg.r", "foot.r", "toes.r"]);
+    assert_eq!(
+        chain_names(&s, &map, Chain::Arm(Lr::Left)),
+        ["arm.l", "forearm.l", "hand.l", "toes_front.l"]
+    );
+    assert_eq!(
+        chain_names(&s, &map, Chain::Leg(Lr::Right)),
+        ["thigh.r", "leg.r", "foot.r", "toes.r"]
+    );
     assert_eq!(chain_names(&s, &map, Chain::Tail).len(), 3);
     assert!(map.frame.forward.abs_diff_eq(Vec3::Z, 1e-3));
 }
@@ -249,8 +338,14 @@ fn anonymous_quadruped_by_topology() {
     let map = detect(&s);
     assert_eq!(map.rig_type, RigType::Quadruped);
     let by_name = |chain| chain_names(&original, &map, chain);
-    assert_eq!(by_name(Chain::Arm(Lr::Left)), ["arm.l", "forearm.l", "hand.l", "toes_front.l"]);
-    assert_eq!(by_name(Chain::Leg(Lr::Right)), ["thigh.r", "leg.r", "foot.r", "toes.r"]);
+    assert_eq!(
+        by_name(Chain::Arm(Lr::Left)),
+        ["arm.l", "forearm.l", "hand.l", "toes_front.l"]
+    );
+    assert_eq!(
+        by_name(Chain::Leg(Lr::Right)),
+        ["thigh.r", "leg.r", "foot.r", "toes.r"]
+    );
     assert_eq!(by_name(Chain::Root), ["root.x"]);
     assert_eq!(by_name(Chain::Head), ["head.x"]);
     assert_eq!(by_name(Chain::Tail).len(), 3);
@@ -266,8 +361,14 @@ fn anonymous_humanoid_by_topology() {
     let map = detect(&s);
     assert_eq!(map.rig_type, RigType::Humanoid);
     let by_name = |chain| chain_names(&original, &map, chain);
-    assert_eq!(by_name(Chain::Leg(Lr::Left)), ["thigh.l", "leg.l", "foot.l", "toes.l"]);
-    assert_eq!(by_name(Chain::Arm(Lr::Right))[..3], ["arm.r", "forearm.r", "hand.r"]);
+    assert_eq!(
+        by_name(Chain::Leg(Lr::Left)),
+        ["thigh.l", "leg.l", "foot.l", "toes.l"]
+    );
+    assert_eq!(
+        by_name(Chain::Arm(Lr::Right))[..3],
+        ["arm.r", "forearm.r", "hand.r"]
+    );
     assert_eq!(by_name(Chain::Clavicle(Lr::Left)), ["shoulder.l"]);
     assert_eq!(by_name(Chain::Head), ["head.x"]);
 }
@@ -279,7 +380,10 @@ fn spider_legs_are_numbered_front_to_back() {
     assert_eq!(map.rig_type, RigType::MultiLegged);
     for pair in 0..4u8 {
         let left = chain_names(&s, &map, Chain::LegPair(pair, Lr::Left));
-        assert_eq!(left.first().map(String::as_str), Some(format!("leg{}_01.l", pair + 1).as_str()));
+        assert_eq!(
+            left.first().map(String::as_str),
+            Some(format!("leg{}_01.l", pair + 1).as_str())
+        );
     }
 }
 
@@ -287,7 +391,11 @@ fn spider_legs_are_numbered_front_to_back() {
 fn plants_get_branch_chains() {
     let s = RefRig::Tree.skeleton();
     let map = detect(&s);
-    let free: Vec<_> = s.ids().filter(|b| map.role(*b).is_none()).map(|b| s.bone(b).name.clone()).collect();
+    let free: Vec<_> = s
+        .ids()
+        .filter(|b| map.role(*b).is_none())
+        .map(|b| s.bone(b).name.clone())
+        .collect();
     assert!(free.is_empty(), "{free:?}");
     assert_eq!(chain_names(&s, &map, Chain::Root), ["trunk_01"]);
     assert_eq!(chain_names(&s, &map, Chain::Branch(0))[0], "trunk_02");

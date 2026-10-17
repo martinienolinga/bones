@@ -22,7 +22,9 @@ fn apply_is_a_single_undo_step() {
     let mut e = Editor::new(Rig::demo());
     let before = (*e.rig.clip).clone();
     let edits = e.edit_count();
-    let report = e.apply_preset(&preset("builtin.human.walk"), &ApplyOptions::default()).unwrap();
+    let report = e
+        .apply_preset(&preset("builtin.human.walk"), &ApplyOptions::default())
+        .unwrap();
     assert!(report.frames > 20);
     assert!(report.unmapped.len() < e.rig.skeleton.len());
     assert_eq!(e.rig.clip.keys().len() as u32, report.frames);
@@ -85,7 +87,10 @@ fn insert_shifts_later_keys_and_continues_from_the_character() {
     assert_eq!(report.start, n);
     // Le saut part de là où la marche s'arrête.
     let start = root_x(&e, n as f32);
-    assert!((Vec3::new(start.x - end.x, 0.0, start.z - end.z)).length() < 0.05, "{start:?} / {end:?}");
+    assert!(
+        (Vec3::new(start.x - end.x, 0.0, start.z - end.z)).length() < 0.05,
+        "{start:?} / {end:?}"
+    );
     assert_eq!(e.rig.clip.frame_count, n + report.frames);
 }
 
@@ -140,7 +145,8 @@ fn mirror_raises_the_other_hand() {
 #[test]
 fn created_preset_reapplies_identically() {
     let mut e = Editor::new(Rig::demo());
-    e.apply_preset(&preset("builtin.human.dance"), &ApplyOptions::default()).unwrap();
+    e.apply_preset(&preset("builtin.human.dance"), &ApplyOptions::default())
+        .unwrap();
     let created = e
         .create_preset(&CreateOptions {
             name: "My/Dance:1".into(),

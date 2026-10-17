@@ -4,7 +4,9 @@
 //! procédural avec des paramètres personnalisés.
 
 use super::error::PresetError;
-use super::model::{Category, KeyframeData, Preset, PresetInfo, PresetKind, PresetSource, Procedural, new_id};
+use super::model::{
+    Category, KeyframeData, Preset, PresetInfo, PresetKind, PresetSource, Procedural, new_id,
+};
 use super::params::Params;
 use super::procedural::Generator;
 use super::roles::{RoleMap, detect};
@@ -57,7 +59,12 @@ fn info(options: &CreateOptions, roles: &RoleMap) -> PresetInfo {
         name: crate::project::store::sanitize_name(&options.name),
         category: options.category,
         group: options.group.trim().to_owned(),
-        tags: options.tags.iter().map(|t| t.trim().to_owned()).filter(|t| !t.is_empty()).collect(),
+        tags: options
+            .tags
+            .iter()
+            .map(|t| t.trim().to_owned())
+            .filter(|t| !t.is_empty())
+            .collect(),
         description: options.description.clone(),
         author: options.author.clone(),
         license: options.license.clone(),
@@ -71,7 +78,11 @@ fn info(options: &CreateOptions, roles: &RoleMap) -> PresetInfo {
 }
 
 /// Préréglage à clés tiré de l'animation `clip` du squelette `skeleton`.
-pub fn from_animation(skeleton: &Skeleton, clip: &Clip, options: &CreateOptions) -> Result<Preset, PresetError> {
+pub fn from_animation(
+    skeleton: &Skeleton,
+    clip: &Clip,
+    options: &CreateOptions,
+) -> Result<Preset, PresetError> {
     if skeleton.is_empty() {
         return Err(PresetError::Empty("the model has no skeleton".into()));
     }
@@ -103,12 +114,21 @@ pub fn from_animation(skeleton: &Skeleton, clip: &Clip, options: &CreateOptions)
         }
     }
     out.sync_len(skeleton);
-    let roles = options.roles.clone().filter(|r| r.fits(skeleton)).unwrap_or_else(|| detect(skeleton));
+    let roles = options
+        .roles
+        .clone()
+        .filter(|r| r.fits(skeleton))
+        .unwrap_or_else(|| detect(skeleton));
     let mut info = info(options, &roles);
     info.fps = clip.fps;
     info.frames = last - first;
     info.bones = skeleton.len() as u32;
-    let bones: Vec<BoneId> = options.bones.iter().copied().filter(|b| skeleton.contains(*b)).collect();
+    let bones: Vec<BoneId> = options
+        .bones
+        .iter()
+        .copied()
+        .filter(|b| skeleton.contains(*b))
+        .collect();
     let data = KeyframeData {
         skeleton: skeleton.clone(),
         roles,

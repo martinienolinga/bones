@@ -19,6 +19,8 @@ mod tests;
 mod tests_bones;
 #[cfg(test)]
 mod tests_manip;
+#[cfg(test)]
+mod tests_paint;
 mod timeline;
 mod view;
 mod weight_paint;
@@ -211,6 +213,7 @@ impl Editor {
         self.frame = 0.0;
         self.playing = false;
         self.drag = None;
+        self.paint.stroke = None;
         self.frame_all();
     }
 

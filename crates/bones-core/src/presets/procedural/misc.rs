@@ -93,7 +93,11 @@ impl Wave {
             chains,
             rate: p.get(specs, "rate"),
             amplitude: p.get(specs, "amplitude"),
-            lag: if tentacle { p.get(TENTACLE, "wavelength") } else { p.get(WAG, "lag") },
+            lag: if tentacle {
+                p.get(TENTACLE, "wavelength")
+            } else {
+                p.get(WAG, "lag")
+            },
             swirl: tentacle,
         })
     }
@@ -101,7 +105,11 @@ impl Wave {
 
 impl Motion for Wave {
     fn duration(&self) -> f32 {
-        if self.swirl { 1.0 / self.rate } else { 2.0 / self.rate }
+        if self.swirl {
+            1.0 / self.rate
+        } else {
+            2.0 / self.rate
+        }
     }
 
     fn pose(&self, u: f32, body: &mut Body) {
@@ -211,7 +219,17 @@ impl Machine {
                 })
                 .collect()
         };
-        let wheels = named(&["wheel", "gear", "rotor", "fan", "propeller", "turbine", "cog", "spin", "axle"]);
+        let wheels = named(&[
+            "wheel",
+            "gear",
+            "rotor",
+            "fan",
+            "propeller",
+            "turbine",
+            "cog",
+            "spin",
+            "axle",
+        ]);
         let pistons = named(&["piston", "slider", "plunger", "pump", "press"]);
         let spin_root = (wheels.is_empty() && pistons.is_empty())
             .then(|| rig.bone(Chain::Root, 0).or(rig.skeleton.ids().next()))

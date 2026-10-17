@@ -164,7 +164,9 @@ impl<'r, 'a> Body<'r, 'a> {
     /// Donne à l'os la rotation monde `rotation` (descendants mis à jour).
     pub fn set_rotation(&mut self, b: BoneId, rotation: Quat) {
         let bone = self.rig.skeleton.bone(b);
-        let parent = bone.parent().map_or(Quat::IDENTITY, |p| self.world[p.index()].rotation);
+        let parent = bone
+            .parent()
+            .map_or(Quat::IDENTITY, |p| self.world[p.index()].rotation);
         let basis = (parent * bone.rest.rotation).normalize();
         self.pose.bones[b.index()].rotation = (basis.inverse() * rotation).normalize();
         self.refresh(b);
@@ -200,7 +202,9 @@ impl<'r, 'a> Body<'r, 'a> {
         }
         let reach = (target - a).length();
         let dist = reach.clamp((la - lb).abs() + 1e-5, la + lb - 1e-5);
-        let dir = (target - a).try_normalize().unwrap_or((c - a).normalize_or(Vec3::Y));
+        let dir = (target - a)
+            .try_normalize()
+            .unwrap_or((c - a).normalize_or(Vec3::Y));
         let side = |v: Vec3| (v - dir * v.dot(dir)).try_normalize();
         let bend = side(pole - a)
             .or_else(|| side(b - a))

@@ -94,7 +94,12 @@ pub(super) fn leg_ok(f: &Layout, g: &Layout) -> bool {
         && f.hip.y > f.knee.y + 0.05 * h
         && f.knee.y > f.ankle.y + 0.05 * h
         && ratio_in(thigh, shank, 0.6, 1.7)
-        && ratio_in(thigh + shank, g.knee.distance(g.hip) + g.ankle.distance(g.knee), 0.6, 1.5)
+        && ratio_in(
+            thigh + shank,
+            g.knee.distance(g.hip) + g.ankle.distance(g.knee),
+            0.6,
+            1.5,
+        )
         && f.ankle.distance(g.ankle) < 0.15 * h
 }
 

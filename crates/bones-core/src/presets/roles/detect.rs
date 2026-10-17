@@ -64,14 +64,22 @@ fn from_names(skeleton: &Skeleton, hints: &[NameHint], geo: &Geo, map: &mut Role
     };
     // Côté d'un os sans suffixe : d'après sa position (+X à gauche).
     let side_of = |b: BoneId, h: &NameHint| {
-        h.side.unwrap_or(if geo.heads[b.index()].x >= 0.0 { Lr::Left } else { Lr::Right })
+        h.side.unwrap_or(if geo.heads[b.index()].x >= 0.0 {
+            Lr::Left
+        } else {
+            Lr::Right
+        })
     };
 
     // Bassin : os « hips/pelvis », sinon ancêtre commun des deux jambes,
     // sinon premier os « root » qui a des enfants.
     let legs = with(&|h| matches!(h.part, Some(Part::Leg(_))).then_some(None));
-    let left_leg = legs.iter().find(|(b, _)| side_of(*b, &hints[b.index()]) == Lr::Left);
-    let right_leg = legs.iter().find(|(b, _)| side_of(*b, &hints[b.index()]) == Lr::Right);
+    let left_leg = legs
+        .iter()
+        .find(|(b, _)| side_of(*b, &hints[b.index()]) == Lr::Left);
+    let right_leg = legs
+        .iter()
+        .find(|(b, _)| side_of(*b, &hints[b.index()]) == Lr::Right);
     let root = with(&|h| (h.part == Some(Part::Hips)).then_some(None))
         .first()
         .map(|(b, _)| *b)
@@ -87,9 +95,10 @@ fn from_names(skeleton: &Skeleton, hints: &[NameHint], geo: &Geo, map: &mut Role
         });
     if let Some(r) = root {
         map.roles[r.index()] = Some(Role::new(Chain::Root, 0));
-        let ground = skeleton.ids().filter(|b| *b != r && skeleton.is_ancestor(*b, r)).find(|b| {
-            hints[b.index()].part == Some(Part::RootWord)
-        });
+        let ground = skeleton
+            .ids()
+            .filter(|b| *b != r && skeleton.is_ancestor(*b, r))
+            .find(|b| hints[b.index()].part == Some(Part::RootWord));
         if let Some(g) = ground {
             map.roles[g.index()] = Some(Role::new(Chain::Ground, 0));
         }
@@ -108,7 +117,11 @@ fn from_names(skeleton: &Skeleton, hints: &[NameHint], geo: &Geo, map: &mut Role
             .into_iter()
             .filter(|(b, _)| under_root(*b) && map.role(*b).is_none())
             .collect();
-        let limit = if matches!(chain, Chain::Head | Chain::Jaw) { 1 } else { usize::MAX };
+        let limit = if matches!(chain, Chain::Head | Chain::Jaw) {
+            1
+        } else {
+            usize::MAX
+        };
         assign_chain(skeleton, geo, map, chain, bones.into_iter().take(limit).collect());
     }
     for side in Lr::BOTH {
@@ -119,7 +132,13 @@ fn from_names(skeleton: &Skeleton, hints: &[NameHint], geo: &Geo, map: &mut Role
                 .collect::<Vec<_>>()
         };
         let clavicle = sided(map, &|p| (p == Part::Clavicle).then_some(None));
-        assign_chain(skeleton, geo, map, Chain::Clavicle(side), clavicle.into_iter().take(1).collect());
+        assign_chain(
+            skeleton,
+            geo,
+            map,
+            Chain::Clavicle(side),
+            clavicle.into_iter().take(1).collect(),
+        );
         let arm = sided(map, &|p| match p {
             Part::Arm(seg) => Some(seg),
             Part::Wing => Some(None),

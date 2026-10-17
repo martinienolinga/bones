@@ -106,8 +106,19 @@ pub fn bake_preset(
 ) -> Result<(Vec<Pose>, Report), PresetError> {
     let (mut poses, mut report) = match &preset.kind {
         PresetKind::Procedural(p) => {
-            let params = options.params.as_ref().map_or(p.params.clone(), |o| p.params.merged(o));
-            let clip = procedural::bake(p.generator, &params, skeleton, roles, fps, options.speed, options.loops)?;
+            let params = options
+                .params
+                .as_ref()
+                .map_or(p.params.clone(), |o| p.params.merged(o));
+            let clip = procedural::bake(
+                p.generator,
+                &params,
+                skeleton,
+                roles,
+                fps,
+                options.speed,
+                options.loops,
+            )?;
             let mut poses: Vec<Pose> = clip.keys().iter().map(|k| k.pose.clone()).collect();
             let report = keep_untouched(skeleton, roles, &mut poses, base);
             if options.mirror {
@@ -129,7 +140,16 @@ pub fn bake_preset(
                 ..RetargetOptions::default()
             };
             let looping = preset.info.looping;
-            retarget_clip(data, looping, (skeleton, roles), &retarget, base, fps, options.speed, options.loops)?
+            retarget_clip(
+                data,
+                looping,
+                (skeleton, roles),
+                &retarget,
+                base,
+                fps,
+                options.speed,
+                options.loops,
+            )?
         }
     };
     if options.in_place {
@@ -141,7 +161,9 @@ pub fn bake_preset(
                 pose.bones[b.index()] = base.get(b);
             }
         }
-        report.mapped.retain(|(name, _)| options.bones.iter().any(|b| &skeleton.bone(*b).name == name));
+        report
+            .mapped
+            .retain(|(name, _)| options.bones.iter().any(|b| &skeleton.bone(*b).name == name));
     }
     Ok((poses, report))
 }
@@ -151,7 +173,9 @@ fn keep_untouched(skeleton: &Skeleton, roles: &RoleMap, poses: &mut [Pose], base
     let mut report = Report::default();
     for b in skeleton.ids() {
         let i = b.index();
-        let moved = poses.iter().any(|p| !p.bones[i].abs_diff_eq(&crate::Transform::IDENTITY, 1e-6));
+        let moved = poses
+            .iter()
+            .any(|p| !p.bones[i].abs_diff_eq(&crate::Transform::IDENTITY, 1e-6));
         let name = skeleton.bone(b).name.clone();
         if moved {
             let role = roles.role(b).map_or_else(|| "generator".into(), |r| r.label());

@@ -54,11 +54,16 @@ pub(crate) struct Human<'r, 'a> {
 
 impl<'r, 'a> Human<'r, 'a> {
     pub fn new(rig: &'r Rigging<'a>) -> Result<Self, PresetError> {
-        let root = rig.bone(Chain::Root, 0).ok_or_else(|| incompatible("no hips bone"))?;
+        let root = rig
+            .bone(Chain::Root, 0)
+            .ok_or_else(|| incompatible("no hips bone"))?;
         let leg = |side| -> Result<Leg, PresetError> {
             let chain = rig.chain(Chain::Leg(side));
             if chain.len() < 2 {
-                return Err(incompatible(format!("{} leg not found", side.label().to_lowercase())));
+                return Err(incompatible(format!(
+                    "{} leg not found",
+                    side.label().to_lowercase()
+                )));
             }
             Ok(Self::leg(rig, side, &chain))
         };
@@ -123,7 +128,9 @@ impl<'r, 'a> Human<'r, 'a> {
         let hand = chain.get(2).copied();
         // Paume : du côté opposé au dos de la main (index → auriculaire × main).
         let index = rig.bone(Chain::Finger(side, 1), 0);
-        let pinky = rig.bone(Chain::Finger(side, 4), 0).or(rig.bone(Chain::Finger(side, 3), 0));
+        let pinky = rig
+            .bone(Chain::Finger(side, 4), 0)
+            .or(rig.bone(Chain::Finger(side, 3), 0));
         let palm = match (hand, index, pinky) {
             (Some(h), Some(i), Some(p)) => {
                 let across = rig.head(i) - rig.head(p);

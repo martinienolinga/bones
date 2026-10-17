@@ -32,7 +32,9 @@ pub(crate) struct Quad<'r, 'a> {
 
 impl<'r, 'a> Quad<'r, 'a> {
     pub fn new(rig: &'r Rigging<'a>, legs: usize) -> Result<Self, PresetError> {
-        let root = rig.bone(Chain::Root, 0).ok_or_else(|| incompatible("no hips bone"))?;
+        let root = rig
+            .bone(Chain::Root, 0)
+            .ok_or_else(|| incompatible("no hips bone"))?;
         let mut limbs = Vec::new();
         for (front, chain) in [(true, Chain::Arm as fn(Lr) -> Chain), (false, Chain::Leg)] {
             for side in Lr::BOTH {
@@ -95,9 +97,24 @@ impl<'r, 'a> Gait<'r, 'a> {
         let q = Quad::new(rig, 4)?;
         let gait = p.get(PARAMS, "gait") as u8;
         let style = match gait {
-            0 => Style { duty: 0.65, phases: [0.25, 0.75, 0.0, 0.5], lift: 0.16, bob: 0.012 },
-            1 => Style { duty: 0.42, phases: [0.5, 0.0, 0.0, 0.5], lift: 0.25, bob: 0.03 },
-            _ => Style { duty: 0.36, phases: [0.62, 0.52, 0.0, 0.1], lift: 0.3, bob: 0.05 },
+            0 => Style {
+                duty: 0.65,
+                phases: [0.25, 0.75, 0.0, 0.5],
+                lift: 0.16,
+                bob: 0.012,
+            },
+            1 => Style {
+                duty: 0.42,
+                phases: [0.5, 0.0, 0.0, 0.5],
+                lift: 0.25,
+                bob: 0.03,
+            },
+            _ => Style {
+                duty: 0.36,
+                phases: [0.62, 0.52, 0.0, 0.1],
+                lift: 0.3,
+                bob: 0.05,
+            },
         };
         let v = p.get(PARAMS, "speed");
         let h = q.height;
@@ -119,7 +136,9 @@ impl<'r, 'a> Gait<'r, 'a> {
             drops: Vec::new(),
         };
         let n = 96;
-        let need: Vec<f32> = (0..n).map(|i| g.reach_drop(i as f32 / n as f32) + 0.002).collect();
+        let need: Vec<f32> = (0..n)
+            .map(|i| g.reach_drop(i as f32 / n as f32) + 0.002)
+            .collect();
         let accel = if g.gait >= 2 { 9.0 } else { 5.0 };
         g.drops = envelope(&need, g.period / n as f32, accel);
         Ok(g)
@@ -159,7 +178,11 @@ impl<'r, 'a> Gait<'r, 'a> {
             let lift = s.lift * limb.reach * bump(w, 0.45);
             let fold = if limb.front { 1.1 } else { 0.7 };
             let flex = 0.35 * (1.0 - smooth(w / 0.3)) + fold * bump(w, 0.35);
-            (a.lerp(b, minjerk(w)) + self.q.rig.frame.up * lift, flex, 1.0 - smooth(w / 0.3))
+            (
+                a.lerp(b, minjerk(w)) + self.q.rig.frame.up * lift,
+                flex,
+                1.0 - smooth(w / 0.3),
+            )
         }
     }
 
@@ -174,12 +197,20 @@ impl<'r, 'a> Gait<'r, 'a> {
             let attach = root + rig.w(offset) + r * (limb.attach(rig) - root);
             let (paw, flex, _) = self.paw(i, u);
             let c = &limb.chain;
-            let hock = if c.len() > 2 { paw - self.q.flex(flex) * (limb.contact - rig.head(c[2])) } else { paw };
+            let hock = if c.len() > 2 {
+                paw - self.q.flex(flex) * (limb.contact - rig.head(c[2]))
+            } else {
+                paw
+            };
             let d = attach - hock;
             let dv = d.dot(up);
             let dh = (d - up * dv).length();
             let max = 0.98 * limb.reach;
-            drop = drop.max(if dh < max { dv - (max * max - dh * dh).sqrt() } else { dv });
+            drop = drop.max(if dh < max {
+                dv - (max * max - dh * dh).sqrt()
+            } else {
+                dv
+            });
         }
         drop.max(0.01 * self.q.height)
     }
@@ -196,9 +227,19 @@ impl Motion for Gait<'_, '_> {
         let (mut offset, pitch) = self.body(u);
         offset.y -= periodic(&self.drops, u);
         let walk = self.gait == 0;
-        body.pelvis(q.root, offset, if walk { 0.04 * wave(u) } else { 0.0 }, pitch, 0.0);
+        body.pelvis(
+            q.root,
+            offset,
+            if walk { 0.04 * wave(u) } else { 0.0 },
+            pitch,
+            0.0,
+        );
         let flexion = if self.gait >= 2 { 0.3 * wave(u - 0.15) } else { 0.0 };
-        let lateral = if walk { 0.08 * wave(u + 0.25) } else { 0.02 * wave(u) };
+        let lateral = if walk {
+            0.08 * wave(u + 0.25)
+        } else {
+            0.02 * wave(u)
+        };
         body.spread(&q.spine, flexion - 0.5 * pitch, lateral, 0.0);
         body.ripple(&q.tail, Vec3::Y, 0.25 * self.tail, u, 0.35);
         body.ripple(&q.tail, Vec3::X, 0.08 * self.tail, 2.0 * u, 0.3);

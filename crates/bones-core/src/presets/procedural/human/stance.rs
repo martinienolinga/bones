@@ -34,7 +34,11 @@ impl Human<'_, '_> {
             let leg = self.leg_of(side);
             let flat = leg.ankle + self.rig.w(foot.offset);
             let ankle = self.rolled_ankle(side, flat, foot.pitch, foot.yaw) + self.rig.frame.up * foot.lift;
-            let toe = if foot.pitch < 0.0 && foot.lift < 1e-3 { 1.0 } else { 0.0 };
+            let toe = if foot.pitch < 0.0 && foot.lift < 1e-3 {
+                1.0
+            } else {
+                0.0
+            };
             self.place_foot(body, side, ankle, foot.pitch, foot.yaw, toe);
         }
     }
@@ -48,7 +52,8 @@ impl Human<'_, '_> {
 
     /// Épaule (tête du bras) en pose.
     pub fn shoulder(&self, body: &Body, side: Lr) -> Vec3 {
-        self.arm_of(side).map_or(body.head(self.root), |a| body.head(a.upper))
+        self.arm_of(side)
+            .map_or(body.head(self.root), |a| body.head(a.upper))
     }
 
     /// Point canonique relatif à l'épaule, tourné avec la poitrine.
@@ -71,7 +76,10 @@ impl Human<'_, '_> {
     pub fn guard_offsets(&self, side: Lr) -> (Vec3, Vec3) {
         let s = side.sign();
         let arm = self.arm_of(side).map_or(0.6, |a| a.length);
-        (Vec3::new(-s * 0.12, 0.12, 0.42) * arm / 0.6, Vec3::new(s * 0.4, -0.8, 0.05))
+        (
+            Vec3::new(-s * 0.12, 0.12, 0.42) * arm / 0.6,
+            Vec3::new(s * 0.4, -0.8, 0.05),
+        )
     }
 
     /// Garde, ou mélange vers une autre position de main (`toward`, poids `w`).

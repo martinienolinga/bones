@@ -51,8 +51,14 @@ impl Swim {
         }
         let fwd = rig.w(Vec3::Z);
         let z = |v: Vec3| v.dot(fwd);
-        let front = bones.iter().map(|b| z(rig.head(*b)).max(z(rig.tail(*b)))).fold(f32::MIN, f32::max);
-        let back = bones.iter().map(|b| z(rig.head(*b)).min(z(rig.tail(*b)))).fold(f32::MAX, f32::min);
+        let front = bones
+            .iter()
+            .map(|b| z(rig.head(*b)).max(z(rig.tail(*b))))
+            .fold(f32::MIN, f32::max);
+        let back = bones
+            .iter()
+            .map(|b| z(rig.head(*b)).min(z(rig.tail(*b))))
+            .fold(f32::MAX, f32::min);
         let length = (front - back).max(1e-3);
         let segments = bones
             .iter()
@@ -129,7 +135,9 @@ pub(crate) struct Slither<'r, 'a> {
 
 impl<'r, 'a> Slither<'r, 'a> {
     pub fn new(rig: &'r Rigging<'a>, p: &Params) -> Result<Self, PresetError> {
-        let root = rig.bone(Chain::Root, 0).ok_or_else(|| incompatible("no root bone"))?;
+        let root = rig
+            .bone(Chain::Root, 0)
+            .ok_or_else(|| incompatible("no root bone"))?;
         let mut chain = vec![root];
         chain.extend(rig.chain(Chain::Spine));
         if chain.len() < 3 {
@@ -137,12 +145,26 @@ impl<'r, 'a> Slither<'r, 'a> {
         }
         let fwd = rig.w(Vec3::Z);
         let (first, last) = (rig.head(chain[0]), rig.tail(*chain.last().unwrap()));
-        let front = if first.dot(fwd) >= last.dot(fwd) { first } else { last };
+        let front = if first.dot(fwd) >= last.dot(fwd) {
+            first
+        } else {
+            last
+        };
         let bones: Vec<(BoneId, f32, f32)> = chain
             .iter()
-            .map(|b| ((*b), (rig.head(*b) - front).length(), (rig.tail(*b) - front).length()))
+            .map(|b| {
+                (
+                    (*b),
+                    (rig.head(*b) - front).length(),
+                    (rig.tail(*b) - front).length(),
+                )
+            })
             .collect();
-        let length = bones.iter().map(|(_, h, t)| h.max(*t)).fold(0.0, f32::max).max(1e-3);
+        let length = bones
+            .iter()
+            .map(|(_, h, t)| h.max(*t))
+            .fold(0.0, f32::max)
+            .max(1e-3);
         let lambda = p.get(SLITHER, "wavelength") * length;
         let theta = 0.75 * p.get(SLITHER, "amplitude");
         let n = 512;

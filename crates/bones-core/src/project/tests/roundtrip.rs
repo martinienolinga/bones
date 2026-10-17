@@ -139,6 +139,28 @@ fn stale_weights_ask_for_a_rebind_after_loading() {
 }
 
 #[test]
+fn painted_weights_flag_round_trips() {
+    let dir = TempDir::new("painted");
+    let mut editor = Editor::new(Rig::demo());
+    editor.set_mode(Mode::WeightPaint);
+    editor.select(Some(crate::BoneId(1)));
+    editor.apply_weights_tool(crate::WeightsTool::Invert);
+    assert!(editor.weights_painted(), "un outil « Weights » marque les poids");
+
+    let path = save(&editor, &dir, "Painted");
+    let loaded = load(&path).unwrap();
+    assert!(
+        loaded.snapshot.rig.weights_painted(),
+        "le drapeau survit à l'enregistrement"
+    );
+    assert!(loaded.snapshot.into_editor().weights_painted());
+
+    // Un projet non peint reste non peint après un aller-retour.
+    let clean = save(&Editor::new(Rig::demo()), &dir, "Clean");
+    assert!(!load(&clean).unwrap().snapshot.rig.weights_painted());
+}
+
+#[test]
 fn empty_project_round_trips() {
     let dir = TempDir::new("empty");
     let editor = Editor::new(Rig::new("Empty", Mesh::default()));

@@ -140,13 +140,20 @@ pub(super) fn detect(skeleton: &Skeleton, hints: &[NameHint], geo: &Geo) -> Role
                 all_pairs.extend(p.iter().map(|(a, b)| (*a, *b, false)));
                 groups.push(&chest_branches);
                 r.into_iter()
-                    .max_by(|a, b| geo.reach[chest_branches[*a].path[0].index()].total_cmp(&geo.reach[chest_branches[*b].path[0].index()]))
+                    .max_by(|a, b| {
+                        geo.reach[chest_branches[*a].path[0].index()]
+                            .total_cmp(&geo.reach[chest_branches[*b].path[0].index()])
+                    })
                     .map(|i| chest_branches[i].path.clone())
                     .unwrap_or_default()
             }
             None => Vec::new(),
         };
-        let spine_bones = if chest.is_some() { &path[..=spine_end] } else { &path[..path.len().saturating_sub(1)] };
+        let spine_bones = if chest.is_some() {
+            &path[..=spine_end]
+        } else {
+            &path[..path.len().saturating_sub(1)]
+        };
         for (i, b) in spine_bones.iter().enumerate() {
             set(&mut map, *b, Chain::Spine, i);
         }
@@ -154,7 +161,11 @@ pub(super) fn detect(skeleton: &Skeleton, hints: &[NameHint], geo: &Geo) -> Role
             Some(_) => neck_head.last().copied(),
             None => path.last().copied().filter(|_| path.len() > 1),
         };
-        for (i, b) in neck_head.iter().take(neck_head.len().saturating_sub(1)).enumerate() {
+        for (i, b) in neck_head
+            .iter()
+            .take(neck_head.len().saturating_sub(1))
+            .enumerate()
+        {
             set(&mut map, *b, Chain::Neck, i);
         }
         if let Some(h) = head {
@@ -230,12 +241,22 @@ fn assign_limbs(
         (Some(r), Some(s)) => {
             let d = geo.heads[s.index()] - geo.heads[r.index()];
             let flat = Vec3::new(d.x, 0.0, d.z);
-            if flat.length() > 0.5 * d.length() { flat.normalize() } else { Vec3::Z }
+            if flat.length() > 0.5 * d.length() {
+                flat.normalize()
+            } else {
+                Vec3::Z
+            }
         }
         _ => Vec3::Z,
     };
     let left = Vec3::Y.cross(forward).normalize_or(Vec3::X);
-    let group_of = |at_hub: bool| if at_hub { groups[0] } else { groups[groups.len() - 1] };
+    let group_of = |at_hub: bool| {
+        if at_hub {
+            groups[0]
+        } else {
+            groups[groups.len() - 1]
+        }
+    };
     let multi = pairs.len() > 2;
     let mut order: Vec<&(usize, usize, bool)> = pairs.iter().collect();
     // De l'avant vers l'arrière (position de l'attache le long du corps).

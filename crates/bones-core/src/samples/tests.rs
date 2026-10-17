@@ -141,7 +141,11 @@ fn posed_arm_moves_the_arm_but_not_the_legs() {
 
 #[test]
 fn embedded_project_is_small_and_complete() {
-    assert!(MANNEQUIN_KBRIG.len() < 2 * 1024 * 1024, "{} octets", MANNEQUIN_KBRIG.len());
+    assert!(
+        MANNEQUIN_KBRIG.len() < 2 * 1024 * 1024,
+        "{} octets",
+        MANNEQUIN_KBRIG.len()
+    );
     let rig = load_mannequin(MANNEQUIN_KBRIG).unwrap();
     assert_eq!(rig.mesh.vertex_count(), mannequin_mesh().vertex_count());
     assert_eq!(rig.mesh.triangle_count(), mannequin_mesh().triangle_count());
@@ -166,7 +170,11 @@ fn embedded_project_matches_the_current_autorig() {
     for (id, bone) in fresh.ids().zip(fresh.bones()) {
         let other = baked.find(&bone.name).expect(stale);
         let (a, b) = (fresh.rest_head_tail(id), baked.rest_head_tail(other));
-        assert!(a.0.abs_diff_eq(b.0, 1e-4) && a.1.abs_diff_eq(b.1, 1e-4), "{} : {stale}", bone.name);
+        assert!(
+            a.0.abs_diff_eq(b.0, 1e-4) && a.1.abs_diff_eq(b.1, 1e-4),
+            "{} : {stale}",
+            bone.name
+        );
     }
     let names = |l: &[crate::Limb]| l.iter().map(|l| l.name.clone()).collect::<Vec<_>>();
     assert_eq!(names(&limbs), names(&rig().limbs), "{stale}");
@@ -181,5 +189,10 @@ fn rebuild_embedded_mannequin() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/mannequin/mannequin.kbrig");
     let info = bake_mannequin(&path).unwrap();
     let size = std::fs::metadata(&path).unwrap().len();
-    println!("{} : {size} octets, {} os, {} sommets", path.display(), info.bones, info.vertices);
+    println!(
+        "{} : {size} octets, {} os, {} sommets",
+        path.display(),
+        info.bones,
+        info.vertices
+    );
 }

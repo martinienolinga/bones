@@ -52,7 +52,11 @@ impl Motion for Idle<'_, '_> {
         // bascule du côté de la jambe d'appui) ; deux respirations.
         let shift = wave(u) * self.sway;
         let breath = (0.5 - 0.5 * (TAU * 2.0 * u).cos()) * self.breath;
-        let offset = Vec3::new(0.035 * size * shift, -0.012 * size - 0.006 * size * shift.abs(), 0.0);
+        let offset = Vec3::new(
+            0.035 * size * shift,
+            -0.012 * size - 0.006 * size * shift.abs(),
+            0.0,
+        );
         let roll = 0.045 * shift;
         h.pelvis(body, offset, 0.03 * noise(u, 1, &[1, 2]), 0.0, roll);
         h.bend_spine(body, -0.03 * breath, -0.02 * shift, -0.7 * roll);
@@ -102,7 +106,15 @@ impl<'r, 'a> LookAround<'r, 'a> {
             (0.98, 0.0),
             (1.0, 0.0),
         ];
-        let pitch = [(0.0, 0.0), (0.2, -0.15), (0.36, 0.1), (0.48, 0.0), (0.7, 0.05), (0.86, -0.1), (1.0, 0.0)];
+        let pitch = [
+            (0.0, 0.0),
+            (0.2, -0.15),
+            (0.36, 0.1),
+            (0.48, 0.0),
+            (0.7, 0.05),
+            (0.86, -0.1),
+            (1.0, 0.0),
+        ];
         Ok(Self {
             h: Human::new(rig)?,
             angle: p.get(LOOK, "angle").to_radians(),
@@ -126,7 +138,17 @@ impl Motion for LookAround<'_, '_> {
         let lag = 0.25 / self.duration;
         let chest = self.yaw.at(u - lag) * self.angle * 0.3;
         let size = h.hip_height;
-        h.pelvis(body, Vec3::new(-0.01 * size * chest.signum() * chest.abs().min(0.3), -0.012 * size, 0.0), 0.2 * chest, 0.0, 0.0);
+        h.pelvis(
+            body,
+            Vec3::new(
+                -0.01 * size * chest.signum() * chest.abs().min(0.3),
+                -0.012 * size,
+                0.0,
+            ),
+            0.2 * chest,
+            0.0,
+            0.0,
+        );
         h.bend_spine(body, 0.0, 0.8 * chest, 0.0);
         for side in Lr::BOTH {
             h.curl(body, side, 0.3);

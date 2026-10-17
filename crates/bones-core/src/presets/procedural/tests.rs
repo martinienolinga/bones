@@ -46,7 +46,9 @@ pub(crate) fn check_planted(skeleton: &Skeleton, roles: &RoleMap, clip: &Clip, n
     let ground = roles.frame.ground;
     let mut contacts = 0;
     for side in Lr::BOTH {
-        let Some(foot) = roles.bone(Chain::Leg(side), 2) else { continue };
+        let Some(foot) = roles.bone(Chain::Leg(side), 2) else {
+            continue;
+        };
         let rest_ankle = skeleton.rest_head_tail(foot).0.y;
         for f in 1..all.len() {
             let (a0, b0) = all[f - 1][foot.index()];
@@ -54,11 +56,17 @@ pub(crate) fn check_planted(skeleton: &Skeleton, roles: &RoleMap, clip: &Clip, n
             if b0.y < ground + 0.003 && b1.y < ground + 0.003 {
                 contacts += 1;
                 let slide = (b1 - b0).length();
-                assert!(slide < 0.005, "{name}: la plante glisse de {slide} m à l'image {f} ({side:?})");
+                assert!(
+                    slide < 0.005,
+                    "{name}: la plante glisse de {slide} m à l'image {f} ({side:?})"
+                );
             }
             if a0.y < rest_ankle + 0.002 && a1.y < rest_ankle + 0.002 && b1.y < ground + 0.003 {
                 let slide = (a1 - a0).length();
-                assert!(slide < 0.005, "{name}: la cheville glisse de {slide} m à l'image {f} ({side:?})");
+                assert!(
+                    slide < 0.005,
+                    "{name}: la cheville glisse de {slide} m à l'image {f} ({side:?})"
+                );
             }
         }
     }
@@ -67,7 +75,16 @@ pub(crate) fn check_planted(skeleton: &Skeleton, roles: &RoleMap, clip: &Clip, n
 
 fn walk(params: &[(&str, f32)], rig: &Rig) -> Clip {
     let roles = detect(&rig.skeleton);
-    bake(Generator::HumanLocomotion, &Params::of(params), &rig.skeleton, &roles, 30.0, 1.0, 2).unwrap()
+    bake(
+        Generator::HumanLocomotion,
+        &Params::of(params),
+        &rig.skeleton,
+        &roles,
+        30.0,
+        1.0,
+        2,
+    )
+    .unwrap()
 }
 
 #[test]
@@ -91,7 +108,9 @@ fn walk_on_demo_loops_and_plants_feet() {
 fn every_builtin_preset_bakes_and_loops() {
     let demo = Rig::demo();
     for preset in crate::presets::builtin() {
-        let crate::presets::PresetKind::Procedural(p) = &preset.kind else { continue };
+        let crate::presets::PresetKind::Procedural(p) = &preset.kind else {
+            continue;
+        };
         let mut targets = vec![p.reference().skeleton()];
         if p.generator.rig_type() == crate::presets::RigType::Humanoid {
             targets.push(demo.skeleton.clone());

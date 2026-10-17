@@ -101,7 +101,10 @@ impl Curve {
         let s = (t - t0) / dt;
         let (m0, m1) = (self.tangent(i) * dt, self.tangent(i + 1) * dt);
         let (s2, s3) = (s * s, s * s * s);
-        p0 * (2.0 * s3 - 3.0 * s2 + 1.0) + m0 * (s3 - 2.0 * s2 + s) + p1 * (3.0 * s2 - 2.0 * s3) + m1 * (s3 - s2)
+        p0 * (2.0 * s3 - 3.0 * s2 + 1.0)
+            + m0 * (s3 - 2.0 * s2 + s)
+            + p1 * (3.0 * s2 - 2.0 * s3)
+            + m1 * (s3 - s2)
     }
 }
 

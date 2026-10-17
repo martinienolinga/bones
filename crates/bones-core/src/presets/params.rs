@@ -49,7 +49,11 @@ impl ParamSpec {
             return self.default;
         }
         let v = v.clamp(self.min, self.max);
-        if self.step > 0.0 { (v / self.step).round() * self.step } else { v }
+        if self.step > 0.0 {
+            (v / self.step).round() * self.step
+        } else {
+            v
+        }
     }
 }
 

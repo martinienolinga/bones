@@ -105,7 +105,13 @@ impl Motion for Flap<'_, '_> {
         if self.glide {
             // Virage incliné lent, ailes tendues qui frémissent.
             let roll = 0.35 * self.bank * wave(u);
-            body.pelvis(q.root, Vec3::new(0.0, 0.03 * h * cwave(2.0 * u), travel), 0.1 * roll, -0.05, roll);
+            body.pelvis(
+                q.root,
+                Vec3::new(0.0, 0.03 * h * cwave(2.0 * u), travel),
+                0.1 * roll,
+                -0.05,
+                roll,
+            );
             for (bones, side) in self.wings.iter().zip(Lr::BOTH) {
                 let lift = 0.12 + 0.04 * noise(u, side as u32, &[3, 5]) + 0.08 * side.sign() * roll;
                 wing(body, bones, side, lift, 0.05, 0.0);
@@ -117,7 +123,13 @@ impl Motion for Flap<'_, '_> {
             let elevation = a * (0.25 + 0.75 * cwave(u));
             let fold = a * 0.35 * bump((u.rem_euclid(1.0) - 0.5).max(0.0) * 2.0, 0.5);
             let lift = 0.06 * h * a * wave(u - 0.1);
-            body.pelvis(q.root, Vec3::new(0.0, lift, travel), 0.0, -0.1 - 0.05 * wave(u), 0.0);
+            body.pelvis(
+                q.root,
+                Vec3::new(0.0, lift, travel),
+                0.0,
+                -0.1 - 0.05 * wave(u),
+                0.0,
+            );
             for (bones, side) in self.wings.iter().zip(Lr::BOTH) {
                 wing(body, bones, side, elevation, 0.2 * a * wave(u), fold);
             }
@@ -170,20 +182,44 @@ impl Motion for Hop<'_, '_> {
         } else if t < 0.2 + fl {
             let s = t - 0.2;
             let p = s / fl;
-            (-crouch * (1.0 - smooth(p * 4.0)) + v0 * s - 0.5 * GRAVITY * s * s, self.distance * minjerk(p))
+            (
+                -crouch * (1.0 - smooth(p * 4.0)) + v0 * s - 0.5 * GRAVITY * s * s,
+                self.distance * minjerk(p),
+            )
         } else {
             let s = t - 0.2 - fl;
             (-crouch * 0.6 * bump(s / 0.25, 0.4), self.distance)
         };
         let travel = self.distance * k + x;
         body.reset();
-        body.pelvis(q.root, Vec3::new(0.0, y, travel), 0.0, 0.15 * bump(t / (0.4 + fl), 0.3), 0.0);
-        let open = if t > 0.15 && t < 0.25 + fl { bump((t - 0.15) / (0.1 + fl), 0.5) } else { 0.0 };
+        body.pelvis(
+            q.root,
+            Vec3::new(0.0, y, travel),
+            0.0,
+            0.15 * bump(t / (0.4 + fl), 0.3),
+            0.0,
+        );
+        let open = if t > 0.15 && t < 0.25 + fl {
+            bump((t - 0.15) / (0.1 + fl), 0.5)
+        } else {
+            0.0
+        };
         for (bones, side) in self.wings.iter().zip(Lr::BOTH) {
-            wing(body, bones, side, -0.2 + 0.8 * open, 0.4 * (1.0 - open), 1.0 - 0.8 * open);
+            wing(
+                body,
+                bones,
+                side,
+                -0.2 + 0.8 * open,
+                0.4 * (1.0 - open),
+                1.0 - 0.8 * open,
+            );
         }
         body.fk();
-        let lift = if t > 0.2 && t < 0.2 + fl { (y + crouch).max(0.0) * 0.8 } else { 0.0 };
+        let lift = if t > 0.2 && t < 0.2 + fl {
+            (y + crouch).max(0.0) * 0.8
+        } else {
+            0.0
+        };
         for limb in q.limbs.iter().filter(|l| !l.front) {
             let step = self.distance * k + if t < 0.2 { 0.0 } else { x };
             let paw = limb.contact + q.rig.w(Vec3::new(0.0, 0.0, step)) + q.rig.frame.up * lift;
@@ -207,7 +243,14 @@ impl<'r, 'a> Peck<'r, 'a> {
             wings: wings(rig).map(Vec::from).unwrap_or_default(),
             rate: p.get(PECK, "rate"),
             // Deux coups rapides puis la tête se relève et observe.
-            dip: Curve::new(&[(0.0, 0.0), (0.12, 1.0), (0.2, 0.75), (0.3, 1.0), (0.42, 0.0), (1.0, 0.0)]),
+            dip: Curve::new(&[
+                (0.0, 0.0),
+                (0.12, 1.0),
+                (0.2, 0.75),
+                (0.3, 1.0),
+                (0.42, 0.0),
+                (1.0, 0.0),
+            ]),
         })
     }
 }
