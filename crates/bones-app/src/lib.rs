@@ -8,6 +8,7 @@ mod clip;
 mod files;
 mod frame;
 mod gizmo;
+mod glass;
 mod gpu;
 mod input;
 mod jobs;

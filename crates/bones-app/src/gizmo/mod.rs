@@ -9,7 +9,7 @@ mod view;
 
 use bones_core::Editor;
 use bones_ui::icons::Icon;
-use bones_ui::{theme, widgets};
+use bones_ui::widgets;
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
 
@@ -62,20 +62,26 @@ impl Basis {
     }
 }
 
-/// Affiche le guide en haut à droite (à gauche de la boîte à outils) et
-/// retourne les zones occupées, à exclure des gestes 3D.
+/// Affiche le guide en haut à droite (à gauche de la boîte à outils), ses
+/// quatre boutons en grille 2 × 2 sur sa gauche, et retourne les zones
+/// occupées, à exclure des gestes 3D.
 pub fn show(ctx: &egui::Context, editor: &mut Editor, style: GizmoStyle) -> Vec<egui::Rect> {
     view::step(ctx, editor);
-    let area = egui::Area::new(egui::Id::unique("view-gizmo"))
+    let cube = egui::Area::new(egui::Id::unique("view-gizmo"))
         .anchor(egui::Align2::RIGHT_TOP, [-76.0, 60.0])
         .order(egui::Order::Foreground)
-        .show(ctx, |ui| {
-            ui.vertical_centered(|ui| {
-                gizmo(ui, editor, style);
-                buttons(ui, editor);
-            });
-        });
-    vec![area.response.rect]
+        .show(ctx, |ui| gizmo(ui, editor, style))
+        .response
+        .rect;
+    // Grille centrée verticalement sur le guide, juste à sa gauche.
+    let grid = egui::Area::new(egui::Id::unique("view-buttons"))
+        .pivot(egui::Align2::RIGHT_CENTER)
+        .fixed_pos(egui::pos2(cube.left() - 8.0, cube.center().y))
+        .order(egui::Order::Foreground)
+        .show(ctx, |ui| buttons(ui, editor))
+        .response
+        .rect;
+    vec![cube, grid]
 }
 
 fn gizmo(ui: &mut egui::Ui, editor: &mut Editor, style: GizmoStyle) {
@@ -110,10 +116,12 @@ fn gizmo(ui: &mut egui::Ui, editor: &mut Editor, style: GizmoStyle) {
     }
 }
 
+/// Verrou, orthographique / cadrer, accueil : deux par ligne, sur un fond
+/// de verre dépoli sombre.
 fn buttons(ui: &mut egui::Ui, editor: &mut Editor) {
-    theme::card_frame().show(ui, |ui| {
+    bones_ui::glass::show(ui, 18, egui::Margin::same(6), |ui| {
+        ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
         ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 2.0;
             let camera = &mut editor.camera;
             let lock_hint = if camera.locked {
                 "Unlock rotation"
@@ -126,6 +134,8 @@ fn buttons(ui: &mut egui::Ui, editor: &mut Editor) {
             if widgets::tool_button(ui, Icon::Ortho, camera.orthographic, "Orthographic view").clicked() {
                 camera.orthographic = !camera.orthographic;
             }
+        });
+        ui.horizontal(|ui| {
             if widgets::tool_button(ui, Icon::Frame, false, "Frame the model").clicked() {
                 editor.frame_all();
             }

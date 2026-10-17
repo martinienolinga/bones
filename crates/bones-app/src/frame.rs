@@ -33,6 +33,7 @@ impl Running {
             jobs: self.jobs.running(),
         };
         let raw = self.egui_state.take_egui_input(&self.window);
+        self.glass.publish(&self.egui_ctx);
         let mut actions = Vec::new();
         let mut output = self.egui_ctx.run_pass(raw, |ctx| {
             actions = ui::show(ctx, &mut self.editor, &mut self.ui, &viewport, busy);
@@ -70,6 +71,14 @@ impl Running {
         let mut encoder =
             device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("image") });
         self.renderer.render(device, &mut encoder, &target, size);
+        // Flou de la scène sous les panneaux vitrés (avant l'interface).
+        self.glass.render(
+            &self.egui_ctx,
+            device,
+            &mut encoder,
+            &mut self.egui_renderer,
+            &frame.texture,
+        );
 
         // Interface par-dessus.
         let ppp = output.pixels_per_point;

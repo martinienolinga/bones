@@ -30,6 +30,8 @@ pub struct Running {
     pub(crate) egui_ctx: egui::Context,
     pub(crate) egui_state: egui_winit::State,
     pub(crate) egui_renderer: egui_wgpu::Renderer,
+    /// Flou des panneaux en verre dépoli.
+    pub(crate) glass: crate::glass::Glass,
     pub(crate) editor: Editor,
     pub(crate) ui: UiState,
     pub(crate) gestures: Gestures,
@@ -58,6 +60,8 @@ impl Running {
             gpu.config.format,
             egui_wgpu::RendererOptions::default(),
         );
+        let copyable = gpu.config.usage.contains(wgpu::TextureUsages::COPY_SRC);
+        let glass = crate::glass::Glass::new(&gpu.device, gpu.config.format, copyable);
 
         let docs = files::documents_dir();
         let mut jobs = Jobs::new(proxy);
@@ -73,6 +77,7 @@ impl Running {
             egui_ctx,
             egui_state,
             egui_renderer,
+            glass,
             editor: Editor::new(Rig::demo()),
             ui: UiState::new(docs.clone(), Settings::load(&docs)),
             gestures: Gestures::default(),

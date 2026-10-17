@@ -160,3 +160,41 @@ fn saved_manipulator_settings_reach_the_editor() {
     assert!(h.editor.manipulator.invert_snap);
     assert!(!h.state.settings.manipulator.invert_snap);
 }
+
+/// Clic (appui puis relâchement) au point `p`.
+fn click(h: &mut Harness, p: egui::Pos2) {
+    h.frame(vec![Event::PointerMoved(p), button(p, true)]);
+    h.frame(vec![button(p, false)]);
+}
+
+#[test]
+fn view_buttons_form_a_grid_left_of_the_cube() {
+    let mut h = Harness::new();
+    h.frame(vec![]);
+    h.frame(vec![]);
+    // Guide de rotation : 116 pt, ancré à 76 pt du bord droit, 60 pt du haut.
+    let cube = Rect::from_min_size(pos2(1366.0 - 76.0 - 116.0, 60.0), vec2(116.0, 116.0));
+    let grid = *h
+        .state
+        .rects
+        .iter()
+        .find(|r| (r.right() - (cube.left() - 8.0)).abs() < 1.0)
+        .expect("grille des boutons à gauche du guide");
+    assert!(
+        (grid.center().y - cube.center().y).abs() < 1.0,
+        "centrée : {grid:?}"
+    );
+    assert!(
+        (grid.width() - grid.height()).abs() < 2.0,
+        "deux par ligne : {grid:?}"
+    );
+    // Cellules de 44 pt dans une marge de 6 pt : verrou en haut à gauche,
+    // vue orthographique en haut à droite.
+    let lock = pos2(grid.left() + 28.0, grid.top() + 28.0);
+    let ortho = pos2(grid.right() - 28.0, grid.top() + 28.0);
+    let (locked, ortho_before) = (h.editor.camera.locked, h.editor.camera.orthographic);
+    click(&mut h, ortho);
+    assert_ne!(h.editor.camera.orthographic, ortho_before);
+    click(&mut h, lock);
+    assert_ne!(h.editor.camera.locked, locked);
+}

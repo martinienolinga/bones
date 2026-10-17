@@ -51,6 +51,10 @@ impl Gpu {
             config.format = format;
         }
         config.present_mode = wgpu::PresentMode::AutoVsync;
+        // Zones de l'image copiées pour le flou des panneaux en verre dépoli.
+        if caps.usages.contains(wgpu::TextureUsages::COPY_SRC) {
+            config.usage |= wgpu::TextureUsages::COPY_SRC;
+        }
         config.desired_maximum_frame_latency = 2;
         surface.configure(&device, &config);
 

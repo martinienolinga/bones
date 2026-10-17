@@ -7,12 +7,14 @@
 //! cibles tactiles d'au moins 44 pt.
 //!
 //! - [`theme`] : couleurs, police, style egui, cadres de panneaux ;
+//! - [`glass`] : panneaux en verre dépoli (scène floutée et teinte sombre) ;
 //! - [`icons`] : glyphes SVG monochromes rastérisés dans un atlas ;
 //! - [`widgets`] : boutons, puits et outils de barre, contrôle segmenté,
 //!   curseurs, interrupteurs, listes groupées, studio, frise de clés.
 //!
 //! Appeler [`install`] une fois au démarrage.
 
+pub mod glass;
 pub mod icons;
 pub mod theme;
 pub mod widgets;

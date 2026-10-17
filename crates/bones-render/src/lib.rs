@@ -19,12 +19,16 @@
 //! Organisation :
 //! - [`scene`] : données d'une image fournies par l'application ;
 //! - [`renderer`] : état GPU et préparation ; `pass` : dessin ;
+//! - `blur` : flou d'arrière-plan des panneaux en verre dépoli de
+//!   l'interface ([`Backdrop`]) ;
 //! - `materials`, `textures` : matériaux et textures du maillage ;
 //! - `pipelines`, `bindings`, `layouts`, `buffers`, `targets`, `geometry` :
 //!   détails internes ;
 //! - `shaders/` : sources WGSL.
 
 mod bindings;
+mod blur;
+mod blur_targets;
 mod buffers;
 mod geometry;
 mod layouts;
@@ -36,6 +40,7 @@ pub mod scene;
 mod targets;
 mod textures;
 
+pub use blur::{Backdrop, Region};
 pub use geometry::{bone_matrix, handle_matrix};
 pub use renderer::Renderer;
 pub use scene::{BoneInstance, LineVertex, Scene};
