@@ -1,7 +1,7 @@
 //! Postures debout communes aux actions humaines : pieds posés (décalés,
 //! tournés, talons levés), bras relâchés, garde de combat.
 
-use glam::{Quat, Vec3};
+use glam::Vec3;
 
 use super::rig::Human;
 use crate::presets::procedural::ctx::Body;
@@ -57,7 +57,7 @@ impl Human<'_, '_> {
     }
 
     /// Point canonique relatif à l'épaule, tourné avec la poitrine.
-    pub fn from_shoulder(&self, body: &Body, side: Lr, offset: Vec3) -> Vec3 {
+    pub fn point_from_shoulder(&self, body: &Body, side: Lr, offset: Vec3) -> Vec3 {
         let chest = self.spine.last().copied().unwrap_or(self.root);
         let turn = body.rotation(chest) * self.rig.rest[chest.index()].rotation.inverse();
         self.shoulder(body, side) + turn * self.rig.w(offset)
@@ -66,8 +66,8 @@ impl Human<'_, '_> {
     /// Main vers un point relatif à l'épaule (canonique, suit la poitrine),
     /// coude vers un pôle relatif lui aussi.
     pub fn reach_from_shoulder(&self, body: &mut Body, side: Lr, hand: Vec3, elbow: Vec3, wrist: f32) {
-        let target = self.from_shoulder(body, side, hand);
-        let pole = self.from_shoulder(body, side, elbow);
+        let target = self.point_from_shoulder(body, side, hand);
+        let pole = self.point_from_shoulder(body, side, elbow);
         self.reach(body, side, target, pole, wrist);
     }
 
@@ -86,10 +86,5 @@ impl Human<'_, '_> {
     pub fn guard(&self, body: &mut Body, side: Lr, toward: Vec3, w: f32) {
         let (hand, elbow) = self.guard_offsets(side);
         self.reach_from_shoulder(body, side, hand.lerp(toward, w), elbow, -0.2 * (1.0 - w));
-    }
-
-    /// Rotation canonique → monde d'un lacet autour de la verticale.
-    pub fn heading(&self, yaw: f32) -> Quat {
-        Quat::from_axis_angle(self.rig.frame.up, yaw)
     }
 }

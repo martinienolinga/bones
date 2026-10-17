@@ -15,7 +15,7 @@ use parse::Bvh;
 
 use super::IoError;
 use super::rigging::{Joint, assemble, build_skeleton};
-use crate::{Mesh, Rig};
+use crate::{Clip, Mesh, Rig, Skeleton};
 
 /// Échelle ramenant le squelette en mètres (taille d'un humain ≈ 1,75 m).
 fn unit_scale(bvh: &Bvh) -> f32 {
@@ -50,6 +50,17 @@ fn joint_worlds(bvh: &Bvh, frame: Option<usize>, scale: f32) -> Vec<Mat4> {
         worlds.push(w);
     }
     worlds
+}
+
+/// Squelette et sa capture (un seul clip), pour l'import de préréglages.
+pub(super) fn animations(bytes: &[u8]) -> Result<(Skeleton, Vec<(String, Clip)>), IoError> {
+    let rig = import(bytes, "Motion")?;
+    let clips = if rig.clip.is_empty() {
+        Vec::new()
+    } else {
+        vec![("Motion".to_owned(), (*rig.clip).clone())]
+    };
+    Ok((rig.skeleton, clips))
 }
 
 pub(super) fn import(bytes: &[u8], name: &str) -> Result<Rig, IoError> {

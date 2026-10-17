@@ -17,8 +17,7 @@ use std::sync::Arc;
 use glam::Mat4;
 use serde_json::{Value, json};
 
-// `animations` sert à l'import de préréglages, encore en pause (wip/LISEZMOI.md).
-#[allow(unused_imports)]
+// `animations` sert à l'import de préréglages (crate::io::read_animations).
 pub(crate) use import::{animations, import};
 
 use crate::io::{IoError, safe_file_name};

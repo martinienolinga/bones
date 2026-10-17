@@ -63,10 +63,6 @@ impl<'a> Retargeter<'a> {
         }
     }
 
-    pub fn mapping(&self) -> &Mapping {
-        &self.mapping
-    }
-
     /// Rotation monde source (relative au repos) → rotation monde cible.
     fn carry(&self, q: Quat) -> Quat {
         let c = self.bs.inverse() * q * self.bs;

@@ -6,11 +6,10 @@ use glam::{Quat, Vec3};
 
 use crate::BoneId;
 use crate::presets::procedural::ctx::{Body, Rigging};
-use crate::presets::roles::{Chain, Lr};
+use crate::presets::roles::Chain;
 
 pub(crate) struct Limb {
     pub chain: Vec<BoneId>,
-    pub side: Lr,
     /// Patte avant (bras) ou arrière (jambe).
     pub front: bool,
     /// Point d'appui au repos (monde) : bout du troisième segment, ou du
@@ -23,7 +22,7 @@ pub(crate) struct Limb {
 }
 
 impl Limb {
-    pub fn new(rig: &Rigging, chain: Chain, side: Lr, front: bool) -> Option<Self> {
+    pub fn new(rig: &Rigging, chain: Chain, front: bool) -> Option<Self> {
         let bones = rig.chain(chain);
         if bones.len() < 2 {
             return None;
@@ -39,7 +38,6 @@ impl Limb {
         Some(Self {
             reach: rig.len(bones[0]) + rig.len(bones[1]),
             chain: bones,
-            side,
             front,
             contact,
             bend,

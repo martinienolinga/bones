@@ -55,10 +55,14 @@ pub(crate) const TENTACLE: &[ParamSpec] = &[
     ParamSpec::new("wavelength", "Waves along the chain", 0.3, 3.0, 1.0),
 ];
 
+/// Articulation d'une chaîne ondulante : os, position normalisée le long de
+/// la chaîne, poids (longueur relative) et deux axes de flexion canoniques.
+type WaveJoint = (BoneId, f32, f32, Vec3, Vec3);
+
 /// Ondulation d'une ou plusieurs chaînes : queue qui remue (dans le plan
 /// horizontal) ou tentacule (deux axes, mouvement tournoyant).
 pub(crate) struct Wave {
-    chains: Vec<Vec<(BoneId, f32, f32, Vec3, Vec3)>>,
+    chains: Vec<Vec<WaveJoint>>,
     rate: f32,
     amplitude: f32,
     lag: f32,

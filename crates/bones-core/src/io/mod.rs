@@ -78,6 +78,25 @@ pub fn import_bytes(
     }
 }
 
+/// Lit toutes les animations d'un fichier d'échange sur son squelette, pour
+/// l'import de préréglages (un préréglage par animation). Un fichier glTF ou
+/// FBX peut contenir plusieurs animations nommées ; un BVH en contient une.
+pub(crate) fn read_animations(
+    format: Format,
+    bytes: &[u8],
+    base: Option<&Path>,
+) -> Result<(crate::Skeleton, Vec<(String, crate::Clip)>), IoError> {
+    match format {
+        Format::Glb | Format::Gltf => gltf::animations(bytes, base),
+        Format::Fbx => fbx::animations(bytes),
+        Format::Bvh => bvh::animations(bytes),
+        _ => Err(IoError::Unsupported(format!(
+            "{} animation import",
+            format.extension().to_uppercase()
+        ))),
+    }
+}
+
 /// Exporte le document. Retourne la liste des fichiers écrits (le fichier
 /// principal en premier, puis les annexes : MTL, textures, `.bin`).
 pub fn export(rig: &Rig, format: Format, path: &Path) -> Result<Vec<PathBuf>, IoError> {

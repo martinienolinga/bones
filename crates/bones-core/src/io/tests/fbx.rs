@@ -213,3 +213,12 @@ fn imports_mesh_texture_skin_and_animation() {
 fn rejects_ascii_fbx() {
     assert!(import_bytes(Format::Fbx, b"; FBX 7.4.0 project file", "a", None).is_err());
 }
+
+#[test]
+fn read_animations_lists_named_clips() {
+    let (skeleton, clips) = crate::io::read_animations(Format::Fbx, &sample_fbx(), None).unwrap();
+    assert_eq!(skeleton.len(), 2);
+    assert_eq!(clips.len(), 1, "une pile d'animation");
+    assert_eq!(clips[0].0, "Prise");
+    assert_eq!(clips[0].1.keys().len(), 31);
+}

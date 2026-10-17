@@ -38,7 +38,7 @@ impl<'r, 'a> Quad<'r, 'a> {
         let mut limbs = Vec::new();
         for (front, chain) in [(true, Chain::Arm as fn(Lr) -> Chain), (false, Chain::Leg)] {
             for side in Lr::BOTH {
-                limbs.extend(Limb::new(rig, chain(side), side, front));
+                limbs.extend(Limb::new(rig, chain(side), front));
             }
         }
         if limbs.len() < legs {

@@ -1,5 +1,12 @@
 //! Préréglages d'animation dans l'éditeur : application au projet (une
 //! seule étape d'annulation) et création à partir de l'animation.
+//!
+//! La bibliothèque de l'utilisateur (liste, enregistrement, renommage,
+//! duplication, suppression des fichiers `.kb3da`), l'aperçu animé et
+//! l'import/export de fichiers sont dans le module [`crate::presets`]
+//! (fonctions sans état, testables seules) : voir [`crate::presets::user`],
+//! [`crate::presets::Preview`], [`crate::presets::import_file`] et
+//! [`crate::presets::export_file`].
 
 use super::Editor;
 use crate::presets::apply::{ApplyOptions, ApplyReport, bake_preset, merge};

@@ -27,7 +27,6 @@ pub(crate) struct Leg {
 }
 
 pub(crate) struct Arm {
-    pub side: Lr,
     pub clavicle: Option<BoneId>,
     pub upper: BoneId,
     pub fore: BoneId,
@@ -139,7 +138,6 @@ impl<'r, 'a> Human<'r, 'a> {
             _ => -rig.frame.up,
         };
         Some(Arm {
-            side,
             clavicle: rig.bone(Chain::Clavicle(side), 0),
             upper,
             fore,
