@@ -1,4 +1,5 @@
-//! Entrées/sorties : documents `.bones` et formats 3D d'échange.
+//! Entrées/sorties : formats 3D d'échange. Les projets de l'app sont des
+//! fichiers `.kbrig` (voir [`crate::project`]).
 //!
 //! Point d'entrée unique : [`import`] (détection par l'extension) et
 //! [`export`]. Chaque format vit dans son propre module. Conventions
@@ -8,7 +9,6 @@
 //!
 //! | Format | Import | Export |
 //! |---|---|---|
-//! | `.bones` | tout | tout |
 //! | glTF / GLB | maillage, matériaux, textures, squelette, poids, animation | idem |
 //! | FBX binaire | maillage, matériaux, textures, squelette, poids, animation | — |
 //! | OBJ + MTL | maillage, matériaux, textures | maillage posé, matériaux, textures |
@@ -23,7 +23,6 @@ mod format;
 pub mod gltf;
 pub mod obj;
 mod ply;
-pub mod rig_file;
 pub(crate) mod rigging;
 mod stl;
 #[cfg(test)]
@@ -66,9 +65,6 @@ pub fn import_bytes(
     base_dir: Option<&Path>,
 ) -> Result<Imported, IoError> {
     match format {
-        Format::Bones => Rig::load(bytes)
-            .map(Imported::Rig)
-            .map_err(|e| IoError::parse(format, e)),
         Format::Glb | Format::Gltf => gltf::import(bytes, name, base_dir).map(Imported::Rig),
         Format::Fbx => fbx::import(bytes, name, base_dir).map(Imported::Rig),
         Format::Obj => obj::import(bytes, base_dir).map(Imported::Mesh),
@@ -107,11 +103,6 @@ pub fn export(rig: &Rig, format: Format, path: &Path) -> Result<Vec<PathBuf>, Io
         )));
     }
     let written = match format {
-        Format::Bones => {
-            let file = std::fs::File::create(path)?;
-            rig.save(file).map_err(|e| IoError::parse(format, e))?;
-            vec![path.to_path_buf()]
-        }
         Format::Glb => {
             std::fs::write(path, gltf::export_glb(rig))?;
             vec![path.to_path_buf()]

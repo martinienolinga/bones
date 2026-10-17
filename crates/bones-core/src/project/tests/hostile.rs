@@ -110,9 +110,7 @@ fn other_files_are_not_projects() {
     let path = dir.join("Other.kbrig");
     std::fs::write(&path, b"just some text").unwrap();
     assert!(matches!(load(&path), Err(ProjectError::Invalid(_))));
-    let mut json = Vec::new();
-    Rig::demo().save(&mut json).unwrap();
-    std::fs::write(&path, json).unwrap();
+    std::fs::write(&path, serde_json::to_vec(&Rig::demo()).unwrap()).unwrap();
     assert!(matches!(read_info(&path), Err(ProjectError::Invalid(_))));
 
     let path = save(&full_editor(), &dir, "No manifest");

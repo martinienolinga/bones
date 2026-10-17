@@ -1,6 +1,5 @@
 //! Tests des formats : allers-retours et fichiers témoins minimaux.
 
-mod bones;
 mod bvh;
 mod corpus;
 mod fbx;

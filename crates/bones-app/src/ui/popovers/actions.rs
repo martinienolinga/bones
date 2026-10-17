@@ -107,7 +107,7 @@ fn animation(ui: &mut egui::Ui, editor: &mut Editor) {
 fn export(ui: &mut egui::Ui, actions: &mut Vec<UiAction>) {
     widgets::section_title(ui, "Export");
     widgets::group(ui, |g| {
-        for format in Format::exportable().filter(|f| *f != Format::Bones) {
+        for format in Format::exportable() {
             let mut contents = vec!["mesh"];
             if format.supports_textures() {
                 contents.push("textures");

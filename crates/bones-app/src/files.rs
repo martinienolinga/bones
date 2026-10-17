@@ -82,8 +82,6 @@ pub struct ImportFile {
 pub fn importable(docs: &Path) -> Vec<ImportFile> {
     let mut files: Vec<(SystemTime, ImportFile)> = Vec::new();
     for dir in [docs.to_owned(), docs.join(INBOX)] {
-        // Les anciens documents `.bones` s'importent aussi : ils deviennent
-        // des projets.
         let models = list(&dir, Format::can_import);
         files.extend(models.into_iter().map(|f| {
             let file = ImportFile {
@@ -181,6 +179,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("bones-import-{}", std::process::id()));
         let inbox = dir.join(INBOX);
         std::fs::create_dir_all(&inbox).unwrap();
+        // L'ancien format `.bones` est retiré : ignoré comme un fichier texte.
         for name in ["Fox.glb", "Old.bones", "notes.txt", "Hero.kbrig"] {
             std::fs::write(dir.join(name), b"x").unwrap();
         }
@@ -193,7 +192,6 @@ mod tests {
             [
                 ("Fox".to_owned(), Some(Format::Glb)),
                 ("Hero".to_owned(), None),
-                ("Old".to_owned(), Some(Format::Bones)),
                 ("Scan".to_owned(), Some(Format::Ply)),
             ]
         );

@@ -75,13 +75,12 @@ avant d'exporter le résultat vers Blender, Unity, Unreal ou Godot. Le moteur de
 
 ### Import / export
 
-Huit formats, avec leurs textures et matériaux quand le format en porte. Un modèle importé arrive
+Six formats d'échange, avec leurs textures et matériaux quand le format en porte. Un modèle importé arrive
 avec son squelette, ses poids et son animation s'il en a ; une géométrie seule se rigge ensuite dans
 l'app (auto-rig, poids automatiques).
 
 | Format | Import | Export |
 | --- | --- | --- |
-| `.bones` (document natif, JSON) | tout | tout (textures incluses) |
 | **glTF 2.0** `.glb` / `.gltf` | maillage, UV, matériaux, textures, squelette, poids, animation | idem |
 | **FBX** binaire 7.x | maillage, UV, matériaux, textures, squelette, poids, animation | — |
 | **OBJ + MTL** | maillage, UV, matériaux, textures `map_Kd` | pose courante + MTL + textures |
@@ -136,7 +135,7 @@ Organisation de `bones-core` :
 | `ik/` | FABRIK, IK à deux os, épingles |
 | `autorig/` | marqueurs, génération humanoïde, membres IK/FK |
 | `anim/` | clips de poses-clés, interpolation, physique |
-| `io/` | documents `.bones`, glTF, FBX, OBJ + MTL, STL, PLY, BVH (un dossier par format) |
+| `io/` | formats d'échange : glTF, FBX, OBJ + MTL, STL, PLY, BVH (un dossier par format) |
 | `editor/` | état de l'éditeur, gestes, historique, opérations |
 
 Les détails (flux de données, révisions, passes de rendu, conventions) sont dans
@@ -223,12 +222,13 @@ Raccourcis clavier (ordinateur ou Magic Keyboard) : `⌘Z` / `Ctrl+Z` annuler, `
 
 ## Fichiers
 
-Sur iPad, les documents `.bones`, les modèles `.obj` à importer et les exports `.glb` se trouvent
-dans le dossier **Documents** de l'application, visible dans l'app **Fichiers** sous
-« Sur mon iPad › Bones ». Il suffit d'y déposer un `.obj` pour le retrouver dans la galerie.
+Sur iPad, les modèles à importer (`.glb`, `.fbx`, `.obj`…), les projets `.kbrig` reçus et les
+exports se trouvent dans le dossier **Documents** de l'application, visible dans l'app **Fichiers**
+sous « Sur mon iPad › Bones ». Il suffit d'y déposer un `.obj` pour le retrouver dans la galerie.
 Sur poste de développement, c'est le dossier `~/Documents/PaintSharp Bones` (ou celui indiqué par la
-variable d'environnement `BONES_DOCUMENTS`). La session en cours est enregistrée automatiquement dans
-`Session.bones` à la fermeture ou au passage en arrière-plan, et rouverte au lancement.
+variable d'environnement `BONES_DOCUMENTS`). Chaque projet est un fichier `.kbrig` rangé dans
+`Projects` ; il est enregistré automatiquement après deux secondes de repos, en le quittant et au
+passage en arrière-plan.
 
 ## Feuille de route
 

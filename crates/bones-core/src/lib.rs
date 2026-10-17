@@ -17,8 +17,8 @@
 //! - [`ik`] : FABRIK, IK à deux os, points épinglés ;
 //! - [`autorig`] : rigging assisté façon Auto-Rig Pro ;
 //! - [`anim`] : clés, interpolation, physique (Cascadeur) ;
-//! - [`io`] : fichiers `.bones` et formats d'échange (glTF/GLB, FBX, OBJ,
-//!   STL, PLY, BVH) en import et en export ;
+//! - [`io`] : formats d'échange (glTF/GLB, FBX, OBJ, STL, PLY, BVH) en
+//!   import et en export ;
 //! - [`project`] : projets `.kbrig` (un fichier compressé par projet, galerie) ;
 //! - [`manipulator`] : manipulateurs 3D (translation, rotation, échelle) ;
 //! - [`editor`] : état de l'éditeur et gestes, indépendants de la plateforme ;
@@ -49,7 +49,6 @@ pub use autorig::face::{FaceBone, FaceMarkerKind, FaceMarkers};
 pub use autorig::{AutoRigOptions, Limb, LimbMode, MarkerKind, Markers};
 pub use editor::{BindJob, EditTool, Editor, Handle, Mode, PoseTool, ViewOptions};
 pub use ik::{IkSettings, Pin};
-pub use io::rig_file::RigError;
 pub use io::{Format, Imported, IoError};
 pub use manipulator::{ManipulatorMode, ManipulatorSettings, TransformSpace};
 pub use math::{OrbitCamera, Ray, Transform, Viewport};

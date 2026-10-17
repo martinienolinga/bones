@@ -6,9 +6,13 @@ fn demo_is_bound_and_roundtrips() {
     let rig = Rig::demo();
     assert!(!rig.needs_bind());
     assert!(rig.skeleton.len() > 20);
-    let mut bytes = Vec::new();
-    rig.save(&mut bytes).unwrap();
-    let back = Rig::load(bytes.as_slice()).unwrap();
+    // Aller-retour par un projet `.kbrig` (format de l'app).
+    let path = std::env::temp_dir().join(format!("bones-rig-demo-{}.kbrig", std::process::id()));
+    let snapshot = crate::project::ProjectSnapshot::capture(&crate::Editor::new(rig.clone()));
+    snapshot.save(&path, "Demo", 0, None).unwrap();
+    let loaded = crate::project::load(&path);
+    let _ = std::fs::remove_file(&path);
+    let back = loaded.unwrap().snapshot.into_editor().rig;
     assert_eq!(back.skeleton, rig.skeleton);
     assert_eq!(*back.skin, *rig.skin);
     assert_eq!(back.limbs.len(), 4);

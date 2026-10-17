@@ -4,8 +4,6 @@ use std::path::Path;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Format {
-    /// Document natif `.bones` (JSON, textures incluses).
-    Bones,
     /// glTF 2.0 binaire.
     Glb,
     /// glTF 2.0 texte (+ `.bin` et images à côté).
@@ -23,8 +21,7 @@ pub enum Format {
 }
 
 impl Format {
-    pub const ALL: [Format; 8] = [
-        Format::Bones,
+    pub const ALL: [Format; 7] = [
         Format::Glb,
         Format::Gltf,
         Format::Fbx,
@@ -38,7 +35,6 @@ impl Format {
     /// celle utilisée à l'export.
     pub fn extensions(self) -> &'static [&'static str] {
         match self {
-            Format::Bones => &["bones"],
             Format::Glb => &["glb"],
             Format::Gltf => &["gltf"],
             Format::Fbx => &["fbx"],
@@ -67,7 +63,6 @@ impl Format {
     /// Nom affiché dans l'interface.
     pub fn label(self) -> &'static str {
         match self {
-            Format::Bones => "PaintSharp Bones document",
             Format::Glb => "Binary glTF (Blender, Unity, Unreal, Godot)",
             Format::Gltf => "glTF text + separate files",
             Format::Fbx => "FBX (Maya, 3ds Max, Mixamo)",
@@ -88,7 +83,7 @@ impl Format {
 
     /// Le format peut porter un squelette.
     pub fn exports_skeleton(self) -> bool {
-        matches!(self, Format::Bones | Format::Glb | Format::Gltf | Format::Bvh)
+        matches!(self, Format::Glb | Format::Gltf | Format::Bvh)
     }
 
     /// Le format peut porter l'animation.
@@ -98,10 +93,7 @@ impl Format {
 
     /// Le format peut porter des textures.
     pub fn supports_textures(self) -> bool {
-        matches!(
-            self,
-            Format::Bones | Format::Glb | Format::Gltf | Format::Fbx | Format::Obj
-        )
+        matches!(self, Format::Glb | Format::Gltf | Format::Fbx | Format::Obj)
     }
 
     pub fn importable() -> impl Iterator<Item = Format> {

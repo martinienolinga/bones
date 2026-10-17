@@ -114,8 +114,10 @@ pub fn sniff_mime(bytes: &[u8]) -> &'static str {
     }
 }
 
-/// Sérialisation des octets en base64 : les documents `.bones` restent
-/// autonomes (textures incluses) tout en restant du JSON.
+/// Sérialisation des octets en base64, pour que le `Rig` reste du JSON
+/// valide. Dans les projets `.kbrig`, les octets sont retirés du document
+/// (chaîne vide) et écrits à part sous `textures/` : garder ce champ assure la
+/// lecture des projets existants.
 mod base64_bytes {
     use std::sync::Arc;
 
