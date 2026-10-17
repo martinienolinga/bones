@@ -7,6 +7,15 @@ use bones_ui::widgets;
 
 pub fn show(ui: &mut egui::Ui, editor: &mut Editor) {
     let brush = &mut editor.weight_paint.brush;
+    widgets::section_title(ui, "Strength");
+    widgets::slider_row_with(ui, &mut brush.strength, 0.0..=1.0, "Strength", |ui, v| {
+        widgets::drag_chip(ui, v, 0.0..=1.0, 0.01, 2, "", 72.0)
+    });
+    widgets::note(
+        ui,
+        "Apple Pencil pressure drives strength; this value is the full force for finger and mouse.",
+    );
+
     widgets::section_title(ui, "Spacing");
     widgets::slider_row(ui, &mut brush.spacing, 0.02..=1.0, "Dab spacing", "");
     widgets::note(

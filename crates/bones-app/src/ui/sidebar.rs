@@ -80,27 +80,19 @@ fn frame_button(ui: &mut egui::Ui, editor: &mut Editor) {
     }
 }
 
-/// Curseurs sobres du pinceau, dans l'ordre de Blender : poids, rayon, force.
-/// Le poids est une simple valeur numérique (0,000 à 1,000) ; aucune couleur
-/// — la carte de chaleur ne sert qu'à l'affichage sur le maillage.
+/// Deux curseurs sobres, comme les autres modes : taille du pinceau et poids
+/// cible (valeur numérique 0,00 à 1,00 ; aucune couleur). La force n'est pas
+/// ici : elle vient de la pression de l'Apple Pencil (et du réglage de repli
+/// des options de trait).
 fn brush_sliders(ui: &mut egui::Ui, editor: &mut Editor) {
     let brush = &mut editor.weight_paint.brush;
-    let mut weight = brush.weight;
-    if widgets::vertical_slider_compact(ui, &mut weight, 0.0..=1.0, Icon::Weights, "Brush weight", 3)
-        .changed()
-    {
-        brush.weight = weight;
-    }
     let mut radius = brush.radius;
-    if widgets::vertical_slider_compact(ui, &mut radius, 4.0..=200.0, Icon::Brush, "Brush size", 0).changed()
-    {
+    if widgets::vertical_slider(ui, &mut radius, 4.0..=200.0, "Brush size").changed() {
         brush.radius = radius;
     }
-    let mut strength = brush.strength;
-    if widgets::vertical_slider_compact(ui, &mut strength, 0.0..=1.0, Icon::Adjust, "Brush strength", 3)
-        .changed()
-    {
-        brush.strength = strength;
+    let mut weight = brush.weight;
+    if widgets::vertical_slider_value(ui, &mut weight, 0.0..=1.0, "Max weight", 2).changed() {
+        brush.weight = weight;
     }
 }
 

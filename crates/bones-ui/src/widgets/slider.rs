@@ -12,8 +12,6 @@ use crate::theme::{ICON, PANEL, TEXT, TEXT_DIM, THUMB, WIDGET, semibold, small_s
 
 const WIDTH: f32 = 36.0;
 const HEIGHT: f32 = 200.0;
-/// Hauteur réduite pour empiler plusieurs réglages (poids, rayon, force).
-const COMPACT_HEIGHT: f32 = 150.0;
 const ICON_SPACE: f32 = 32.0;
 
 /// Nouvelle valeur après un glissement de `delta_up` points vers le haut sur
@@ -64,17 +62,17 @@ pub fn vertical_slider_with_icon(
     slider(ui, value, range, Some(icon), hint, HEIGHT, None)
 }
 
-/// Variante compacte à icône, dont la bulle affiche `decimals` décimales
-/// (réglages de pinceau empilés : poids « 1.000 », rayon, force).
-pub fn vertical_slider_compact(
+/// Curseur identique à [`vertical_slider`] (même taille, sans icône) dont la
+/// bulle affiche `decimals` décimales — pour une valeur fractionnaire comme
+/// le poids cible « 1.00 ».
+pub fn vertical_slider_value(
     ui: &mut Ui,
     value: &mut f32,
     range: RangeInclusive<f32>,
-    icon: Icon,
     hint: &str,
     decimals: usize,
 ) -> Response {
-    slider(ui, value, range, Some(icon), hint, COMPACT_HEIGHT, Some(decimals))
+    slider(ui, value, range, None, hint, HEIGHT, Some(decimals))
 }
 
 fn slider(

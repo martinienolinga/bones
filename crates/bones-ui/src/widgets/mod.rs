@@ -25,7 +25,7 @@ pub use capsule::{CapsuleItem, CapsuleResponse, CapsuleTone, capsule, check_badg
 pub use group::{Group, group};
 pub use rows::{list_row, note, section_title};
 pub use segmented::segmented;
-pub use slider::{vertical_slider, vertical_slider_compact, vertical_slider_with_icon};
+pub use slider::{vertical_slider, vertical_slider_value, vertical_slider_with_icon};
 pub use slider_row::{slider_row, slider_row_with};
 pub use studio::{
     cancel_button, chip_button, confirm_button, drag_chip, nav_item, stepper, studio_title, value_chip,

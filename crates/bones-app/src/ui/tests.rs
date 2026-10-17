@@ -315,8 +315,8 @@ fn weight_slider_lowers_the_brush_weight() {
         .find(|r| r.left() < 2.0 && r.height() > 300.0 && r.top() > super::BAR_H)
         .expect("bandeau gauche");
     assert_eq!(h.editor.weight_paint.brush.weight, 1.0);
-    // Premier curseur (Weight) : glisser le pouce vers le bas réduit le poids.
-    let start = pos2(strip.center().x, strip.top() + 120.0);
+    // Deuxième curseur (Max weight) : glisser vers le bas réduit le poids.
+    let start = pos2(strip.center().x, strip.top() + 310.0);
     h.frame(vec![Event::PointerMoved(start), button(start, true)]);
     for i in 1..=6 {
         h.frame(vec![Event::PointerMoved(start + vec2(0.0, 10.0 * i as f32))]);
