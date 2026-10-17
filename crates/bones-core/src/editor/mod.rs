@@ -2,16 +2,22 @@
 //! iPad ne fait que traduire les gestes en appels à cette API, ce qui rend
 //! toute la logique testable sur poste de développement.
 
+mod bone_info;
+mod bone_ops;
 mod drag;
+mod edit_tools;
 mod history;
 mod pointer;
 mod pose_ops;
 mod rig_ops;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_bones;
 mod timeline;
 mod view;
 
+pub use bone_info::BoneInfo;
 pub use rig_ops::BindJob;
 
 use glam::Vec3;
@@ -46,6 +52,14 @@ pub enum EditTool {
     Select,
     /// Glisser crée un nouvel os.
     AddBone,
+    /// Glisser un os déplace sa tête (la queue reste).
+    MoveHead,
+    /// Glisser un os le déplace en entier.
+    MoveBone,
+    /// Glisser fait tourner l'os autour de son axe (roulis).
+    Roll,
+    /// Toucher un os, puis son nouveau parent (ou le vide : racine).
+    Reparent,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -102,6 +116,14 @@ pub struct Editor {
     pub autorig_options: AutoRigOptions,
     /// Dernier message à afficher (toast).
     pub status: Option<String>,
+    /// Édition symétrique (« X-Axis Mirror » de Blender) : toute retouche
+    /// d'un os `.l` / `.r` est reportée sur son symétrique existant.
+    pub mirror_edit: bool,
+    /// Outil « Parent » : enfant choisi, en attente de son nouveau parent.
+    reparent_child: Option<BoneId>,
+    /// Dernière retouche numérique (os, propriété) : les réglages continus
+    /// d'une même valeur ne créent qu'une étape d'annulation.
+    coalesce: Option<(BoneId, u8)>,
     undo: Vec<Rig>,
     redo: Vec<Rig>,
     /// Pile de rétablissement vidée par le dernier point de reprise, gardée
@@ -132,6 +154,9 @@ impl Editor {
             markers: None,
             autorig_options: AutoRigOptions::default(),
             status: None,
+            mirror_edit: false,
+            reparent_child: None,
+            coalesce: None,
             undo: Vec::new(),
             redo: Vec::new(),
             redo_backup: Vec::new(),

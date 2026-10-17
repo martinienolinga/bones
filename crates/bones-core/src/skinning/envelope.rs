@@ -4,20 +4,14 @@
 use glam::Vec3;
 use rayon::prelude::*;
 
-use crate::{BoneId, Mesh, Skeleton, Skin, VertexWeights, head_tail};
+use crate::{Mesh, Skeleton, Skin, VertexWeights};
 
 impl Skin {
     /// Poids automatiques : chaque sommet est influencé par les os les plus
     /// proches (distance au segment tête–queue), avec une décroissance en 1/d⁴
     /// relative à l'os le plus proche. Calcul parallélisé sur les sommets.
     pub fn automatic(mesh: &Mesh, skeleton: &Skeleton) -> Self {
-        let world = skeleton.rest_world();
-        let segments: Vec<(Vec3, Vec3)> = skeleton
-            .bones()
-            .iter()
-            .zip(&world)
-            .map(|(b, w)| head_tail(w, b.length))
-            .collect();
+        let (segments, ids) = super::deform_segments(skeleton);
         if segments.is_empty() {
             return Self {
                 weights: vec![VertexWeights::default(); mesh.positions.len()],
@@ -36,7 +30,7 @@ impl Skin {
                     let influences = dists
                         .iter()
                         .enumerate()
-                        .map(|(i, d)| (BoneId(i as u32), (nearest / d.max(1e-6)).powi(4)))
+                        .map(|(i, d)| (ids[i], (nearest / d.max(1e-6)).powi(4)))
                         .filter(|(_, w)| *w > 0.01)
                         .collect();
                     VertexWeights::from_influences(influences)

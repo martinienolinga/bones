@@ -34,11 +34,11 @@ fn err(message: impl std::fmt::Display) -> IoError {
 
 pub(crate) fn import(bytes: &[u8], name: &str, base: Option<&Path>) -> Result<Rig, IoError> {
     if bytes.starts_with(b"; FBX") {
-        return Err(IoError::Unsupported("FBX ASCII (réexportez en binaire)".into()));
+        return Err(IoError::Unsupported("ASCII FBX (re-export it as binary)".into()));
     }
     let tree = match AnyTree::from_seekable_reader(Cursor::new(bytes)).map_err(err)? {
         AnyTree::V7400(_, tree, _) => tree,
-        _ => return Err(IoError::Unsupported("version FBX inconnue".into())),
+        _ => return Err(IoError::Unsupported("unknown FBX version".into())),
     };
     let doc = Document::new(&tree);
     let (axis, fps) = transform::axis_system(&doc);
@@ -98,7 +98,7 @@ pub(crate) fn import(bytes: &[u8], name: &str, base: Option<&Path>) -> Result<Ri
     }
     mesh.materials = materials.list;
     if mesh.indices.is_empty() && rigging.is_none() {
-        return Err(err("aucun maillage ni squelette"));
+        return Err(err("no mesh and no skeleton"));
     }
     mesh.shrink_to_fit();
 

@@ -53,7 +53,7 @@ pub(super) fn convert(m: &tobj::Material, base: Option<&Path>, cache: &mut Textu
         .clamp(0.04, 1.0);
     Material {
         name: if m.name.is_empty() {
-            "Matériau".into()
+            "Material".into()
         } else {
             m.name.clone()
         },

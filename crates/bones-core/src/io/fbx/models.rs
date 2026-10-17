@@ -69,7 +69,7 @@ impl Models {
                 .and_then(|p| info.get(&p))
                 .map(|p| p.rest_global)
                 .unwrap_or(DMat4::IDENTITY);
-            let m = info.get_mut(&id).expect("modèle connu");
+            let m = info.get_mut(&id).expect("known model");
             m.rest_global = parent_global * m.parts.rest();
         }
         Models { info, order }

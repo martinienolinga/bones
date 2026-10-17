@@ -27,10 +27,10 @@ pub struct PencilPolicy {
 impl PencilPolicy {
     /// Libellé et description de chaque tâche, dans l'ordre de [`Self::get_mut`].
     pub const TASKS: [(&'static str, &'static str); 4] = [
-        ("Poser", "IK, rotation et déplacement des os"),
-        ("Épingler", "poser et retirer les épingles"),
-        ("Éditer le squelette", "ajouter, ajuster, supprimer des os"),
-        ("Marqueurs d'auto-rig", "placer les marqueurs"),
+        ("Posing", "IK, rotating and moving bones"),
+        ("Pins", "adding and removing pins"),
+        ("Skeleton editing", "adding, adjusting, deleting bones"),
+        ("Auto-rig markers", "placing the markers"),
     ];
 
     pub fn get_mut(&mut self, index: usize) -> &mut bool {

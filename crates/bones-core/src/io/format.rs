@@ -67,14 +67,14 @@ impl Format {
     /// Nom affiché dans l'interface.
     pub fn label(self) -> &'static str {
         match self {
-            Format::Bones => "Document PaintSharp Bones",
-            Format::Glb => "glTF binaire (Blender, Unity, Unreal, Godot)",
-            Format::Gltf => "glTF texte + fichiers séparés",
+            Format::Bones => "PaintSharp Bones document",
+            Format::Glb => "Binary glTF (Blender, Unity, Unreal, Godot)",
+            Format::Gltf => "glTF text + separate files",
             Format::Fbx => "FBX (Maya, 3ds Max, Mixamo)",
             Format::Obj => "Wavefront OBJ + MTL",
-            Format::Stl => "STL (impression 3D)",
-            Format::Ply => "PLY (scans 3D)",
-            Format::Bvh => "BVH (capture de mouvement)",
+            Format::Stl => "STL (3D printing)",
+            Format::Ply => "PLY (3D scans)",
+            Format::Bvh => "BVH (motion capture)",
         }
     }
 

@@ -50,7 +50,7 @@ fn materials(doc: &gltf::Document, buffers: &[Arc<[u8]>], base: Option<&Path>) -
                     .clone()
             });
             Material {
-                name: m.name().map(str::to_owned).unwrap_or_else(|| "Matériau".into()),
+                name: m.name().map(str::to_owned).unwrap_or_else(|| "Material".into()),
                 base_color: pbr.base_color_factor(),
                 base_color_texture: tex,
                 metallic: pbr.metallic_factor(),
@@ -101,7 +101,7 @@ pub(super) fn read_meshes(
                 None => (0..count as u32).collect(),
             };
             if part.indices.iter().any(|i| *i as usize >= count) {
-                return Err(super::err("indice de sommet hors limites"));
+                return Err(super::err("vertex index out of range"));
             }
             part.uvs = reader
                 .read_tex_coords(0)
@@ -140,7 +140,7 @@ pub(super) fn read_meshes(
         }
     }
     if mesh.indices.is_empty() && skin.is_none() {
-        return Err(super::err("aucun maillage triangulé"));
+        return Err(super::err("no triangulated mesh"));
     }
     mesh.shrink_to_fit();
     Ok((mesh, raw))

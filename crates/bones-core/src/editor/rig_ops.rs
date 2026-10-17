@@ -49,7 +49,7 @@ impl Editor {
             self.rig.clip_mut().sync_len(&skeleton);
         }
         self.rig.touch_skeleton();
-        self.status = Some(format!("Symétrie appliquée ({created} os créés)"));
+        self.status = Some(format!("Mirrored: {created} bones created"));
     }
 
     pub fn guess_markers(&mut self) {
@@ -65,7 +65,7 @@ impl Editor {
         self.selected = None;
         self.frame = 0.0;
         self.set_mode(Mode::Pose);
-        self.status = Some(format!("Rig généré : {count} os, liaison en cours…"));
+        self.status = Some(format!("Rig generated: {count} bones, binding…"));
     }
 
     /// Tâche de liaison à lancer, s'il y en a une de nouvelle.
@@ -89,7 +89,7 @@ impl Editor {
 
     pub fn finish_bind(&mut self, skin: Skin, key: (u64, u64)) {
         if self.rig.apply_skin(skin, key) {
-            self.status = Some("Liaison terminée".into());
+            self.status = Some("Weights ready".into());
         }
     }
 

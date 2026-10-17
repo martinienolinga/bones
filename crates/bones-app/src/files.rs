@@ -77,7 +77,7 @@ pub fn free_path(dir: &Path, name: &str, ext: &str) -> PathBuf {
         })
         .collect();
     let stem = if clean.trim().is_empty() {
-        "Sans titre".to_owned()
+        "Untitled".to_owned()
     } else {
         clean
     };

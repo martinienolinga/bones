@@ -27,8 +27,8 @@ pub enum RigError {
 impl std::fmt::Display for RigError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RigError::Io(e) => write!(f, "erreur d'entrée/sortie : {e}"),
-            RigError::Json(e) => write!(f, "fichier invalide : {e}"),
+            RigError::Io(e) => write!(f, "input/output error: {e}"),
+            RigError::Json(e) => write!(f, "invalid file: {e}"),
             RigError::Format(e) => write!(f, "{e}"),
         }
     }
@@ -62,11 +62,11 @@ impl Rig {
     pub fn load(reader: impl Read) -> Result<Rig, RigError> {
         let file: RigFile<Rig> = serde_json::from_reader(std::io::BufReader::new(reader))?;
         if file.format != FORMAT {
-            return Err(RigError::Format(format!("format inconnu : {}", file.format)));
+            return Err(RigError::Format(format!("unknown format: {}", file.format)));
         }
         if file.version > VERSION {
             return Err(RigError::Format(format!(
-                "fichier de version {} trop récent (max {VERSION})",
+                "file version {} is too recent (max {VERSION})",
                 file.version
             )));
         }

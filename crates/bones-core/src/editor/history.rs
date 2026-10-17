@@ -4,6 +4,7 @@ use super::{Editor, Mode, UNDO_LIMIT};
 
 impl Editor {
     pub(super) fn checkpoint(&mut self) {
+        self.coalesce = None;
         self.undo.push(self.rig.clone());
         if self.undo.len() > UNDO_LIMIT {
             self.undo.remove(0);
@@ -48,6 +49,8 @@ impl Editor {
 
     fn after_history(&mut self) {
         self.drag = None;
+        self.coalesce = None;
+        self.reparent_child = None;
         if self.selected.is_some_and(|s| !self.rig.skeleton.contains(s)) {
             self.selected = None;
         }
@@ -60,6 +63,7 @@ impl Editor {
         }
         self.mode = mode;
         self.playing = false;
+        self.reparent_child = None;
         match mode {
             Mode::Pose => self.snap_limbs(),
             Mode::AutoRig if self.markers.is_none() => self.guess_markers(),

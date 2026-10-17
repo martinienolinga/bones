@@ -98,7 +98,7 @@ impl Editor {
     /// Trajectoire balistique sur l'intervalle de clés contenant l'image courante.
     pub fn bake_ballistic(&mut self) {
         let Some((start, end)) = self.rig.clip.interval_at(self.current_frame()) else {
-            self.status = Some("Placez-vous entre deux clés (décollage et atterrissage)".into());
+            self.status = Some("Stand between two keys (take-off and landing)".into());
             return;
         };
         self.checkpoint();
@@ -113,7 +113,7 @@ impl Editor {
             physics::GRAVITY,
         );
         self.status = Some(match result {
-            Ok(n) => format!("Saut balistique : {n} images calculées"),
+            Ok(n) => format!("Ballistic jump: {n} frames computed"),
             Err(e) => e.to_string(),
         });
         self.set_frame(self.frame);

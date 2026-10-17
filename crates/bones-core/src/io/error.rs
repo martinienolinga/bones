@@ -26,15 +26,11 @@ impl IoError {
 impl std::fmt::Display for IoError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            IoError::Io(e) => write!(f, "erreur d'entrée/sortie : {e}"),
+            IoError::Io(e) => write!(f, "input/output error: {e}"),
             IoError::Parse { format, message } => {
-                write!(
-                    f,
-                    "fichier {} invalide : {message}",
-                    format.extension().to_uppercase()
-                )
+                write!(f, "invalid {} file: {message}", format.extension().to_uppercase())
             }
-            IoError::Unsupported(what) => write!(f, "non pris en charge : {what}"),
+            IoError::Unsupported(what) => write!(f, "not supported: {what}"),
         }
     }
 }

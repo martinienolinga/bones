@@ -1,11 +1,10 @@
 //! Édition du squelette de repos : recalcul des transformations locales,
-//! déplacement de queue (mode édition) et suppression d'os.
+//! déplacement de queue (mode édition) et suppression d'un os.
 
 use glam::Vec3;
 
-use super::{BoneId, Skeleton, head_tail};
+use super::{BoneId, Skeleton};
 use crate::Transform;
-use crate::math::rotation_arc;
 
 /// Correspondance anciens → nouveaux identifiants après la suppression d'un os.
 #[derive(Clone, Debug)]
@@ -41,22 +40,7 @@ impl Skeleton {
     /// gardent leur queue en place ; les autres os ne bougent pas.
     pub fn set_tail_world(&mut self, id: BoneId, tail: Vec3) {
         let mut world = self.rest_world();
-        let (head, old_tail) = head_tail(&world[id.index()], self.bone(id).length);
-        let new_len = (tail - head).length().max(1e-4);
-        let w = &mut world[id.index()];
-        w.rotation = (rotation_arc(old_tail - head, tail - head) * w.rotation).normalize();
-
-        let connected: Vec<BoneId> = self.children(id).filter(|c| self.is_connected(*c)).collect();
-        for c in connected {
-            let (_, child_tail) = head_tail(&world[c.index()], self.bone(c).length);
-            let new_head = world[id.index()].transform_point(Vec3::Y * new_len);
-            let cw = &mut world[c.index()];
-            let old_dir = cw.transform_vector(Vec3::Y);
-            cw.rotation = (rotation_arc(old_dir, child_tail - new_head) * cw.rotation).normalize();
-            cw.translation = new_head;
-            self.bones[c.index()].length = (child_tail - new_head).length().max(1e-4);
-        }
-        self.bones[id.index()].length = new_len;
+        self.move_joint(&mut world, id, tail);
         self.set_rest_world(&world);
     }
 

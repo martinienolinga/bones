@@ -30,13 +30,13 @@ impl MarkerKind {
 
     pub fn label(self) -> &'static str {
         match self {
-            MarkerKind::HeadTop => "Sommet du crâne",
-            MarkerKind::Chin => "Menton",
-            MarkerKind::Neck => "Cou",
-            MarkerKind::Shoulder => "Épaule",
-            MarkerKind::Wrist => "Poignet",
-            MarkerKind::Root => "Bassin",
-            MarkerKind::Ankle => "Cheville",
+            MarkerKind::HeadTop => "Top of head",
+            MarkerKind::Chin => "Chin",
+            MarkerKind::Neck => "Neck",
+            MarkerKind::Shoulder => "Shoulder",
+            MarkerKind::Wrist => "Wrist",
+            MarkerKind::Root => "Pelvis",
+            MarkerKind::Ankle => "Ankle",
         }
     }
 }

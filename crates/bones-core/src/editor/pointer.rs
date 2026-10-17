@@ -3,7 +3,7 @@
 use glam::{Vec2, Vec3};
 
 use super::drag::Drag;
-use super::{EditTool, Editor, Handle, Mode, PoseTool};
+use super::{Editor, Handle, Mode, PoseTool};
 use crate::math::pick::pick_bone;
 use crate::{BoneId, LimbMode, Pin, Viewport, head_tail};
 
@@ -125,37 +125,6 @@ impl Editor {
                         offset: tail - self.plane_point(pos, vp, tail),
                     }
                 });
-            }
-        }
-        true
-    }
-
-    fn edit_down(&mut self, pos: Vec2, vp: &Viewport, radius: f32) -> bool {
-        let hit = self.pick(pos, vp, radius);
-        let world = self.rig.skeleton.rest_world();
-        match self.edit_tool {
-            EditTool::Select => {
-                let Some(bone) = hit else { return false };
-                self.selected = Some(bone);
-                self.checkpoint();
-                let tail = head_tail(&world[bone.index()], self.rig.skeleton.bone(bone).length).1;
-                self.drag = Some(Drag::Tail {
-                    bone,
-                    anchor: tail,
-                    offset: tail - self.plane_point(pos, vp, tail),
-                });
-            }
-            EditTool::AddBone => {
-                let parent = hit.or(self.selected);
-                let head = match parent {
-                    Some(p) => head_tail(&world[p.index()], self.rig.skeleton.bone(p).length).1,
-                    None => self.plane_point(pos, vp, self.camera.target),
-                };
-                self.checkpoint();
-                let tail = head + self.camera.up() * self.camera.distance * 0.01;
-                let bone = self.rig.add_bone_world("bone", parent, head, tail);
-                self.selected = Some(bone);
-                self.drag = Some(Drag::NewBone { bone, anchor: head });
             }
         }
         true

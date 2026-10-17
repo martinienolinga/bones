@@ -83,7 +83,7 @@ pub fn import_bytes(
 pub fn export(rig: &Rig, format: Format, path: &Path) -> Result<Vec<PathBuf>, IoError> {
     if matches!(format, Format::Obj | Format::Stl | Format::Ply) && rig.mesh.indices.is_empty() {
         return Err(IoError::Unsupported(format!(
-            "{} sans maillage",
+            "{} without a mesh",
             format.extension().to_uppercase()
         )));
     }
@@ -111,13 +111,13 @@ pub fn export(rig: &Rig, format: Format, path: &Path) -> Result<Vec<PathBuf>, Io
             std::fs::write(path, bvh::export(rig)?)?;
             vec![path.to_path_buf()]
         }
-        Format::Fbx => return Err(IoError::Unsupported("export FBX".into())),
+        Format::Fbx => return Err(IoError::Unsupported("FBX export".into())),
     };
     Ok(written)
 }
 
 fn unsupported(path: &Path) -> IoError {
-    IoError::Unsupported(format!("extension de « {} »", path.display()))
+    IoError::Unsupported(format!("extension of \"{}\"", path.display()))
 }
 
 /// Nom de fichier sûr pour une annexe (texture, MTL).

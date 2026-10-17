@@ -14,12 +14,11 @@
 //! Simplification par rapport à l'article : le test de visibilité (le segment
 //! sommet–os doit rester dans le volume) n'est pas encore fait.
 
-use glam::Vec3;
 use rayon::prelude::*;
 
 use super::envelope::distance_to_segment;
 use super::sparse::{conjugate_gradient, cotangent_laplacian};
-use crate::{BoneId, Mesh, Skeleton, Skin, VertexWeights, head_tail};
+use crate::{BoneId, Mesh, Skeleton, Skin, VertexWeights};
 
 /// Poids en dessous duquel une influence est ignorée.
 const MIN_WEIGHT: f64 = 1e-3;
@@ -32,13 +31,10 @@ pub fn heat_weights(mesh: &Mesh, skeleton: &Skeleton) -> Skin {
     if let Some(skin) = welded_heat_weights(mesh, skeleton) {
         return skin;
     }
-    let world = skeleton.rest_world();
-    let segments: Vec<(Vec3, Vec3)> = skeleton
-        .bones()
-        .iter()
-        .zip(&world)
-        .map(|(b, w)| head_tail(w, b.length))
-        .collect();
+    let (segments, ids) = super::deform_segments(skeleton);
+    if segments.is_empty() {
+        return Skin::automatic(mesh, skeleton);
+    }
 
     // Os les plus proches de chaque sommet (avec égalités à 0,1 % près).
     let nearest: Vec<(f32, Vec<u16>)> = mesh
@@ -75,7 +71,7 @@ pub fn heat_weights(mesh: &Mesh, skeleton: &Skeleton) -> Skin {
 
     // Une résolution par os, en parallèle ; seules les influences utiles
     // sont gardées (liste creuse) pour limiter la mémoire.
-    let per_bone: Vec<Vec<(u32, f32)>> = (0..skeleton.len())
+    let per_bone: Vec<Vec<(u32, f32)>> = (0..segments.len())
         .into_par_iter()
         .map(|bone| {
             let b: Vec<f64> = nearest
@@ -115,7 +111,7 @@ pub fn heat_weights(mesh: &Mesh, skeleton: &Skeleton) -> Skin {
     let mut influences: Vec<Vec<(BoneId, f32)>> = vec![Vec::new(); n];
     for (bone, list) in per_bone.into_iter().enumerate() {
         for (v, w) in list {
-            influences[v as usize].push((BoneId(bone as u32), w));
+            influences[v as usize].push((ids[bone], w));
         }
     }
     let weights = influences
@@ -124,7 +120,7 @@ pub fn heat_weights(mesh: &Mesh, skeleton: &Skeleton) -> Skin {
         .map(|(v, inf)| {
             if inf.is_empty() {
                 // Sommet isolé (sans triangle) : os le plus proche.
-                VertexWeights::single(BoneId(nearest[v].1[0] as u32))
+                VertexWeights::single(ids[nearest[v].1[0] as usize])
             } else {
                 VertexWeights::from_influences(inf)
             }
@@ -170,6 +166,7 @@ fn welded_heat_weights(mesh: &Mesh, skeleton: &Skeleton) -> Option<Skin> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use glam::Vec3;
 
     #[test]
     fn heat_weights_are_smooth_and_partitioned() {

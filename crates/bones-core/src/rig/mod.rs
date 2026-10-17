@@ -2,6 +2,7 @@
 
 mod demo;
 mod document;
+mod edit;
 pub mod mirror;
 mod pose;
 pub mod skeleton;

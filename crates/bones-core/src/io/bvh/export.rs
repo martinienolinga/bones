@@ -13,7 +13,7 @@ use crate::{BoneId, Pose, Rig, Skeleton, head_tail};
 pub(in crate::io) fn export(rig: &Rig) -> Result<String, IoError> {
     let skeleton = &rig.skeleton;
     if skeleton.is_empty() {
-        return Err(IoError::Unsupported("BVH sans squelette".into()));
+        return Err(IoError::Unsupported("BVH without a skeleton".into()));
     }
     let rest = skeleton.rest_world();
     let roots: Vec<BoneId> = skeleton

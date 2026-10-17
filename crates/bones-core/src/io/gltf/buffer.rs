@@ -68,7 +68,7 @@ impl Builder {
 }
 
 pub(super) fn pack_glb(doc: &Value, mut bin: Vec<u8>) -> Vec<u8> {
-    let mut json = serde_json::to_vec(doc).expect("JSON sérialisable");
+    let mut json = serde_json::to_vec(doc).expect("serializable JSON");
     while !json.len().is_multiple_of(4) {
         json.push(b' ');
     }

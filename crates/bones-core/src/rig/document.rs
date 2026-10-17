@@ -156,34 +156,10 @@ impl Rig {
         id
     }
 
+    /// Supprime un os ; ses enfants passent à son parent.
     pub fn remove_bone(&mut self, id: BoneId) {
         let remap = self.skeleton.remove_bone(id);
-        self.pose.remap(&remap);
-        if !self.clip.is_empty() {
-            self.clip_mut().remap(&remap);
-        }
-        let mut skin = (*self.skin).clone();
-        skin.remap(&remap);
-        self.skin = Arc::new(skin);
-        self.revisions.skin = next_revision();
-        self.limbs = self.limbs.iter().filter_map(|l| l.remap(&remap)).collect();
-        self.pins = self
-            .pins
-            .iter()
-            .filter_map(|p| {
-                Some(Pin {
-                    bone: remap.get(p.bone)?,
-                    ..*p
-                })
-            })
-            .collect();
-        // Les poids ont été remappés : ils restent valables pour le nouveau
-        // squelette, inutile de relancer la liaison pour cette seule raison.
-        let was_bound = !self.needs_bind();
-        self.touch_skeleton();
-        if was_bound {
-            self.revisions.bound_to = (self.revisions.skeleton, self.revisions.mesh);
-        }
+        self.apply_remap(&remap, true);
     }
 
     pub fn world(&self) -> Vec<Transform> {

@@ -135,11 +135,11 @@ impl Running {
         match self.with_input(|g, cx| g.touch_end(id, cancelled, cx)) {
             Some(GestureAction::Undo) if self.editor.can_undo() => {
                 self.editor.undo();
-                self.ui.notify("Annuler");
+                self.ui.notify("Undo");
             }
             Some(GestureAction::Redo) if self.editor.can_redo() => {
                 self.editor.redo();
-                self.ui.notify("Rétablir");
+                self.ui.notify("Redo");
             }
             _ => {}
         }
@@ -169,7 +169,7 @@ impl Running {
         match action {
             UiAction::NewDemo => {
                 self.editor.open(Rig::demo());
-                self.ui.notify("Nouveau mannequin");
+                self.ui.notify("New mannequin");
             }
             UiAction::Import(path) => self.jobs.import(path),
             UiAction::Save => {
@@ -179,7 +179,7 @@ impl Running {
             UiAction::Export(format) => {
                 let dir = docs.join(files::EXPORTS);
                 if let Err(e) = std::fs::create_dir_all(&dir) {
-                    self.ui.notify(format!("Erreur : {e}"));
+                    self.ui.notify(format!("Error: {e}"));
                     return;
                 }
                 let path = files::free_path(&dir, &self.editor.rig.name, format.extension());
@@ -194,7 +194,7 @@ impl Running {
                 JobResult::Bound(skin, key) => self.editor.finish_bind(skin, key),
                 JobResult::Imported(Ok(Imported::Rig(rig))) => {
                     let message = format!(
-                        "« {} » ouvert : {} os, {} sommets, {} clés",
+                        "\"{}\" opened: {} bones, {} vertices, {} keys",
                         rig.name,
                         rig.skeleton.len(),
                         rig.mesh.vertex_count(),
@@ -207,20 +207,20 @@ impl Running {
                     let (v, t, m) = (mesh.vertex_count(), mesh.triangle_count(), mesh.materials.len());
                     self.editor.import_mesh(mesh);
                     self.ui.notify(format!(
-                        "Modèle importé : {v} sommets, {t} triangles, {m} matériaux"
+                        "Model imported: {v} vertices, {t} triangles, {m} materials"
                     ));
                 }
-                JobResult::Saved(Ok(path)) => self.ui.notify(format!("Enregistré : {}", file_name(&path))),
+                JobResult::Saved(Ok(path)) => self.ui.notify(format!("Saved: {}", file_name(&path))),
                 JobResult::Exported(Ok(files)) => {
                     let main = files.first().map(|p| file_name(p)).unwrap_or_default();
                     let extra = files.len().saturating_sub(1);
                     self.ui.notify(match extra {
-                        0 => format!("Exporté dans {} : {main}", files::EXPORTS),
-                        n => format!("Exporté dans {} : {main} (+{n} fichiers)", files::EXPORTS),
+                        0 => format!("Exported to {}: {main}", files::EXPORTS),
+                        n => format!("Exported to {}: {main} (+{n} files)", files::EXPORTS),
                     });
                 }
                 JobResult::Imported(Err(e)) | JobResult::Saved(Err(e)) | JobResult::Exported(Err(e)) => {
-                    self.ui.notify(format!("Erreur : {e}"))
+                    self.ui.notify(format!("Error: {e}"))
                 }
             }
             self.ui.refresh_files();

@@ -92,10 +92,10 @@ pub(super) fn import(bytes: &[u8]) -> Result<Mesh, IoError> {
 
     let n = mesh.positions.len() as u32;
     if mesh.indices.is_empty() {
-        return Err(err("aucune face"));
+        return Err(err("no face"));
     }
     if mesh.indices.iter().any(|i| *i >= n) {
-        return Err(err("indice de sommet hors limites"));
+        return Err(err("vertex index out of range"));
     }
     if mesh.normals.len() != mesh.positions.len() {
         mesh.compute_normals();

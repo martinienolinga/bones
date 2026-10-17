@@ -35,7 +35,7 @@ pub(super) fn import(bytes: &[u8]) -> Result<Mesh, IoError> {
         ..Default::default()
     };
     if mesh.indices.is_empty() {
-        return Err(IoError::parse(Format::Stl, "aucun triangle"));
+        return Err(IoError::parse(Format::Stl, "no triangle"));
     }
     if let Some((lo, hi)) = mesh.bounds()
         && (hi - lo).max_element() > MM_THRESHOLD
@@ -69,6 +69,6 @@ pub(super) fn export(rig: &Rig) -> Vec<u8> {
         })
         .collect();
     let mut out = Vec::with_capacity(84 + triangles.len() * 50);
-    stl_io::write_stl(&mut out, triangles.iter()).expect("écriture en mémoire");
+    stl_io::write_stl(&mut out, triangles.iter()).expect("in-memory write");
     out
 }

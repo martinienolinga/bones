@@ -74,16 +74,16 @@ pub(super) fn parse_header(bytes: &[u8]) -> Result<Header, IoError> {
     let end = bytes
         .windows(10)
         .position(|w| w == b"end_header")
-        .ok_or_else(|| err("en-tête incomplet"))?;
+        .ok_or_else(|| err("incomplete header"))?;
     let mut data_start = end + 10;
     while data_start < bytes.len() && bytes[data_start] != b'\n' {
         data_start += 1;
     }
     data_start += 1;
-    let text = std::str::from_utf8(&bytes[..end]).map_err(|_| err("en-tête non textuel"))?;
+    let text = std::str::from_utf8(&bytes[..end]).map_err(|_| err("non-text header"))?;
     let mut lines = text.lines();
     if lines.next().map(str::trim) != Some("ply") {
-        return Err(err("signature « ply » absente"));
+        return Err(err("missing \"ply\" signature"));
     }
     let mut encoding = None;
     let mut elements: Vec<Element> = Vec::new();
@@ -95,26 +95,30 @@ pub(super) fn parse_header(bytes: &[u8]) -> Result<Header, IoError> {
             ["format", "binary_big_endian", ..] => encoding = Some(Encoding::BigEndian),
             ["element", name, count] => elements.push(Element {
                 name: (*name).to_owned(),
-                count: count.parse().map_err(|_| err("nombre d'éléments invalide"))?,
+                count: count.parse().map_err(|_| err("invalid element count"))?,
                 properties: Vec::new(),
             }),
             ["property", "list", count, item, name] => {
                 let (Some(c), Some(i)) = (Scalar::parse(count), Scalar::parse(item)) else {
-                    return Err(err(format!("type inconnu : {line}")));
+                    return Err(err(format!("unknown type: {line}")));
                 };
-                let e = elements.last_mut().ok_or_else(|| err("propriété hors élément"))?;
+                let e = elements
+                    .last_mut()
+                    .ok_or_else(|| err("property outside an element"))?;
                 e.properties.push(Property::List((*name).to_owned(), c, i));
             }
             ["property", ty, name] => {
-                let ty = Scalar::parse(ty).ok_or_else(|| err(format!("type inconnu : {line}")))?;
-                let e = elements.last_mut().ok_or_else(|| err("propriété hors élément"))?;
+                let ty = Scalar::parse(ty).ok_or_else(|| err(format!("unknown type: {line}")))?;
+                let e = elements
+                    .last_mut()
+                    .ok_or_else(|| err("property outside an element"))?;
                 e.properties.push(Property::Scalar((*name).to_owned(), ty));
             }
             _ => {}
         }
     }
     Ok(Header {
-        encoding: encoding.ok_or_else(|| err("format non précisé"))?,
+        encoding: encoding.ok_or_else(|| err("format not specified"))?,
         elements,
         data_start,
     })
@@ -146,16 +150,16 @@ impl<'a> Values<'a> {
 
     pub fn read(&mut self, ty: Scalar) -> Result<f64, IoError> {
         if self.encoding == Encoding::Ascii {
-            let token = self.tokens.next().ok_or_else(|| err("données tronquées"))?;
+            let token = self.tokens.next().ok_or_else(|| err("truncated data"))?;
             return token
                 .parse::<f64>()
-                .map_err(|_| err(format!("valeur invalide : {token}")));
+                .map_err(|_| err(format!("invalid value: {token}")));
         }
         let size = ty.size();
         let raw = self
             .data
             .get(self.pos..self.pos + size)
-            .ok_or_else(|| err("données tronquées"))?;
+            .ok_or_else(|| err("truncated data"))?;
         self.pos += size;
         let mut buf = [0u8; 8];
         buf[..size].copy_from_slice(raw);

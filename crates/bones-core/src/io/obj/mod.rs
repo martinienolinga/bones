@@ -24,9 +24,9 @@ pub struct ObjError {
 impl std::fmt::Display for ObjError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.line > 0 {
-            write!(f, "OBJ ligne {} : {}", self.line, self.message)
+            write!(f, "OBJ line {}: {}", self.line, self.message)
         } else {
-            write!(f, "OBJ : {}", self.message)
+            write!(f, "OBJ: {}", self.message)
         }
     }
 }
@@ -112,7 +112,7 @@ fn read(bytes: &[u8], base_dir: Option<&Path>) -> Result<Mesh, IoError> {
         }
     }
     if mesh.indices.is_empty() {
-        return Err(IoError::parse(Format::Obj, "aucune face"));
+        return Err(IoError::parse(Format::Obj, "no face"));
     }
     mesh.shrink_to_fit();
     Ok(mesh)

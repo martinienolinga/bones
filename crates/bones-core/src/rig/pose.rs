@@ -76,11 +76,14 @@ impl Pose {
         delta.rotation = (basis.inverse() * rotation * basis * delta.rotation).normalize();
     }
 
+    /// Suit un changement d'indices (suppression, réordonnancement) : chaque
+    /// os conservé retrouve son delta à son nouvel indice.
     pub fn remap(&mut self, remap: &BoneRemap) {
-        let mut bones = Vec::with_capacity(self.bones.len().saturating_sub(1));
-        for (old, t) in self.bones.iter().enumerate() {
-            if remap.map.get(old).copied().flatten().is_some() {
-                bones.push(*t);
+        let count = remap.map.iter().flatten().count();
+        let mut bones = vec![Transform::IDENTITY; count];
+        for (t, new) in self.bones.iter().zip(&remap.map) {
+            if let Some(new) = new {
+                bones[new.index()] = *t;
             }
         }
         self.bones = bones;

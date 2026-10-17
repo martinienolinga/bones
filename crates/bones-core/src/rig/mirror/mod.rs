@@ -136,6 +136,30 @@ pub fn symmetrize(skeleton: &mut Skeleton, from: Side) -> usize {
     created
 }
 
+/// Recopie la géométrie de repos des os donnés sur leurs symétriques
+/// existants (« X-Axis Mirror » de Blender) ; n'en crée aucun. Les os
+/// centraux et les paires déjà présentes dans la liste sont ignorés.
+/// Retourne le nombre d'os mis à jour.
+pub fn mirror_bones(skeleton: &mut Skeleton, bones: &[BoneId]) -> usize {
+    let map = mirror_map(skeleton);
+    let mut world = skeleton.rest_world();
+    let mut count = 0;
+    for &b in bones {
+        let m = map[b.index()];
+        if m == b || bones.contains(&m) {
+            continue;
+        }
+        world[m.index()] = mirror_transform(&world[b.index()]);
+        let length = skeleton.bone(b).length;
+        skeleton.bone_mut(m).length = length;
+        count += 1;
+    }
+    if count > 0 {
+        skeleton.set_rest_world(&world);
+    }
+    count
+}
+
 /// Pose miroir : chaque os prend la pose symétrique de son homologue.
 ///
 /// Fonctionne en espace monde et compense les écarts d'orientation de repos

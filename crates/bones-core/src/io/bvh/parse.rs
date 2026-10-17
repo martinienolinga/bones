@@ -98,14 +98,11 @@ pub(super) fn euler_zxy_degrees(q: Quat) -> [f32; 3] {
 
 pub(super) fn parse(text: &str) -> Result<Bvh, IoError> {
     let mut tokens = text.split_whitespace();
-    let mut next = || tokens.next().ok_or_else(|| err("fichier tronqué"));
-    let number = |t: &str| {
-        t.parse::<f32>()
-            .map_err(|_| err(format!("nombre invalide : {t}")))
-    };
+    let mut next = || tokens.next().ok_or_else(|| err("truncated file"));
+    let number = |t: &str| t.parse::<f32>().map_err(|_| err(format!("invalid number: {t}")));
 
     if !next()?.eq_ignore_ascii_case("HIERARCHY") {
-        return Err(err("mot-clé HIERARCHY attendu"));
+        return Err(err("HIERARCHY keyword expected"));
     }
     let mut joints: Vec<BvhJoint> = Vec::new();
     let mut stack: Vec<Option<usize>> = Vec::new();
@@ -120,10 +117,10 @@ pub(super) fn parse(text: &str) -> Result<Bvh, IoError> {
                 pending = None;
                 stack.push(None);
                 if next()? != "{" {
-                    return Err(err("« { » attendu après End Site"));
+                    return Err(err("\"{\" expected after End Site"));
                 }
                 if !next()?.eq_ignore_ascii_case("OFFSET") {
-                    return Err(err("OFFSET attendu dans End Site"));
+                    return Err(err("OFFSET expected in End Site"));
                 }
                 let o = Vec3::new(number(next()?)?, number(next()?)?, number(next()?)?);
                 if let Some(Some(j)) = stack.iter().rev().nth(1) {
@@ -153,19 +150,17 @@ pub(super) fn parse(text: &str) -> Result<Bvh, IoError> {
                 }
             }
             "CHANNELS" => {
-                let n: usize = next()?.parse().map_err(|_| err("nombre de canaux invalide"))?;
-                let j = joints
-                    .last_mut()
-                    .ok_or_else(|| err("CHANNELS hors articulation"))?;
+                let n: usize = next()?.parse().map_err(|_| err("invalid channel count"))?;
+                let j = joints.last_mut().ok_or_else(|| err("CHANNELS outside a joint"))?;
                 for _ in 0..n {
                     let c = next()?;
                     j.channels
-                        .push(Channel::parse(c).ok_or_else(|| err(format!("canal inconnu : {c}")))?);
+                        .push(Channel::parse(c).ok_or_else(|| err(format!("unknown channel: {c}")))?);
                 }
                 channel_count += n;
             }
             "MOTION" => break,
-            other => return Err(err(format!("mot inattendu : {other}"))),
+            other => return Err(err(format!("unexpected word: {other}"))),
         }
     }
 
@@ -174,7 +169,7 @@ pub(super) fn parse(text: &str) -> Result<Bvh, IoError> {
     let frame_time = loop {
         let t = next()?;
         if t.eq_ignore_ascii_case("Frames:") {
-            frames = next()?.parse().map_err(|_| err("nombre d'images invalide"))?;
+            frames = next()?.parse().map_err(|_| err("invalid frame count"))?;
         } else if t.eq_ignore_ascii_case("Time:") {
             break number(next()?)?;
         }
@@ -185,7 +180,7 @@ pub(super) fn parse(text: &str) -> Result<Bvh, IoError> {
         values.push(number(next()?)?);
     }
     if joints.is_empty() {
-        return Err(err("aucune articulation"));
+        return Err(err("no joint"));
     }
     Ok(Bvh {
         joints,

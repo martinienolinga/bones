@@ -1,12 +1,20 @@
 //! Squelette : hiérarchie d'os, requêtes et ajout d'os.
 
+mod copy;
 mod edit;
+mod error;
+mod hierarchy;
+mod joints;
+mod rest;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_edit;
 
 pub use edit::BoneRemap;
+pub use error::SkeletonError;
 
-use glam::{Quat, Vec3};
+use glam::Vec3;
 use serde::{Deserialize, Serialize};
 
 use crate::Transform;
@@ -30,6 +38,18 @@ pub struct Bone {
     /// Transformation de repos, relative à l'espace du parent.
     pub rest: Transform,
     pub length: f32,
+    /// Os déformant : participe aux poids automatiques (faux pour les os de
+    /// contrôle, comme dans Blender).
+    #[serde(default = "default_true")]
+    pub deform: bool,
+    /// Déconnecté explicitement de son parent, même si sa tête touche la
+    /// queue de celui-ci.
+    #[serde(default)]
+    detached: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Bone {
@@ -39,6 +59,8 @@ impl Bone {
             parent,
             rest,
             length,
+            deform: true,
+            detached: false,
         }
     }
 
@@ -52,24 +74,6 @@ impl Bone {
 pub fn head_tail(world: &Transform, length: f32) -> (Vec3, Vec3) {
     (world.translation, world.transform_point(Vec3::Y * length))
 }
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SkeletonError {
-    /// L'os `bone` référence un parent qui n'apparaît pas avant lui.
-    InvalidParent { bone: usize },
-}
-
-impl std::fmt::Display for SkeletonError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SkeletonError::InvalidParent { bone } => {
-                write!(f, "l'os {bone} référence un parent invalide")
-            }
-        }
-    }
-}
-
-impl std::error::Error for SkeletonError {}
 
 /// Hiérarchie d'os.
 ///
@@ -213,43 +217,5 @@ impl Skeleton {
         }
         chain.reverse();
         chain
-    }
-
-    /// Vrai si l'enfant `child` est collé à la queue de son parent.
-    pub fn is_connected(&self, child: BoneId) -> bool {
-        let bone = self.bone(child);
-        let Some(parent) = bone.parent else {
-            return false;
-        };
-        let len = self.bone(parent).length;
-        bone.rest
-            .translation
-            .abs_diff_eq(Vec3::Y * len, 1e-4 * len.max(1.0))
-    }
-
-    /// Transformations monde de la pose de repos.
-    pub fn rest_world(&self) -> Vec<Transform> {
-        let mut world: Vec<Transform> = Vec::with_capacity(self.bones.len());
-        for bone in &self.bones {
-            let w = match bone.parent {
-                Some(p) => world[p.index()].mul(&bone.rest),
-                None => bone.rest,
-            };
-            world.push(w);
-        }
-        world
-    }
-
-    fn rest_world_of(&self, id: BoneId) -> Transform {
-        let bone = self.bone(id);
-        match bone.parent {
-            Some(p) => self.rest_world_of(p).mul(&bone.rest),
-            None => bone.rest,
-        }
-    }
-
-    /// Rotation monde de repos d'un os (utile pour les outils d'édition).
-    pub fn rest_world_rotation(&self, id: BoneId) -> Quat {
-        self.rest_world_of(id).rotation
     }
 }

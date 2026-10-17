@@ -91,7 +91,7 @@ pub fn generate(markers: &Markers, options: &AutoRigOptions) -> (Skeleton, Vec<L
             add_fingers(&mut s, hand, p(m.wrist), arm_dir, hand_len, suffix);
         }
         limbs.push(Limb::new(
-            format!("Bras {}", suffix.to_uppercase()),
+            format!("Arm {}", suffix.to_uppercase()),
             arm,
             forearm,
             Some(hand),
@@ -114,7 +114,7 @@ pub fn generate(markers: &Markers, options: &AutoRigOptions) -> (Skeleton, Vec<L
             s.add_bone_world(format!("toes.{suffix}"), Some(foot), toe_base, toe_tip);
         }
         limbs.push(Limb::new(
-            format!("Jambe {}", suffix.to_uppercase()),
+            format!("Leg {}", suffix.to_uppercase()),
             thigh,
             leg,
             Some(foot),

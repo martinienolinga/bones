@@ -53,7 +53,7 @@ pub(super) fn read(doc: &Document, base: Option<&Path>) -> Materials {
         index.insert(id, list.len());
         list.push(Material {
             name: if o.name.is_empty() {
-                "Matériau".into()
+                "Material".into()
             } else {
                 o.name.clone()
             },

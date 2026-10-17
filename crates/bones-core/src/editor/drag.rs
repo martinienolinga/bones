@@ -2,6 +2,7 @@
 
 use glam::{Quat, Vec2, Vec3};
 
+use super::edit_tools::EditDrag;
 use super::{Editor, Mode, is_limb_marker, mirror_x};
 use crate::ik::{IkSettings, solve_fabrik, solve_pins};
 use crate::{BoneId, MarkerKind, Transform, Viewport};
@@ -46,6 +47,8 @@ pub(super) enum Drag {
         anchor: Vec3,
         offset: Vec3,
     },
+    /// Outils de tête, de déplacement et de roulis du mode Édition.
+    Edit(EditDrag),
 }
 
 impl Editor {
@@ -123,8 +126,9 @@ impl Editor {
             Drag::Tail { bone, anchor, offset } => {
                 let p = self.plane_point(pos, vp, anchor) + offset;
                 self.rig.skeleton.set_tail_world(bone, p);
-                self.rig.touch_skeleton();
+                self.after_bone_edit(bone);
             }
+            Drag::Edit(edit) => self.edit_drag(edit, pos, vp),
             Drag::NewBone { bone, anchor } => {
                 let p = self.plane_point(pos, vp, anchor);
                 self.rig.skeleton.set_tail_world(bone, p);
@@ -179,7 +183,7 @@ impl Editor {
             Drag::Marker { .. } => {}
             // Simple tape sur un os (sélection) : rien à annuler.
             _ if !self.drag_moved => self.drop_checkpoint(true),
-            Drag::Tail { .. } => {}
+            Drag::Tail { .. } | Drag::Edit(_) => {}
             _ => {
                 self.snap_limbs();
                 self.store_key_if_any();
@@ -194,9 +198,12 @@ impl Editor {
         }
     }
 
-    /// Tape dans le vide : désélection.
+    /// Tape dans le vide : désélection (ou, avec l'outil « Parent » en
+    /// cours, l'os choisi devient une racine).
     pub fn tap_empty(&mut self) {
-        self.selected = None;
+        if !self.reparent_to_root() {
+            self.selected = None;
+        }
     }
 
     pub fn select(&mut self, bone: Option<BoneId>) {

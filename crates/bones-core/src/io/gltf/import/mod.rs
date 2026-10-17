@@ -30,12 +30,12 @@ pub(super) fn load_uri(uri: &str, base: Option<&Path>) -> Result<Vec<u8>, IoErro
         let data = rest
             .split_once(";base64,")
             .map(|(_, d)| d)
-            .ok_or_else(|| err("URI data non base64"))?;
+            .ok_or_else(|| err("data URI is not base64"))?;
         return base64::engine::general_purpose::STANDARD
             .decode(data)
             .map_err(|e| err(format!("base64 : {e}")));
     }
-    let base = base.ok_or_else(|| err(format!("fichier externe « {uri} » sans dossier")))?;
+    let base = base.ok_or_else(|| err(format!("external file \"{uri}\" without a folder")))?;
     let decoded = percent_decode(uri);
     Ok(std::fs::read(base.join(decoded))?)
 }
@@ -100,7 +100,10 @@ pub(crate) fn import(bytes: &[u8], name: &str, base: Option<&Path>) -> Result<Ri
     let buffers: Vec<Arc<[u8]>> = doc
         .buffers()
         .map(|b| match b.source() {
-            gltf::buffer::Source::Bin => blob.take().map(Arc::from).ok_or_else(|| err("tampon GLB absent")),
+            gltf::buffer::Source::Bin => blob
+                .take()
+                .map(Arc::from)
+                .ok_or_else(|| err("missing GLB buffer")),
             gltf::buffer::Source::Uri(uri) => load_uri(uri, base).map(Arc::from),
         })
         .collect::<Result<_, _>>()?;

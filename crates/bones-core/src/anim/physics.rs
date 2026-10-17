@@ -41,8 +41,8 @@ pub enum PhysicsError {
 impl std::fmt::Display for PhysicsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PhysicsError::MissingKeys => write!(f, "il faut une clé au début et à la fin du saut"),
-            PhysicsError::IntervalTooShort => write!(f, "intervalle trop court"),
+            PhysicsError::MissingKeys => write!(f, "a key is needed at the start and the end of the jump"),
+            PhysicsError::IntervalTooShort => write!(f, "interval too short"),
         }
     }
 }

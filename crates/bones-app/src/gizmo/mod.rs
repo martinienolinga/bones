@@ -52,18 +52,6 @@ impl Basis {
         }
     }
 
-    pub(crate) fn world_right(&self) -> Vec3 {
-        self.right
-    }
-
-    pub(crate) fn world_up(&self) -> Vec3 {
-        self.up
-    }
-
-    pub(crate) fn world_toward_viewer(&self) -> Vec3 {
-        self.toward_viewer
-    }
-
     /// Décalage écran (y vers le bas) d'une direction, et sa profondeur
     /// (positive vers l'observateur).
     pub(crate) fn project(&self, v: Vec3) -> (egui::Vec2, f32) {
@@ -128,20 +116,20 @@ fn buttons(ui: &mut egui::Ui, editor: &mut Editor) {
             ui.spacing_mut().item_spacing.x = 2.0;
             let camera = &mut editor.camera;
             let lock_hint = if camera.locked {
-                "Déverrouiller la rotation"
+                "Unlock rotation"
             } else {
-                "Verrouiller la rotation"
+                "Lock rotation"
             };
             if widgets::tool_button(ui, Icon::Lock, camera.locked, lock_hint).clicked() {
                 camera.locked = !camera.locked;
             }
-            if widgets::tool_button(ui, Icon::Ortho, camera.orthographic, "Vue orthographique").clicked() {
+            if widgets::tool_button(ui, Icon::Ortho, camera.orthographic, "Orthographic view").clicked() {
                 camera.orthographic = !camera.orthographic;
             }
-            if widgets::tool_button(ui, Icon::Frame, false, "Cadrer le modèle").clicked() {
+            if widgets::tool_button(ui, Icon::Frame, false, "Frame the model").clicked() {
                 editor.frame_all();
             }
-            if widgets::tool_button(ui, Icon::Home, false, "Vue d'accueil").clicked() {
+            if widgets::tool_button(ui, Icon::Home, false, "Home view").clicked() {
                 editor.frame_all();
                 view::animate_to(ui.ctx(), editor, view::HOME);
             }

@@ -25,7 +25,7 @@ pub struct Material {
 impl Default for Material {
     fn default() -> Self {
         Self {
-            name: "Matériau".into(),
+            name: "Material".into(),
             base_color: [0.8, 0.8, 0.8, 1.0],
             base_color_texture: None,
             metallic: 0.0,
