@@ -2,6 +2,7 @@
 //! verticalement ; deux curseurs gris séparés par un petit carré cerclé
 //! (cadrer le modèle), puis annuler / rétablir.
 
+use bones_core::weight_paint::PaintTool;
 use bones_core::{Editor, Mode};
 use bones_ui::icons::Icon;
 use bones_ui::{theme, widgets};
@@ -32,17 +33,22 @@ pub fn show(ctx: &egui::Context, editor: &mut Editor, state: &mut UiState) -> eg
         |ui| {
             ui.vertical_centered(|ui| {
                 ui.spacing_mut().item_spacing.y = 6.0;
-                let first = context_slider(ui, editor);
-                if first {
-                    frame_button(ui, editor);
-                }
-                let mut radius = state.settings.pick_radius;
-                if widgets::vertical_slider(ui, &mut radius, 10.0..=48.0, "Selection radius").changed() {
-                    state.settings.pick_radius = radius;
-                    state.settings_dirty = true;
-                }
-                if !first {
-                    frame_button(ui, editor);
+                if editor.mode == Mode::WeightPaint {
+                    brush_sliders(ui, editor);
+                    sample_button(ui, editor);
+                } else {
+                    let first = context_slider(ui, editor);
+                    if first {
+                        frame_button(ui, editor);
+                    }
+                    let mut radius = state.settings.pick_radius;
+                    if widgets::vertical_slider(ui, &mut radius, 10.0..=48.0, "Selection radius").changed() {
+                        state.settings.pick_radius = radius;
+                        state.settings_dirty = true;
+                    }
+                    if !first {
+                        frame_button(ui, editor);
+                    }
                 }
                 ui.add_space(2.0);
                 ui.spacing_mut().item_spacing.y = 0.0;
@@ -74,6 +80,43 @@ fn frame_button(ui: &mut egui::Ui, editor: &mut Editor) {
     }
 }
 
+/// Curseurs sobres du pinceau, dans l'ordre de Blender : poids, rayon, force.
+/// Le poids est une simple valeur numérique (0,000 à 1,000) ; aucune couleur
+/// — la carte de chaleur ne sert qu'à l'affichage sur le maillage.
+fn brush_sliders(ui: &mut egui::Ui, editor: &mut Editor) {
+    let brush = &mut editor.weight_paint.brush;
+    let mut weight = brush.weight;
+    if widgets::vertical_slider_compact(ui, &mut weight, 0.0..=1.0, Icon::Weights, "Brush weight", 3)
+        .changed()
+    {
+        brush.weight = weight;
+    }
+    let mut radius = brush.radius;
+    if widgets::vertical_slider_compact(ui, &mut radius, 4.0..=200.0, Icon::Brush, "Brush size", 0).changed()
+    {
+        brush.radius = radius;
+    }
+    let mut strength = brush.strength;
+    if widgets::vertical_slider_compact(ui, &mut strength, 0.0..=1.0, Icon::Adjust, "Brush strength", 3)
+        .changed()
+    {
+        brush.strength = strength;
+    }
+}
+
+/// Pipette (outil « Sample » de Blender) : petit bouton monochrome, bleu
+/// quand il est actif ; un toucher bascule entre pipette et dessin.
+fn sample_button(ui: &mut egui::Ui, editor: &mut Editor) {
+    let sampling = editor.weight_paint.brush.tool == PaintTool::Sample;
+    if widgets::tool_button(ui, Icon::Sample, sampling, "Sample weight (eyedropper)").clicked() {
+        editor.weight_paint.brush.tool = if sampling {
+            PaintTool::Draw
+        } else {
+            PaintTool::Sample
+        };
+    }
+}
+
 /// Premier curseur : longueur de chaîne IK en pose, nombre de vertèbres en
 /// auto-rig ; absent en édition (retourne alors faux).
 fn context_slider(ui: &mut egui::Ui, editor: &mut Editor) -> bool {
@@ -90,7 +133,8 @@ fn context_slider(ui: &mut egui::Ui, editor: &mut Editor) -> bool {
                 editor.autorig_options.spine_count = v.round() as u8;
             }
         }
-        Mode::Edit => return false,
+        // La peinture de poids a ses propres curseurs ([`brush_sliders`]).
+        Mode::Edit | Mode::WeightPaint => return false,
     }
     true
 }

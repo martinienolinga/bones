@@ -180,7 +180,13 @@ impl Gestures {
             (true, 3) => Some(GestureAction::Redo),
             _ => None,
         };
-        if tap && self.max_touches == 1 && self.mode == Mode::Orbit {
+        // En peinture de poids, un toucher dans le vide ne désélectionne pas
+        // l'os peint (comme Blender) : l'éditeur gère lui-même la sélection.
+        if tap
+            && self.max_touches == 1
+            && self.mode == Mode::Orbit
+            && cx.editor.mode != bones_core::Mode::WeightPaint
+        {
             cx.editor.tap_empty();
         }
         self.mode = Mode::Idle;
@@ -253,7 +259,9 @@ impl Gestures {
         self.touches.remove(&u64::MAX);
         match self.mode {
             Mode::Editor => cx.editor.pointer_up(),
-            Mode::Orbit if !self.moved => cx.editor.tap_empty(),
+            Mode::Orbit if !self.moved && cx.editor.mode != bones_core::Mode::WeightPaint => {
+                cx.editor.tap_empty()
+            }
             _ => {}
         }
         self.mode = Mode::Idle;

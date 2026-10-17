@@ -74,6 +74,7 @@ impl ApplicationHandler<UserEvent> for App {
             WindowEvent::RedrawRequested => r.redraw(),
             WindowEvent::Touch(t) => {
                 let pos = glam::Vec2::new(t.location.x as f32, t.location.y as f32);
+                let pressure = force_pressure(t.force);
                 match t.phase {
                     TouchPhase::Started => {
                         // Seul l'Apple Pencil fournit un angle d'inclinaison.
@@ -84,9 +85,9 @@ impl ApplicationHandler<UserEvent> for App {
                                 ..
                             })
                         );
-                        r.touch_start(t.id, pos, pencil);
+                        r.touch_start(t.id, pos, pencil, pressure);
                     }
-                    TouchPhase::Moved => r.touch_move(t.id, pos),
+                    TouchPhase::Moved => r.touch_move(t.id, pos, pressure),
                     TouchPhase::Ended => r.touch_end(t.id, false),
                     TouchPhase::Cancelled => r.touch_end(t.id, true),
                 }
@@ -145,5 +146,19 @@ impl ApplicationHandler<UserEvent> for App {
         if let Some(r) = &mut self.running {
             r.save_and_wait();
         }
+    }
+}
+
+/// Pression du contact, normalisée entre 0 et 1 (force de l'Apple Pencil pour
+/// la peinture de poids) ; 1 pour un doigt ou une souris, sans force.
+fn force_pressure(force: Option<Force>) -> f32 {
+    match force {
+        Some(Force::Calibrated {
+            force,
+            max_possible_force,
+            ..
+        }) if max_possible_force > 0.0 => (force / max_possible_force) as f32,
+        Some(Force::Normalized(f)) => f as f32,
+        _ => 1.0,
     }
 }

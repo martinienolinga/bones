@@ -56,14 +56,20 @@ pub struct UiState {
     pub settings: Settings,
     /// Vrai quand un réglage a changé et doit être enregistré.
     pub settings_dirty: bool,
+    /// Les réglages de pinceau ont été chargés dans l'éditeur courant. Faux
+    /// à l'ouverture d'un projet (éditeur neuf) : rechargés une seule fois.
+    weight_paint_loaded: bool,
     /// Abscisse du bouton qui a ouvert la fenêtre (pointe de l'encoche).
     popover_anchor: f32,
     /// Réglages à l'ouverture du studio, rétablis par « Cancel ».
     settings_backup: Settings,
-    /// Onglet des actions, section des studios (réglages, os).
+    /// Onglet des actions, section des studios (réglages, os, pinceau).
     actions_tab: usize,
     settings_section: usize,
     bones_section: usize,
+    brush_section: usize,
+    /// Réglages et confirmation des outils du menu « Weights ».
+    weights_tools: popovers::WeightsToolsState,
     /// Nombre de morceaux pour « Subdivide ».
     subdivide_parts: usize,
     /// Consigne de l'outil « Parent » (pastille en bas de l'écran).
@@ -82,13 +88,16 @@ impl UiState {
             rects: Vec::new(),
             popover: None,
             docs_dir,
+            settings_backup: settings.clone(),
             settings,
             settings_dirty: false,
+            weight_paint_loaded: false,
             popover_anchor: 0.0,
-            settings_backup: settings,
             actions_tab: 0,
             settings_section: 0,
             bones_section: 0,
+            brush_section: 0,
+            weights_tools: popovers::WeightsToolsState::default(),
             subdivide_parts: 2,
             hint: None,
             transform: transform_bar::BarState::default(),
@@ -107,6 +116,8 @@ impl UiState {
     pub fn reset_for_project(&mut self) {
         self.popover = None;
         self.hint = None;
+        self.weights_tools.confirm_automatic = false;
+        self.weight_paint_loaded = false;
         self.gallery_requested = false;
     }
 
@@ -119,7 +130,7 @@ impl UiState {
         };
         self.popover_anchor = anchor_x;
         if self.popover == Some(Popover::Settings) {
-            self.settings_backup = self.settings;
+            self.settings_backup = self.settings.clone();
         }
     }
 }
@@ -136,6 +147,7 @@ pub fn show(
     let mut rects = Vec::new();
     route_status(editor, state);
     apply_manipulator(editor, state);
+    load_weight_paint(editor, state);
     shortcuts::handle(ctx, editor, state);
 
     rects.push(top::show(ctx, editor, state));
@@ -153,7 +165,7 @@ pub fn show(
             rects.push(timeline);
         }
         Mode::AutoRig => rects.push(autorig_panel::show(ctx, editor)),
-        Mode::Edit => {}
+        Mode::Edit | Mode::WeightPaint => {}
     }
     if transform_bar::available(editor) {
         rects.extend(transform_bar::show(ctx, editor, state, bottom));
@@ -163,9 +175,13 @@ pub fn show(
     if let Some(rect) = popovers::show(ctx, editor, state, &mut actions) {
         rects.push(rect);
     }
+    if let Some(rect) = popovers::confirm_automatic(ctx, editor, state) {
+        rects.push(rect);
+    }
     rects.extend(overlay::show(ctx, editor, state, viewport, busy));
 
     store_manipulator(editor, state);
+    store_weight_paint(editor, state);
     state.rects = rects;
     actions
 }
@@ -185,6 +201,25 @@ fn store_manipulator(editor: &Editor, state: &mut UiState) {
     current.invert_snap = false;
     if current != state.settings.manipulator {
         state.settings.manipulator = current;
+        state.settings_dirty = true;
+    }
+}
+
+/// Charge les réglages de pinceau persistants dans l'éditeur, une seule fois
+/// par projet (l'éditeur est ensuite la source de vérité, car le moteur y
+/// écrit aussi — la pipette change le poids du pinceau).
+fn load_weight_paint(editor: &mut Editor, state: &mut UiState) {
+    if !state.weight_paint_loaded {
+        editor.weight_paint = state.settings.weight_paint.clone();
+        state.weight_paint_loaded = true;
+    }
+}
+
+/// Les retouches faites à l'image (pinceau, bascules, picker, pipette) sont
+/// recopiées dans les réglages pour être enregistrées.
+fn store_weight_paint(editor: &Editor, state: &mut UiState) {
+    if editor.weight_paint != state.settings.weight_paint {
+        state.settings.weight_paint = editor.weight_paint.clone();
         state.settings_dirty = true;
     }
 }

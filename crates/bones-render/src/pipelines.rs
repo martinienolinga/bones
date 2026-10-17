@@ -207,7 +207,9 @@ mod tests {
         )
         .validate(&module)
         .expect("validation naga");
-        for entry in ["vs_mesh", "fs_mesh", "fs_wire", "vs_bone", "fs_bone", "vs_line", "fs_line"] {
+        for entry in [
+            "vs_mesh", "fs_mesh", "fs_wire", "vs_bone", "fs_bone", "vs_line", "fs_line",
+        ] {
             assert!(
                 module.entry_points.iter().any(|e| e.name == entry),
                 "{entry} manquant"

@@ -136,11 +136,15 @@ impl Running {
         f(&mut self.gestures, cx)
     }
 
-    pub fn touch_start(&mut self, id: u64, pos: Vec2, pencil: bool) {
+    pub fn touch_start(&mut self, id: u64, pos: Vec2, pencil: bool, pressure: f32) {
+        // La pression ne sert qu'à la peinture de poids, mais elle est posée
+        // avant le geste pour que l'éditeur l'ait dès le début du trait.
+        self.editor.set_pointer_pressure(pressure);
         self.with_input(|g, cx| g.touch_start(id, pos, pencil, cx));
     }
 
-    pub fn touch_move(&mut self, id: u64, pos: Vec2) {
+    pub fn touch_move(&mut self, id: u64, pos: Vec2, pressure: f32) {
+        self.editor.set_pointer_pressure(pressure);
         self.with_input(|g, cx| g.touch_move(id, pos, cx));
     }
 
@@ -163,6 +167,8 @@ impl Running {
     }
 
     pub fn mouse_down(&mut self, pan: bool) {
+        // La souris n'a pas de pression : pleine force.
+        self.editor.set_pointer_pressure(1.0);
         self.with_input(|g, cx| g.mouse_down(pan, cx));
     }
 

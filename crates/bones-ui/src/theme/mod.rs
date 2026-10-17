@@ -96,6 +96,19 @@ pub fn to_linear(color: Color32) -> [f32; 4] {
     [lin(r), lin(g), lin(b), a as f32 / 255.0]
 }
 
+/// Couleur de la carte de chaleur des poids à l'intensité `t` (0 à 1), rampe
+/// du mode Weight Paint de Blender : bleu (0) → cyan → vert → jaune →
+/// rouge (1). Identique à `heat_color` du shader `mesh.wgsl`, pour que les
+/// aperçus de l'interface coïncident avec la vue 3D.
+pub fn heat(t: f32) -> Color32 {
+    let x = t.clamp(0.0, 1.0);
+    let r = (4.0 * x - 2.0).clamp(0.0, 1.0);
+    let g = (4.0 * x).clamp(0.0, 1.0) * (4.0 - 4.0 * x).clamp(0.0, 1.0);
+    let b = (2.0 - 4.0 * x).clamp(0.0, 1.0);
+    let c = |v: f32| (v * 255.0).round() as u8;
+    Color32::from_rgb(c(r), c(g), c(b))
+}
+
 /// Mélange linéaire de deux couleurs (prémultipliées).
 pub fn mix(a: Color32, b: Color32, t: f32) -> Color32 {
     let t = t.clamp(0.0, 1.0);

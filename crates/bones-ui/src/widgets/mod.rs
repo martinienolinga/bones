@@ -16,6 +16,7 @@ mod slider;
 mod slider_row;
 mod studio;
 mod switch;
+mod tile;
 mod timeline;
 
 pub use bar::{bar_tab, bar_tool, square_button, tab, well_button};
@@ -24,12 +25,13 @@ pub use capsule::{CapsuleItem, CapsuleResponse, CapsuleTone, capsule, check_badg
 pub use group::{Group, group};
 pub use rows::{list_row, note, section_title};
 pub use segmented::segmented;
-pub use slider::{vertical_slider, vertical_slider_with_icon};
+pub use slider::{vertical_slider, vertical_slider_compact, vertical_slider_with_icon};
 pub use slider_row::{slider_row, slider_row_with};
 pub use studio::{
     cancel_button, chip_button, confirm_button, drag_chip, nav_item, stepper, studio_title, value_chip,
 };
 pub use switch::{switch, switch_row};
+pub use tile::tile;
 pub use timeline::key_strip;
 
 use egui::{Color32, Id, Response, Ui};

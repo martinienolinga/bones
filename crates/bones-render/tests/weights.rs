@@ -95,8 +95,14 @@ fn zero_weights_can_be_shown_black() {
         ..none
     };
     let blue_left = count(&render(&device, &queue, black, "weights-black"), blue);
-    assert!(blue_body > 400, "sans os, le corps entier est bleu ({blue_body} px)");
-    assert!(blue_left < blue_body / 20, "poids nuls en noir ({blue_left} px bleus)");
+    assert!(
+        blue_body > 400,
+        "sans os, le corps entier est bleu ({blue_body} px)"
+    );
+    assert!(
+        blue_left < blue_body / 20,
+        "poids nuls en noir ({blue_left} px bleus)"
+    );
 }
 
 #[test]

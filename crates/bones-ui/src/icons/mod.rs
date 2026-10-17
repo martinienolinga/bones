@@ -73,9 +73,16 @@ pub enum Icon {
     Globe,
     Local,
     Magnet,
+    Brush,
+    Blur,
+    Average,
+    Smear,
+    Gradient,
+    Sample,
+    Normalize,
 }
 
-const ALL: [Icon; 59] = [
+const ALL: [Icon; 66] = [
     Icon::Gallery,
     Icon::Actions,
     Icon::Adjust,
@@ -135,6 +142,13 @@ const ALL: [Icon; 59] = [
     Icon::Globe,
     Icon::Local,
     Icon::Magnet,
+    Icon::Brush,
+    Icon::Blur,
+    Icon::Average,
+    Icon::Smear,
+    Icon::Gradient,
+    Icon::Sample,
+    Icon::Normalize,
 ];
 
 /// Toutes les icônes (aperçus, tests).

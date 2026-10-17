@@ -25,6 +25,26 @@ fn color(c: egui::Color32) -> Vec4 {
     Vec4::from_array(theme::to_linear(c))
 }
 
+/// Carte de poids à dessiner : en mode Weights, les poids de l'os peint avec
+/// les options du pinceau (poids nuls, fil de fer) ; ailleurs, la bascule
+/// « Weight map » de la vue pour l'os sélectionné.
+fn weight_view(editor: &Editor) -> Option<bones_render::WeightView> {
+    match editor.mode {
+        Mode::WeightPaint => Some(bones_render::WeightView {
+            bone: editor.paint_bone().map(|b| b.0),
+            zero_black: editor.weight_paint.show_zero_weights,
+            wire: editor.weight_paint.show_wire,
+        }),
+        _ => editor
+            .selected
+            .filter(|_| editor.view.weights)
+            .map(|b| bones_render::WeightView {
+                bone: Some(b.0),
+                ..Default::default()
+            }),
+    }
+}
+
 impl SceneBuilder {
     pub fn build(&mut self, editor: &mut Editor, viewport: &Viewport) -> Scene<'_> {
         self.joints.clear();
@@ -62,13 +82,7 @@ impl SceneBuilder {
             joints: &self.joints,
             show_mesh: editor.view.mesh,
             textured: editor.view.textures,
-            weights: editor
-                .selected
-                .filter(|_| editor.view.weights)
-                .map(|b| bones_render::WeightView {
-                    bone: Some(b.0),
-                    ..Default::default()
-                }),
+            weights: weight_view(editor),
             lines: &self.lines,
             bones: &self.bones,
             overlay_lines: &self.overlay,

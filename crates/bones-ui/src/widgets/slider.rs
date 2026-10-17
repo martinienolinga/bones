@@ -12,6 +12,8 @@ use crate::theme::{ICON, PANEL, TEXT, TEXT_DIM, THUMB, WIDGET, semibold, small_s
 
 const WIDTH: f32 = 36.0;
 const HEIGHT: f32 = 200.0;
+/// Hauteur réduite pour empiler plusieurs réglages (poids, rayon, force).
+const COMPACT_HEIGHT: f32 = 150.0;
 const ICON_SPACE: f32 = 32.0;
 
 /// Nouvelle valeur après un glissement de `delta_up` points vers le haut sur
@@ -48,7 +50,7 @@ pub(crate) fn fraction(value: f32, range: &RangeInclusive<f32>) -> f32 {
 
 /// Curseur vertical 36 × 200 pt.
 pub fn vertical_slider(ui: &mut Ui, value: &mut f32, range: RangeInclusive<f32>, hint: &str) -> Response {
-    slider(ui, value, range, None, hint)
+    slider(ui, value, range, None, hint, HEIGHT, None)
 }
 
 /// Variante surmontée d'une icône (curseurs rayon / intensité de Nomad).
@@ -59,7 +61,20 @@ pub fn vertical_slider_with_icon(
     icon: Icon,
     hint: &str,
 ) -> Response {
-    slider(ui, value, range, Some(icon), hint)
+    slider(ui, value, range, Some(icon), hint, HEIGHT, None)
+}
+
+/// Variante compacte à icône, dont la bulle affiche `decimals` décimales
+/// (réglages de pinceau empilés : poids « 1.000 », rayon, force).
+pub fn vertical_slider_compact(
+    ui: &mut Ui,
+    value: &mut f32,
+    range: RangeInclusive<f32>,
+    icon: Icon,
+    hint: &str,
+    decimals: usize,
+) -> Response {
+    slider(ui, value, range, Some(icon), hint, COMPACT_HEIGHT, Some(decimals))
 }
 
 fn slider(
@@ -68,9 +83,11 @@ fn slider(
     range: RangeInclusive<f32>,
     icon: Option<Icon>,
     hint: &str,
+    height: f32,
+    decimals: Option<usize>,
 ) -> Response {
     let extra = if icon.is_some() { ICON_SPACE } else { 0.0 };
-    let (rect, mut response) = ui.allocate_exact_size(vec2(WIDTH, HEIGHT + extra), Sense::drag());
+    let (rect, mut response) = ui.allocate_exact_size(vec2(WIDTH, height + extra), Sense::drag());
     let track = Rect::from_min_max(pos2(rect.left(), rect.top() + extra), rect.max);
     let usable = track.height() - 26.0;
 
@@ -102,7 +119,11 @@ fn slider(
     }
 
     if response.dragged() {
-        bubble(ui, response.id, rect, hint, &format_value(*value, &range));
+        let text = match decimals {
+            Some(n) => format!("{:.*}", n, *value),
+            None => format_value(*value, &range),
+        };
+        bubble(ui, response.id, rect, hint, &text);
     }
     response.on_hover_text(hint)
 }

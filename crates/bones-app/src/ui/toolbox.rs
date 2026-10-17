@@ -31,6 +31,7 @@ pub fn show(ctx: &egui::Context, editor: &mut Editor, _state: &mut UiState) -> e
                     Mode::Pose => pose(ui, editor),
                     Mode::Edit => edit(ui, editor),
                     Mode::AutoRig => autorig(ui, editor),
+                    Mode::WeightPaint => weights(ui, editor),
                 }
             });
         },
@@ -104,6 +105,17 @@ fn autorig(ui: &mut egui::Ui, editor: &mut Editor) {
     if widgets::tool_cell(ui, Icon::AutoRig, "Generate", false).clicked() {
         editor.generate_rig();
     }
+}
+
+/// Bascules d'affichage et de comportement de la peinture de poids (comme les
+/// options du mode Weight Paint de Blender).
+fn weights(ui: &mut egui::Ui, editor: &mut Editor) {
+    let wp = &mut editor.weight_paint;
+    toggle(ui, Icon::XMirror, "X-Mirror", &mut wp.mirror_x);
+    toggle(ui, Icon::Normalize, "Normalize", &mut wp.auto_normalize);
+    divider(ui);
+    toggle(ui, Icon::Grid, "Wire", &mut wp.show_wire);
+    toggle(ui, Icon::Eye, "Zero", &mut wp.show_zero_weights);
 }
 
 fn toggle(ui: &mut egui::Ui, icon: Icon, label: &str, value: &mut bool) {

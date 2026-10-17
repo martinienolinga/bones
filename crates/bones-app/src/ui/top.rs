@@ -32,7 +32,7 @@ pub fn show(ctx: &egui::Context, editor: &mut Editor, state: &mut UiState) -> eg
             );
             modes(&mut right, editor);
             right.add_space(12.0);
-            tools(&mut right, editor);
+            tools(&mut right, editor, state);
         });
     rect
 }
@@ -64,9 +64,28 @@ fn menus(ui: &mut egui::Ui, editor: &Editor, state: &mut UiState) {
 }
 
 /// Outils du mode, de droite à gauche (la mise en page est inversée).
-fn tools(ui: &mut egui::Ui, editor: &mut Editor) {
+fn tools(ui: &mut egui::Ui, editor: &mut Editor, state: &mut UiState) {
     ui.spacing_mut().item_spacing.x = 4.0;
     match editor.mode {
+        Mode::WeightPaint => {
+            let open = state.popover;
+            // Menu des outils de poids (le plus à droite), puis la
+            // bibliothèque de pinceaux (glyphe de l'outil actif).
+            let tools = widgets::bar_tool(
+                ui,
+                Icon::Normalize,
+                open == Some(Popover::WeightsTools),
+                "Weights tools",
+            );
+            if tools.clicked() {
+                state.toggle(Popover::WeightsTools, tools.rect.center().x);
+            }
+            let brush_icon = super::popovers::brush_tool_icon(editor.weight_paint.brush.tool);
+            let brush = widgets::bar_tool(ui, brush_icon, open == Some(Popover::Brush), "Brush library");
+            if brush.clicked() {
+                state.toggle(Popover::Brush, brush.rect.center().x);
+            }
+        }
         Mode::Pose => {
             let tools = [
                 (PoseTool::Move, Icon::Move, "Move (IK)"),
@@ -105,10 +124,10 @@ fn tools(ui: &mut egui::Ui, editor: &mut Editor) {
 }
 
 fn modes(ui: &mut egui::Ui, editor: &mut Editor) {
-    const MODES: [Mode; 3] = [Mode::Pose, Mode::Edit, Mode::AutoRig];
+    const MODES: [Mode; 4] = [Mode::Pose, Mode::WeightPaint, Mode::Edit, Mode::AutoRig];
     let mut index = MODES.iter().position(|m| *m == editor.mode).unwrap_or(0);
     // Le contrôle dessine ses segments de gauche à droite dans sa zone.
-    if widgets::segmented(ui, &["Pose", "Edit", "Auto-Rig"], &mut index).changed() {
+    if widgets::segmented(ui, &["Pose", "Weights", "Edit", "Auto-Rig"], &mut index).changed() {
         editor.set_mode(MODES[index]);
     }
 }

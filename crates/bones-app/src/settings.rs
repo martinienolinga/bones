@@ -4,7 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use bones_core::manipulator::ManipulatorSettings;
-use bones_core::{Editor, Mode, PoseTool};
+use bones_core::{Editor, Mode, PoseTool, WeightPaintSettings};
 use serde::{Deserialize, Serialize};
 
 use crate::gizmo::GizmoStyle;
@@ -12,7 +12,7 @@ use crate::gizmo::GizmoStyle;
 const FILE: &str = ".reglages.json";
 
 /// Tâches pour lesquelles seul l'Apple Pencil agit (les doigts naviguent).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct PencilPolicy {
     /// IK, rotation et déplacement des os (mode Pose).
@@ -23,15 +23,33 @@ pub struct PencilPolicy {
     pub skeleton: bool,
     /// Marqueurs d'auto-rig.
     pub markers: bool,
+    /// Peinture des poids (mode Weight Paint).
+    pub painting: bool,
+}
+
+impl Default for PencilPolicy {
+    fn default() -> Self {
+        // La peinture est réservée au crayon par défaut, comme le dessin dans
+        // Procreate : les traits de poids sont précis, et les doigts doivent
+        // rester libres de naviguer (orbite, zoom) sans peindre par mégarde.
+        Self {
+            pose: false,
+            pins: false,
+            skeleton: false,
+            markers: false,
+            painting: true,
+        }
+    }
 }
 
 impl PencilPolicy {
     /// Libellé et description de chaque tâche, dans l'ordre de [`Self::get_mut`].
-    pub const TASKS: [(&'static str, &'static str); 4] = [
+    pub const TASKS: [(&'static str, &'static str); 5] = [
         ("Posing", "IK, rotating and moving bones"),
         ("Pins", "adding and removing pins"),
         ("Skeleton editing", "adding, adjusting, deleting bones"),
         ("Auto-rig markers", "placing the markers"),
+        ("Weight painting", "brushing weights onto the mesh"),
     ];
 
     pub fn get_mut(&mut self, index: usize) -> &mut bool {
@@ -39,7 +57,8 @@ impl PencilPolicy {
             0 => &mut self.pose,
             1 => &mut self.pins,
             2 => &mut self.skeleton,
-            _ => &mut self.markers,
+            3 => &mut self.markers,
+            _ => &mut self.painting,
         }
     }
 
@@ -50,11 +69,12 @@ impl PencilPolicy {
             Mode::Pose => self.pose,
             Mode::Edit => self.skeleton,
             Mode::AutoRig => self.markers,
+            Mode::WeightPaint => self.painting,
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
     pub pencil: PencilPolicy,
@@ -64,6 +84,8 @@ pub struct Settings {
     pub gizmo: GizmoStyle,
     /// Manipulateur 3D : jeu de poignées, repère, magnétisme, taille.
     pub manipulator: ManipulatorSettings,
+    /// Peinture de poids : pinceau, symétrie, normalisation, affichage.
+    pub weight_paint: WeightPaintSettings,
 }
 
 impl Default for Settings {
@@ -73,6 +95,7 @@ impl Default for Settings {
             pick_radius: 22.0,
             gizmo: GizmoStyle::default(),
             manipulator: ManipulatorSettings::default(),
+            weight_paint: WeightPaintSettings::default(),
         }
     }
 }

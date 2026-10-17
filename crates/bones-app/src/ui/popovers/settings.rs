@@ -40,7 +40,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut UiState, height: f32) -> bool {
     );
     state.settings_section = section;
     if cancel {
-        state.settings = state.settings_backup;
+        state.settings = state.settings_backup.clone();
         state.settings_dirty = true;
     }
     close || cancel

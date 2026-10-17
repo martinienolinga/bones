@@ -67,7 +67,9 @@ pub(crate) struct Globals {
 
 impl Globals {
     pub fn from_scene(scene: &Scene) -> Self {
-        let heat = scene.weights.map_or(-1.0, |w| w.bone.map_or(NO_BONE, |b| b as f32));
+        let heat = scene
+            .weights
+            .map_or(-1.0, |w| w.bone.map_or(NO_BONE, |b| b as f32));
         let zero_black = scene.weights.is_some_and(|w| w.zero_black);
         Self {
             view_proj: scene.view_proj.to_cols_array_2d(),

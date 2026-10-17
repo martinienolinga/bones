@@ -33,7 +33,10 @@ impl Gpu {
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("bones"),
-                required_features: wgpu::Features::empty(),
+                // Tracé en fil de fer de la carte de poids si le GPU le sait
+                // faire (indisponible sur Metal/iPad : le fil de fer est alors
+                // simplement absent).
+                required_features: adapter.features() & wgpu::Features::POLYGON_MODE_LINE,
                 required_limits: wgpu::Limits::downlevel_defaults().using_resolution(adapter.limits()),
                 // Priorité à la sobriété mémoire (exigence de l'app).
                 memory_hints: wgpu::MemoryHints::MemoryUsage,

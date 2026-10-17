@@ -39,7 +39,7 @@ pub fn available(editor: &Editor) -> bool {
     match editor.mode {
         Mode::Pose => editor.pose_tool != PoseTool::Pin && editor.selected.is_some(),
         Mode::Edit => editor.edit_tool == EditTool::Select,
-        Mode::AutoRig => false,
+        Mode::AutoRig | Mode::WeightPaint => false,
     }
 }
 

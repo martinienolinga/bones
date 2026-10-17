@@ -4,6 +4,7 @@ mod anim;
 mod files;
 mod misc;
 mod motion;
+mod paint;
 mod rig;
 mod view;
 
@@ -71,5 +72,12 @@ pub fn source(icon: Icon) -> &'static str {
         Icon::Globe => view::GLOBE,
         Icon::Local => view::LOCAL,
         Icon::Magnet => misc::MAGNET,
+        Icon::Brush => paint::BRUSH,
+        Icon::Blur => paint::BLUR,
+        Icon::Average => paint::AVERAGE,
+        Icon::Smear => paint::SMEAR,
+        Icon::Gradient => paint::GRADIENT,
+        Icon::Sample => paint::SAMPLE,
+        Icon::Normalize => paint::NORMALIZE,
     }
 }

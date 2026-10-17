@@ -25,6 +25,9 @@ pub fn show(
     if editor.mode == Mode::AutoRig {
         marker_labels(&painter, editor, viewport, ppp);
     }
+    if editor.mode == Mode::WeightPaint {
+        brush_cursor(ctx, &painter, editor, state, ppp);
+    }
     toast(ctx, state);
     if busy.binding || busy.jobs > 0 {
         let text = if busy.binding {
@@ -78,6 +81,36 @@ fn stats(painter: &egui::Painter, editor: &Editor) {
             color,
         );
     }
+}
+
+/// Cercle du pinceau sous le pointeur (mode Weight Paint, comme Blender) :
+/// pendant un trait, la position et le rayon viennent de l'éditeur ; sinon,
+/// du pointeur et du rayon réglé. Rien au-dessus de l'interface.
+fn brush_cursor(ctx: &egui::Context, painter: &egui::Painter, editor: &Editor, state: &UiState, ppp: f32) {
+    let (center, radius) = match editor.brush_cursor() {
+        Some((p, r)) => (egui::pos2(p.x / ppp, p.y / ppp), r / ppp),
+        None => match ctx.pointer_latest_pos() {
+            // Le rayon du pinceau est déjà en points d'écran.
+            Some(p) => (p, editor.weight_paint.brush.radius),
+            None => return,
+        },
+    };
+    if center.y < BAR_H || state.rects.iter().any(|r| r.contains(center)) {
+        return;
+    }
+    // Liseré blanc doublé d'un liseré sombre pour rester lisible sur toutes
+    // les couleurs de la carte de chaleur.
+    painter.circle_stroke(
+        center,
+        radius + 0.5,
+        egui::Stroke::new(1.0, egui::Color32::from_black_alpha(120)),
+    );
+    painter.circle_stroke(
+        center,
+        radius,
+        egui::Stroke::new(1.5, egui::Color32::from_white_alpha(210)),
+    );
+    painter.circle_filled(center, 1.6, egui::Color32::from_white_alpha(210));
 }
 
 fn marker_labels(painter: &egui::Painter, editor: &Editor, viewport: &Viewport, ppp: f32) {

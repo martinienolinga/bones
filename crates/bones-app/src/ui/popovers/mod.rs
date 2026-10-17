@@ -6,13 +6,18 @@
 
 mod actions;
 mod bones;
+mod brush;
 mod settings;
 mod studio;
 mod view;
+mod weights_tools;
 
 use bones_core::Editor;
 use bones_ui::icons::Icon;
 use bones_ui::{theme, widgets};
+
+pub use brush::tool_icon as brush_tool_icon;
+pub use weights_tools::{State as WeightsToolsState, confirm_dialog as confirm_automatic};
 
 use super::{BAR_H, EDGE, UiAction, UiState};
 
@@ -22,20 +27,25 @@ pub enum Popover {
     View,
     Outliner,
     Settings,
+    /// Bibliothèque de pinceaux (studio du mode Weight Paint).
+    Brush,
+    /// Menu des outils du menu « Weights » de Blender.
+    WeightsTools,
 }
 
 impl Popover {
     fn width(self) -> f32 {
         match self {
             Popover::Outliner => 720.0,
-            Popover::Settings => 640.0,
+            Popover::Settings | Popover::Brush => 640.0,
             Popover::Actions => 420.0,
             Popover::View => 400.0,
+            Popover::WeightsTools => 440.0,
         }
     }
 
     fn is_studio(self) -> bool {
-        matches!(self, Popover::Outliner | Popover::Settings)
+        matches!(self, Popover::Outliner | Popover::Settings | Popover::Brush)
     }
 }
 
@@ -78,6 +88,8 @@ pub fn show(
                     Popover::View => view::show(ui, editor, max_height),
                     Popover::Outliner => close = bones::show(ui, editor, state, studio_height(max_height)),
                     Popover::Settings => close = settings::show(ui, state, studio_height(max_height) - 120.0),
+                    Popover::Brush => close = brush::show(ui, editor, state, studio_height(max_height)),
+                    Popover::WeightsTools => close = weights_tools::show(ui, editor, state, max_height),
                 }
             });
             let rect = panel.response.rect;
