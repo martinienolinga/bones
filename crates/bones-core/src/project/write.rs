@@ -2,15 +2,12 @@
 //! atomique du conteneur ZIP.
 
 use std::borrow::Cow;
-use std::io::{BufWriter, Seek, Write};
 use std::path::Path;
 
 use rayon::prelude::*;
-use zip::write::{PreparedZipFile, SimpleFileOptions, ZipFileBuilder};
-use zip::{CompressionMethod, ZipWriter};
 
-use super::atomic::write_atomically;
 use super::codec::encode_indices;
+use super::container::{deflate, finish, store, write_atomically, writer};
 use super::document::*;
 use super::split::split;
 use super::{ProjectError, ProjectInfo, ProjectSnapshot, unix_now};
@@ -21,9 +18,6 @@ const _: () = assert!(
     cfg!(target_endian = "little"),
     "format .kbrig : petit-boutiste uniquement"
 );
-
-/// Niveau de compression deflate (zlib-rs) : bon compromis vitesse / taille.
-const LEVEL: i64 = 6;
 
 pub(super) fn save(
     snapshot: &ProjectSnapshot,
@@ -59,7 +53,7 @@ pub(super) fn save(
         .collect::<Result<Vec<_>, _>>()?;
 
     write_atomically(path, |file| {
-        let mut zip = ZipWriter::new(BufWriter::with_capacity(1 << 16, file));
+        let mut zip = writer(file);
         // Manifeste puis vignette en tête : la galerie les lit sans rien
         // décompresser d'autre.
         zip.add_prepared_file(manifest)?;
@@ -72,31 +66,11 @@ pub(super) fn save(
         for (name, texture) in &heavy.textures {
             store(&mut zip, name, &texture.bytes)?;
         }
-        let file = zip.finish()?.into_inner().map_err(|e| e.into_error())?;
-        file.sync_all()?;
-        Ok(())
+        finish(zip)
     })?;
     Ok(info)
 }
 
 fn raw(bytes: &[u8]) -> Result<Cow<'_, [u8]>, ProjectError> {
     Ok(Cow::Borrowed(bytes))
-}
-
-/// Entrée compressée (deflate), prête à être ajoutée au conteneur.
-pub(super) fn deflate(name: &str, data: &[u8]) -> Result<PreparedZipFile, ProjectError> {
-    let options = SimpleFileOptions::default()
-        .compression_method(CompressionMethod::Deflated)
-        .compression_level(Some(LEVEL));
-    let mut builder = ZipFileBuilder::new(name, options)?;
-    builder.write_all(data)?;
-    Ok(builder.finish()?)
-}
-
-/// Entrée écrite sans recompression (JPEG, PNG : déjà compressés).
-fn store<W: Write + Seek>(zip: &mut ZipWriter<W>, name: &str, data: &[u8]) -> Result<(), ProjectError> {
-    let options = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
-    zip.start_file(name, options)?;
-    zip.write_all(data)?;
-    Ok(())
 }

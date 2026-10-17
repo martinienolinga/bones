@@ -164,10 +164,15 @@ fn check_skeleton(rig: &mut Rig) -> Result<(), ProjectError> {
             *t = crate::Transform::IDENTITY;
         }
     }
+    // Cibles et pôles gardés tels quels (l'éditeur les recale sur la pose en
+    // passant en mode Pose), sauf s'ils sont inutilisables.
     rig.limbs.retain(|l| l.is_valid(&rig.skeleton));
-    let world = rig.world();
-    for limb in &mut rig.limbs {
-        limb.snap_to_pose(&rig.skeleton, &world);
+    let broken = |l: &crate::Limb| !(l.target.is_finite() && l.pole.is_finite());
+    if rig.limbs.iter().any(broken) {
+        let world = rig.world();
+        for limb in rig.limbs.iter_mut().filter(|l| broken(l)) {
+            limb.snap_to_pose(&rig.skeleton, &world);
+        }
     }
     rig.pins
         .retain(|p| rig.skeleton.contains(p.bone) && p.target.is_finite());

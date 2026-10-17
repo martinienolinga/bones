@@ -1,23 +1,23 @@
 //! Écriture atomique : le fichier est écrit à côté de la cible sous un nom
 //! temporaire, synchronisé sur le disque, puis renommé par-dessus la cible.
-//! Un échec (disque plein, application tuée…) ne laisse jamais un projet
+//! Un échec (disque plein, application tuée…) ne laisse jamais un fichier
 //! existant à moitié écrit.
 
 use std::fs::{self, File, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use super::ProjectError;
-use super::error::invalid;
+use crate::project::ProjectError;
+use crate::project::error::invalid;
 
-/// Suffixe des fichiers temporaires (ignorés par la liste des projets).
-pub(super) const TEMP_SUFFIX: &str = ".tmp";
+/// Suffixe des fichiers temporaires (ignorés par les listes de fichiers).
+const TEMP_SUFFIX: &str = ".tmp";
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
 /// Écrit `path` via `write`, qui reçoit le fichier temporaire et doit le
 /// synchroniser (`sync_all`) avant de rendre la main.
-pub(super) fn write_atomically(
+pub(crate) fn write_atomically(
     path: &Path,
     write: impl FnOnce(File) -> Result<(), ProjectError>,
 ) -> Result<(), ProjectError> {

@@ -1,4 +1,4 @@
-//! Lecture bornée des entrées d'un projet. Les fichiers peuvent venir
+//! Lecture bornée des entrées d'un conteneur. Les fichiers peuvent venir
 //! d'ailleurs (partage, AirDrop) : les tailles décompressées sont limitées,
 //! entrée par entrée et au total, quoi qu'annonce le conteneur.
 
@@ -10,19 +10,19 @@ use bytemuck::Pod;
 use zip::result::ZipError;
 use zip::{ZipArchive, ZipWriter};
 
-use super::ProjectError;
-use super::error::invalid;
+use crate::project::ProjectError;
+use crate::project::error::invalid;
 
-/// Manifeste et document JSON.
-pub(super) const MAX_JSON: u64 = 256 << 20;
-pub(super) const MAX_MANIFEST: u64 = 1 << 20;
-pub(super) const MAX_THUMBNAIL: u64 = 16 << 20;
-pub(super) const MAX_TEXTURE: u64 = 256 << 20;
+/// Document JSON.
+pub(crate) const MAX_JSON: u64 = 256 << 20;
+pub(crate) const MAX_MANIFEST: u64 = 1 << 20;
+pub(crate) const MAX_THUMBNAIL: u64 = 16 << 20;
+pub(crate) const MAX_TEXTURE: u64 = 256 << 20;
 /// Total décompressé d'un projet (les entrées compressées peuvent
 /// s'étendre jusqu'à mille fois : la limite doit rester supportable par un iPad).
-pub(super) const MAX_TOTAL: u64 = 1536 << 20;
+pub(crate) const MAX_TOTAL: u64 = 1536 << 20;
 
-pub(super) struct Archive {
+pub(crate) struct Archive {
     zip: ZipArchive<BufReader<File>>,
     /// Octets décompressés restant autorisés.
     budget: u64,
@@ -33,7 +33,7 @@ impl Archive {
         let file = BufReader::with_capacity(1 << 16, File::open(path)?);
         let zip = ZipArchive::new(file).map_err(|e| match e {
             ZipError::InvalidArchive(_) | ZipError::UnsupportedArchive(_) => {
-                invalid("not a PaintSharp Bones project")
+                invalid("unrecognized file format")
             }
             e => e.into(),
         })?;

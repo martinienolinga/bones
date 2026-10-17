@@ -25,9 +25,8 @@
 //! bornée et vérifiée : les fichiers reçus d'ailleurs ne peuvent ni épuiser
 //! la mémoire ni faire paniquer l'application.
 
-mod archive;
-mod atomic;
 mod codec;
+pub(crate) mod container;
 mod document;
 mod error;
 mod read;

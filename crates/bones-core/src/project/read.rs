@@ -4,8 +4,8 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use super::archive::{Archive, MAX_JSON, MAX_MANIFEST, MAX_TEXTURE, MAX_THUMBNAIL};
 use super::codec::decode_indices;
+use super::container::{Archive, MAX_JSON, MAX_MANIFEST, MAX_TEXTURE, MAX_THUMBNAIL};
 use super::document::*;
 use super::error::invalid;
 use super::validate::{Arrays, assemble};
