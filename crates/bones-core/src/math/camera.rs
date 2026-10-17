@@ -58,6 +58,12 @@ pub struct OrbitCamera {
     /// Élévation (radians), bornée pour ne jamais passer par les pôles.
     pub pitch: f32,
     pub fov_y: f32,
+    /// Rotation verrouillée : glisser ne fait plus tourner la vue.
+    #[serde(default)]
+    pub locked: bool,
+    /// Projection orthographique (vues de face ou de profil exactes).
+    #[serde(default)]
+    pub orthographic: bool,
 }
 
 impl Default for OrbitCamera {
@@ -68,11 +74,14 @@ impl Default for OrbitCamera {
             yaw: 0.35,
             pitch: 0.2,
             fov_y: 45f32.to_radians(),
+            locked: false,
+            orthographic: false,
         }
     }
 }
 
-const PITCH_LIMIT: f32 = 1.55;
+/// Élévation maximale (vue de dessus / de dessous), juste avant le pôle.
+pub const PITCH_LIMIT: f32 = 1.55;
 
 impl OrbitCamera {
     pub fn eye(&self) -> Vec3 {
@@ -98,10 +107,18 @@ impl OrbitCamera {
         glam::camera::rh::view::look_at_mat4(self.eye(), self.target, Vec3::Y)
     }
 
-    /// Projection perspective, NDC Z dans [0, 1] et Y vers le haut (convention wgpu/Metal).
+    /// Projection (perspective ou orthographique), NDC Z dans [0, 1] et Y
+    /// vers le haut (convention wgpu/Metal). En orthographique, la distance
+    /// règle seulement l'échelle : la même que la perspective à la cible.
     pub fn projection(&self, aspect: f32) -> Mat4 {
+        let far = self.distance * 100.0 + 100.0;
+        if self.orthographic {
+            let h = self.distance * (self.fov_y * 0.5).tan();
+            let w = h * aspect;
+            return glam::camera::rh::proj::directx::orthographic(-w, w, -h, h, -far, far);
+        }
         let near = (self.distance * 0.01).max(1e-3);
-        glam::camera::rh::proj::directx::perspective(self.fov_y, aspect, near, self.distance * 100.0 + 100.0)
+        glam::camera::rh::proj::directx::perspective(self.fov_y, aspect, near, far)
     }
 
     pub fn view_proj(&self, viewport: &Viewport) -> Mat4 {
@@ -109,6 +126,9 @@ impl OrbitCamera {
     }
 
     pub fn orbit(&mut self, dx: f32, dy: f32) {
+        if self.locked {
+            return;
+        }
         self.yaw -= dx * 0.008;
         self.pitch = (self.pitch + dy * 0.008).clamp(-PITCH_LIMIT, PITCH_LIMIT);
     }
@@ -200,5 +220,32 @@ mod tests {
         let after = cam.project(p, &vp).unwrap();
         // Projection perspective : le point suit le doigt à peu de chose près.
         assert!((after - before).abs_diff_eq(Vec2::new(50.0, -30.0), 3.0));
+    }
+
+    #[test]
+    fn orthographic_project_and_ray_agree() {
+        let cam = OrbitCamera {
+            orthographic: true,
+            ..Default::default()
+        };
+        let vp = Viewport::new(800.0, 600.0);
+        let p = Vec3::new(0.3, 1.2, -0.4);
+        let s = cam.project(p, &vp).unwrap();
+        assert!(cam.point_on_view_plane(s, &vp, p).abs_diff_eq(p, 1e-3));
+        // Rayons parallèles : même direction partout à l'écran.
+        let a = cam.ray(Vec2::new(10.0, 10.0), &vp).dir;
+        let b = cam.ray(Vec2::new(700.0, 500.0), &vp).dir;
+        assert!(a.abs_diff_eq(b, 1e-4));
+    }
+
+    #[test]
+    fn locked_camera_does_not_orbit() {
+        let mut cam = OrbitCamera {
+            locked: true,
+            ..Default::default()
+        };
+        let before = cam;
+        cam.orbit(100.0, 50.0);
+        assert_eq!(cam, before);
     }
 }
