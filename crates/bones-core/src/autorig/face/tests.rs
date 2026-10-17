@@ -39,7 +39,7 @@ fn head_skeleton() -> (Skeleton, Vec<FaceBone>) {
 
 #[test]
 fn names_follow_the_contract() {
-    // Contrat de noms (wip/LISEZMOI.md).
+    // Noms canoniques des os du visage (voir `autorig::face`).
     assert!(NAMES.contains(&"jaw.x"));
     for n in [
         "jaw.x",
