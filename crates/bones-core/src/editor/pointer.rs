@@ -38,6 +38,8 @@ impl Editor {
     /// Début de geste à un doigt. Retourne `true` si l'éditeur le prend en
     /// charge ; sinon l'app l'utilise pour la caméra.
     pub fn pointer_down(&mut self, pos: Vec2, vp: &Viewport, radius: f32) -> bool {
+        // Une modification en attente est comptée avant que le geste ne la masque.
+        self.count_edit(false);
         self.drag_moved = false;
         self.playing = false;
         if self.manipulator_down(pos, vp, radius) {

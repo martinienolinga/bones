@@ -19,6 +19,7 @@
 //! - [`anim`] : clés, interpolation, physique (Cascadeur) ;
 //! - [`io`] : fichiers `.bones` et formats d'échange (glTF/GLB, FBX, OBJ,
 //!   STL, PLY, BVH) en import et en export ;
+//! - [`project`] : projets `.kbrig` (un fichier compressé par projet, galerie) ;
 //! - [`manipulator`] : manipulateurs 3D (translation, rotation, échelle) ;
 //! - [`editor`] : état de l'éditeur et gestes, indépendants de la plateforme.
 
@@ -30,6 +31,7 @@ pub mod io;
 pub mod manipulator;
 pub mod math;
 pub mod mesh;
+pub mod project;
 pub mod rig;
 pub mod skinning;
 

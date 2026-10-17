@@ -192,7 +192,8 @@ impl Editor {
                     self.selected = self.selected.filter(|s| self.rig.skeleton.contains(*s));
                 }
             }
-            Drag::Marker { .. } => {}
+            // Marqueurs : hors historique, mais enregistrés avec le projet.
+            Drag::Marker { .. } => self.count_edit(self.drag_moved),
             Drag::Manip(gesture) => self.manipulator_up(&gesture),
             // Simple tape sur un os (sélection) : rien à annuler.
             _ if !self.drag_moved => self.drop_checkpoint(true),
