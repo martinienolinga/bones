@@ -1,0 +1,163 @@
+//! Poids de skinning par diffusion de chaleur (« Bone Heat »), d'après
+//! Baran & Popović, *Automatic Rigging and Animation of 3D Characters*,
+//! SIGGRAPH 2007 — l'algorithme des poids automatiques de Blender.
+//!
+//! Pour chaque os i on résout −Δwᵢ + H·wᵢ = H·pᵢ sur la surface, où Δ est le
+//! Laplacien cotangent, H_jj = k/d(j)² (d : distance à l'os le plus proche,
+//! k : nombre d'os à égalité) et pᵢⱼ = 1/k si i fait partie des plus proches.
+//!
+//! Mise en œuvre : le système est multiplié par la matrice de masse pour être
+//! symétrique défini positif, puis résolu par gradient conjugué préconditionné
+//! (Jacobi), un os par tâche rayon. Les cotangentes négatives sont tronquées
+//! à 0 pour garantir le principe du maximum (poids dans [0, 1]).
+//!
+//! Simplification par rapport à l'article : le test de visibilité (le segment
+//! sommet–os doit rester dans le volume) n'est pas encore fait.
+
+use glam::Vec3;
+use rayon::prelude::*;
+
+use super::envelope::distance_to_segment;
+use super::sparse::{conjugate_gradient, cotangent_laplacian};
+use crate::{BoneId, Mesh, Skeleton, Skin, VertexWeights, head_tail};
+
+/// Poids en dessous duquel une influence est ignorée.
+const MIN_WEIGHT: f64 = 1e-3;
+
+pub fn heat_weights(mesh: &Mesh, skeleton: &Skeleton) -> Skin {
+    let n = mesh.positions.len();
+    if skeleton.is_empty() || mesh.indices.is_empty() {
+        return Skin::automatic(mesh, skeleton);
+    }
+    let world = skeleton.rest_world();
+    let segments: Vec<(Vec3, Vec3)> = skeleton
+        .bones()
+        .iter()
+        .zip(&world)
+        .map(|(b, w)| head_tail(w, b.length))
+        .collect();
+
+    // Os les plus proches de chaque sommet (avec égalités à 0,1 % près).
+    let nearest: Vec<(f32, Vec<u16>)> = mesh
+        .positions
+        .par_iter()
+        .map(|&p| {
+            let d: Vec<f32> = segments
+                .iter()
+                .map(|(a, b)| distance_to_segment(p, *a, *b))
+                .collect();
+            let min = d.iter().copied().fold(f32::INFINITY, f32::min);
+            let ties = d
+                .iter()
+                .enumerate()
+                .filter(|(_, x)| **x <= min * 1.001 + 1e-7)
+                .map(|(i, _)| i as u16)
+                .collect();
+            (min.max(1e-4), ties)
+        })
+        .collect();
+
+    let (laplacian, stiffness_diag, mass) = cotangent_laplacian(mesh);
+    // Diagonale du système (L + M·H) et coefficient M·H de chaque sommet.
+    let heat: Vec<f64> = nearest
+        .iter()
+        .zip(&mass)
+        .map(|((d, ties), m)| m * ties.len() as f64 / (*d as f64 * *d as f64))
+        .collect();
+    let diag: Vec<f64> = stiffness_diag
+        .iter()
+        .zip(&heat)
+        .map(|(l, h)| (l + h).max(1e-20))
+        .collect();
+
+    // Une résolution par os, en parallèle ; seules les influences utiles
+    // sont gardées (liste creuse) pour limiter la mémoire.
+    let per_bone: Vec<Vec<(u32, f32)>> = (0..skeleton.len())
+        .into_par_iter()
+        .map(|bone| {
+            let b: Vec<f64> = nearest
+                .iter()
+                .zip(&heat)
+                .map(|((_, ties), h)| {
+                    if ties.contains(&(bone as u16)) {
+                        h / ties.len() as f64
+                    } else {
+                        0.0
+                    }
+                })
+                .collect();
+            if b.iter().all(|v| *v == 0.0) {
+                return Vec::new();
+            }
+            // Point de départ : affectation au plus proche.
+            let mut x: Vec<f64> = nearest
+                .iter()
+                .map(|(_, ties)| {
+                    if ties.contains(&(bone as u16)) {
+                        1.0 / ties.len() as f64
+                    } else {
+                        0.0
+                    }
+                })
+                .collect();
+            conjugate_gradient(&laplacian, &diag, &b, &mut x);
+            x.iter()
+                .enumerate()
+                .filter(|(_, w)| **w > MIN_WEIGHT)
+                .map(|(v, w)| (v as u32, *w as f32))
+                .collect()
+        })
+        .collect();
+
+    let mut influences: Vec<Vec<(BoneId, f32)>> = vec![Vec::new(); n];
+    for (bone, list) in per_bone.into_iter().enumerate() {
+        for (v, w) in list {
+            influences[v as usize].push((BoneId(bone as u32), w));
+        }
+    }
+    let weights = influences
+        .into_par_iter()
+        .enumerate()
+        .map(|(v, inf)| {
+            if inf.is_empty() {
+                // Sommet isolé (sans triangle) : os le plus proche.
+                VertexWeights::single(BoneId(nearest[v].1[0] as u32))
+            } else {
+                VertexWeights::from_influences(inf)
+            }
+        })
+        .collect();
+    Skin { weights }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn heat_weights_are_smooth_and_partitioned() {
+        let mesh = Mesh::capsule(Vec3::ZERO, Vec3::new(0.0, 2.0, 0.0), 0.2, 16, 16);
+        let mut s = Skeleton::new();
+        let a = s.add_bone_world("a", None, Vec3::ZERO, Vec3::Y);
+        s.add_bone_world("b", Some(a), Vec3::Y, Vec3::new(0.0, 2.0, 0.0));
+        let skin = heat_weights(&mesh, &s);
+        for (p, vw) in mesh.positions.iter().zip(&skin.weights) {
+            let total: f32 = vw.iter().map(|(_, w)| w).sum();
+            assert!((total - 1.0).abs() < 1e-3);
+            if p.y < 0.4 {
+                assert!(vw.weight_of(BoneId(0)) > 0.95, "{p:?} {vw:?}");
+            }
+            if p.y > 1.6 {
+                assert!(vw.weight_of(BoneId(1)) > 0.95, "{p:?} {vw:?}");
+            }
+        }
+        // Transition douce autour de l'articulation (y = 1).
+        let joint = mesh
+            .positions
+            .iter()
+            .position(|p| (p.y - 1.0).abs() < 0.07)
+            .unwrap();
+        let w = skin.weights[joint].weight_of(BoneId(0));
+        assert!(w > 0.2 && w < 0.8, "{w}");
+    }
+}

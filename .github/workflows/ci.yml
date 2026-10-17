@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  check:
+    name: Format, lint et tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test --workspace
+
+  ios:
+    name: Build iPadOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios, aarch64-apple-ios-sim
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build appareil (aarch64-apple-ios)
+        env:
+          IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+        run: cargo build -p bones-app --target aarch64-apple-ios --release
+
+      - name: Paquet simulateur
+        run: ios/build.sh sim release
+
+      - name: Archive
+        run: |
+          cd target/ios/release
+          ditto -c -k --sequesterRsrc --keepParent Bones.app Bones-simulator.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bones-simulator
+          path: target/ios/release/Bones-simulator.zip
+          if-no-files-found: error

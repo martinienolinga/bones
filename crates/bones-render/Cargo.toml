@@ -1,0 +1,20 @@
+[package]
+name = "bones-render"
+description = "Rendu wgpu (Metal sur iPad) de PaintSharp Bones : skinning GPU, os, grille, overlays."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+bones-core.workspace = true
+bytemuck.workspace = true
+glam.workspace = true
+wgpu.workspace = true
+
+[dev-dependencies]
+# Validation des shaders WGSL sans GPU (même version que celle de wgpu).
+naga = { version = "30", features = ["wgsl-in"] }
+# Test de rendu hors écran (ignoré s'il n'y a pas d'adaptateur GPU).
+pollster.workspace = true

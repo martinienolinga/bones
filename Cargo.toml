@@ -1,0 +1,39 @@
+[workspace]
+resolver = "3"
+members = ["crates/bones-core", "crates/bones-render"]
+default-members = ["crates/bones-core", "crates/bones-render"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+repository = "https://github.com/martinienolinga/bones"
+
+[workspace.dependencies]
+bones-core = { path = "crates/bones-core" }
+bones-render = { path = "crates/bones-render" }
+bones-ui = { path = "crates/bones-ui" }
+
+glam = { version = "0.34", features = ["serde", "bytemuck"] }
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"
+bytemuck = { version = "1", features = ["derive"] }
+rayon = "1"
+log = "0.4"
+pollster = "0.4"
+wgpu = "30"
+winit = "0.30.13"
+egui = "0.37"
+egui-wgpu = "0.37"
+egui-winit = { version = "0.37", default-features = false, features = ["links"] }
+env_logger = "0.11"
+
+[profile.dev.package."*"]
+# Les dépendances (wgpu, egui…) sont compilées optimisées même en debug :
+# sinon le rendu est inutilisable sur iPad en build de développement.
+opt-level = 2
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
