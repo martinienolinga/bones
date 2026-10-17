@@ -1,21 +1,23 @@
 //! Emplacement des documents et liste des fichiers.
 //!
 //! Sur iPad, le dossier Documents de l'app est visible dans l'app Fichiers
-//! (UIFileSharingEnabled) : l'utilisateur y dépose ses `.obj` et retrouve ses
-//! `.bones` et `.glb`.
+//! (UIFileSharingEnabled) : l'utilisateur y dépose ses modèles (glTF, FBX,
+//! OBJ…) et retrouve ses documents `.bones` et ses exports.
 
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-pub const RIG_EXT: &str = "bones";
-pub const MESH_EXT: &str = "obj";
-pub const EXPORT_EXT: &str = "glb";
+use bones_core::io::Format;
+
+/// Sous-dossier des exports, pour garder la galerie lisible.
+pub const EXPORTS: &str = "Exports";
 
 #[derive(Clone, Debug)]
 pub struct FileEntry {
     pub name: String,
     pub path: PathBuf,
     pub modified: SystemTime,
+    pub format: Format,
 }
 
 /// Dossier des documents (créé au besoin).
@@ -39,20 +41,22 @@ fn home() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
-/// Fichiers d'une extension donnée, du plus récent au plus ancien.
-pub fn list(dir: &Path, ext: &str) -> Vec<FileEntry> {
+/// Fichiers dont le format satisfait `keep`, du plus récent au plus ancien.
+pub fn list(dir: &Path, keep: impl Fn(Format) -> bool) -> Vec<FileEntry> {
     let Ok(read) = std::fs::read_dir(dir) else {
         return Vec::new();
     };
     let mut files: Vec<FileEntry> = read
         .filter_map(Result::ok)
-        .filter(|e| e.path().extension().is_some_and(|x| x.eq_ignore_ascii_case(ext)))
         .filter_map(|e| {
+            let path = e.path();
+            let format = Format::from_path(&path).filter(|f| keep(*f))?;
             let meta = e.metadata().ok()?;
             Some(FileEntry {
-                name: e.path().file_stem()?.to_string_lossy().into_owned(),
-                path: e.path(),
+                name: path.file_stem()?.to_string_lossy().into_owned(),
                 modified: meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
+                path,
+                format,
             })
         })
         .collect();
@@ -102,7 +106,8 @@ mod tests {
             free_path(&dir, "a/b:c", "bones").file_name().unwrap(),
             "a_b_c 2.bones"
         );
-        assert_eq!(list(&dir, "bones").len(), 1);
+        assert_eq!(list(&dir, |f| f == Format::Bones).len(), 1);
+        assert!(list(&dir, |f| f == Format::Obj).is_empty());
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

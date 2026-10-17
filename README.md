@@ -64,11 +64,26 @@ avant d'exporter le résultat vers Blender, Unity, Unreal ou Godot. Le moteur de
 
 ### Import / export
 
-- Import de maillages **Wavefront OBJ** (faces polygonales triangulées, normales recalculées).
-- Documents **`.bones`** (JSON versionné) : maillage, squelette, poids, pose, animation, membres,
-  épingles.
-- Export **glTF 2.0 binaire (`.glb`)** : maillage, squelette, poids, matrices de liaison inverses et
-  animation échantillonnée à chaque image.
+Huit formats, avec leurs textures et matériaux quand le format en porte. Un modèle importé arrive
+avec son squelette, ses poids et son animation s'il en a ; une géométrie seule se rigge ensuite dans
+l'app (auto-rig, poids automatiques).
+
+| Format | Import | Export |
+| --- | --- | --- |
+| `.bones` (document natif, JSON) | tout | tout (textures incluses) |
+| **glTF 2.0** `.glb` / `.gltf` | maillage, UV, matériaux, textures, squelette, poids, animation | idem |
+| **FBX** binaire 7.x | maillage, UV, matériaux, textures, squelette, poids, animation | — |
+| **OBJ + MTL** | maillage, UV, matériaux, textures `map_Kd` | pose courante + MTL + textures |
+| **STL** (ASCII / binaire) | maillage | pose courante |
+| **PLY** (ASCII / binaire) | maillage, normales, UV | pose courante |
+| **BVH** (capture de mouvement) | squelette, animation | squelette, animation |
+
+- Conversion automatique des axes (Z vers le haut → Y vers le haut) et des unités (cm, mm, pouces).
+- Textures externes cherchées à côté du fichier, ou intégrées (GLB, FBX) ; décodées en parallèle,
+  envoyées au GPU avec leurs mipmaps, puis libérées de la mémoire du processeur.
+- Vérifié sur des fichiers publics réels (modèles d'exemple Khronos *CesiumMan*, *Fox*,
+  *RiggedFigure*, modèles de test d'Assimp en FBX, BVH, STL, PLY, OBJ) : import puis
+  réexport dans chaque format, puis réimport.
 
 ### Interface
 
@@ -104,13 +119,13 @@ Organisation de `bones-core` :
 | Dossier | Contenu |
 | --- | --- |
 | `math/` | transformations, caméra orbitale, sélection en espace écran |
-| `mesh/` | maillage indexé, primitives |
+| `mesh/` | maillage indexé, UV, matériaux et textures, primitives |
 | `rig/` | squelette, pose, symétrie, document `Rig` |
 | `skinning/` | poids compacts, enveloppes, diffusion de chaleur, déformation |
 | `ik/` | FABRIK, IK à deux os, épingles |
 | `autorig/` | marqueurs, génération humanoïde, membres IK/FK |
 | `anim/` | clips de poses-clés, interpolation, physique |
-| `io/` | import OBJ, export glTF, documents `.bones` |
+| `io/` | documents `.bones`, glTF, FBX, OBJ + MTL, STL, PLY, BVH (un dossier par format) |
 | `editor/` | état de l'éditeur, gestes, historique, opérations |
 
 Les détails (flux de données, révisions, passes de rendu, conventions) sont dans
@@ -194,7 +209,8 @@ Ce qui **n'est pas encore** fait :
 - Pinceau de peinture de poids, lissage et normalisation manuels.
 - Rig facial, os de torsion (*twist*), contrôleurs personnalisés, sélecteur d'os (*picker*).
 - Reciblage d'animation (*remap*) entre squelettes, import Mixamo.
-- Export FBX et USD(Z), import glTF/FBX.
+- Export FBX, import FBX ASCII, Collada (`.dae`), USD(Z) ; cibles de morphose (*blend shapes*),
+  cartes de normales / rugosité, second jeu d'UV.
 - Capture de mouvement à partir de vidéo.
 - Sélecteur de documents de l'app Fichiers (UIDocumentPicker) et ouverture « sur place ».
 - Icônes, captures et métadonnées pour l'App Store.

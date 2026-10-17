@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
+use bones_core::io::{Format, Imported};
 use bones_core::{Editor, Rig, Viewport};
 use glam::Vec2;
 use winit::event::WindowEvent;
@@ -59,9 +60,9 @@ impl Running {
 
         let docs = files::documents_dir();
         let mut jobs = Jobs::new(proxy);
-        let session = docs.join(format!("{AUTOSAVE}.{}", files::RIG_EXT));
+        let session = session_path(&docs);
         if session.exists() {
-            jobs.open(session);
+            jobs.import(session);
         }
 
         Self {
@@ -167,15 +168,19 @@ impl Running {
                 self.editor.open(Rig::demo());
                 self.ui.notify("Nouveau mannequin");
             }
-            UiAction::Open(path) => self.jobs.open(path),
-            UiAction::ImportObj(path) => self.jobs.import_obj(path),
+            UiAction::Import(path) => self.jobs.import(path),
             UiAction::Save => {
-                let path = files::free_path(&docs, &self.editor.rig.name, files::RIG_EXT);
+                let path = files::free_path(&docs, &self.editor.rig.name, Format::Bones.extension());
                 self.jobs.save(self.editor.rig.clone(), path);
             }
-            UiAction::ExportGlb => {
-                let path = files::free_path(&docs, &self.editor.rig.name, files::EXPORT_EXT);
-                self.jobs.export_glb(self.editor.rig.clone(), path);
+            UiAction::Export(format) => {
+                let dir = docs.join(files::EXPORTS);
+                if let Err(e) = std::fs::create_dir_all(&dir) {
+                    self.ui.notify(format!("Erreur : {e}"));
+                    return;
+                }
+                let path = files::free_path(&dir, &self.editor.rig.name, format.extension());
+                self.jobs.export(self.editor.rig.clone(), format, path);
             }
         }
     }
@@ -184,23 +189,36 @@ impl Running {
         for result in self.jobs.poll() {
             match result {
                 JobResult::Bound(skin, key) => self.editor.finish_bind(skin, key),
-                JobResult::Opened(Ok(rig)) => {
-                    let name = rig.name.clone();
+                JobResult::Imported(Ok(Imported::Rig(rig))) => {
+                    let message = format!(
+                        "« {} » ouvert : {} os, {} sommets, {} clés",
+                        rig.name,
+                        rig.skeleton.len(),
+                        rig.mesh.vertex_count(),
+                        rig.clip.keys().len()
+                    );
                     self.editor.open(rig);
-                    self.ui.notify(format!("« {name} » ouvert"));
+                    self.ui.notify(message);
                 }
-                JobResult::Imported(Ok(mesh)) => {
-                    let (v, t) = (mesh.vertex_count(), mesh.triangle_count());
+                JobResult::Imported(Ok(Imported::Mesh(mesh))) => {
+                    let (v, t, m) = (mesh.vertex_count(), mesh.triangle_count(), mesh.materials.len());
                     self.editor.import_mesh(mesh);
-                    self.ui
-                        .notify(format!("Modèle importé : {v} sommets, {t} triangles"));
+                    self.ui.notify(format!(
+                        "Modèle importé : {v} sommets, {t} triangles, {m} matériaux"
+                    ));
                 }
                 JobResult::Saved(Ok(path)) => self.ui.notify(format!("Enregistré : {}", file_name(&path))),
-                JobResult::Exported(Ok(path)) => self.ui.notify(format!("Exporté : {}", file_name(&path))),
-                JobResult::Opened(Err(e))
-                | JobResult::Imported(Err(e))
-                | JobResult::Saved(Err(e))
-                | JobResult::Exported(Err(e)) => self.ui.notify(format!("Erreur : {e}")),
+                JobResult::Exported(Ok(files)) => {
+                    let main = files.first().map(|p| file_name(p)).unwrap_or_default();
+                    let extra = files.len().saturating_sub(1);
+                    self.ui.notify(match extra {
+                        0 => format!("Exporté dans {} : {main}", files::EXPORTS),
+                        n => format!("Exporté dans {} : {main} (+{n} fichiers)", files::EXPORTS),
+                    });
+                }
+                JobResult::Imported(Err(e)) | JobResult::Saved(Err(e)) | JobResult::Exported(Err(e)) => {
+                    self.ui.notify(format!("Erreur : {e}"))
+                }
             }
             self.ui.refresh_files();
         }
@@ -208,7 +226,7 @@ impl Running {
 
     /// Sauvegarde synchrone de la session (passage en arrière-plan, fermeture).
     pub fn autosave(&mut self) {
-        let path = self.ui.docs_dir.join(format!("{AUTOSAVE}.{}", files::RIG_EXT));
+        let path = session_path(&self.ui.docs_dir);
         let result = std::fs::File::create(&path)
             .map_err(|e| e.to_string())
             .and_then(|f| self.editor.rig.save(f).map_err(|e| e.to_string()));
@@ -216,6 +234,10 @@ impl Running {
             log::warn!("sauvegarde automatique impossible : {e}");
         }
     }
+}
+
+fn session_path(docs: &std::path::Path) -> PathBuf {
+    docs.join(format!("{AUTOSAVE}.{}", Format::Bones.extension()))
 }
 
 fn file_name(path: &std::path::Path) -> String {

@@ -45,14 +45,25 @@ impl GrowBuffer {
     }
 }
 
-/// Maillage résident sur le GPU. Positions, normales et poids sont des
-/// tampons séparés, copiés tels quels depuis les tableaux du cœur.
+/// Maillage résident sur le GPU. Positions, normales, coordonnées de texture
+/// et poids sont des tampons séparés, copiés tels quels depuis les tableaux
+/// du cœur.
 pub(crate) struct MeshBuffers {
     pub positions: wgpu::Buffer,
     pub normals: wgpu::Buffer,
+    /// `None` sans coordonnées de texture : on lie alors les positions à leur
+    /// place (12 octets par sommet ≥ 8), valeurs ignorées par le shader car
+    /// aucune texture n'est appliquée — aucun tampon de zéros à allouer.
+    pub uvs: Option<wgpu::Buffer>,
     pub indices: wgpu::Buffer,
-    pub index_count: u32,
     pub weights: Option<wgpu::Buffer>,
+}
+
+impl MeshBuffers {
+    /// Tampon lié à l'emplacement des coordonnées de texture.
+    pub fn uv_source(&self) -> &wgpu::Buffer {
+        self.uvs.as_ref().unwrap_or(&self.positions)
+    }
 }
 
 impl MeshBuffers {
@@ -87,7 +98,9 @@ impl MeshBuffers {
                 bytemuck::cast_slice(&mesh.indices),
                 wgpu::BufferUsages::INDEX,
             ),
-            index_count: mesh.indices.len() as u32,
+            uvs: mesh
+                .has_uvs()
+                .then(|| buffer("uvs", bytemuck::cast_slice(&mesh.uvs), wgpu::BufferUsages::VERTEX)),
             weights: None,
         })
     }

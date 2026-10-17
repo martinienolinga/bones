@@ -28,7 +28,13 @@ egui = { version = "0.37", features = ["default_fonts", "rayon"] }
 egui-wgpu = "0.37"
 egui-winit = { version = "0.37", default-features = false, features = ["links"] }
 env_logger = "0.11"
-
+# Formats 3D (import/export) et textures.
+gltf = { version = "1.4", default-features = false, features = ["utils", "names"] }
+tobj = { version = "4", default-features = false }
+stl_io = "0.11"
+fbxcel = { version = "0.9", default-features = false, features = ["tree", "writer"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tga", "bmp"] }
+base64 = "0.23"
 
 [profile.dev.package."*"]
 # Les dépendances (wgpu, egui…) sont compilées optimisées même en debug :

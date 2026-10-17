@@ -29,6 +29,9 @@ pub fn heat_weights(mesh: &Mesh, skeleton: &Skeleton) -> Skin {
     if skeleton.is_empty() || mesh.indices.is_empty() {
         return Skin::automatic(mesh, skeleton);
     }
+    if let Some(skin) = welded_heat_weights(mesh, skeleton) {
+        return skin;
+    }
     let world = skeleton.rest_world();
     let segments: Vec<(Vec3, Vec3)> = skeleton
         .bones()
@@ -128,6 +131,40 @@ pub fn heat_weights(mesh: &Mesh, skeleton: &Skeleton) -> Skin {
         })
         .collect();
     Skin { weights }
+}
+
+/// Les sommets dupliqués (coutures UV, arêtes vives) sont soudés avant le
+/// calcul, puis reçoivent tous les poids de leur représentant : la peau ne
+/// se fend pas aux coutures. `None` si le maillage n'a pas de doublons.
+fn welded_heat_weights(mesh: &Mesh, skeleton: &Skeleton) -> Option<Skin> {
+    let (map, unique) = mesh.weld_map();
+    if unique == mesh.positions.len() {
+        return None;
+    }
+    let mut compact = vec![u32::MAX; map.len()];
+    let mut positions = Vec::with_capacity(unique);
+    for (i, rep) in map.iter().enumerate() {
+        if *rep as usize == i {
+            compact[i] = positions.len() as u32;
+            positions.push(mesh.positions[i]);
+        }
+    }
+    let welded = Mesh {
+        positions,
+        indices: mesh
+            .indices
+            .iter()
+            .map(|i| compact[map[*i as usize] as usize])
+            .collect(),
+        ..Default::default()
+    };
+    let skin = heat_weights(&welded, skeleton);
+    Some(Skin {
+        weights: map
+            .iter()
+            .map(|rep| skin.weights[compact[*rep as usize] as usize])
+            .collect(),
+    })
 }
 
 #[cfg(test)]

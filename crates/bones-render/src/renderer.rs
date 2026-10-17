@@ -1,46 +1,45 @@
-//! Moteur de rendu : état GPU persistant et dessin d'une image.
+//! Moteur de rendu : état GPU persistant et préparation d'une image. Le
+//! dessin lui-même est dans `pass`.
 
 use bones_core::{Mesh, Skin};
 use glam::Mat4;
 use wgpu::util::DeviceExt;
 
+use crate::bindings;
 use crate::buffers::{GrowBuffer, MeshBuffers};
 use crate::geometry::octahedron;
+use crate::materials::{MaterialContext, Materials};
 use crate::pipelines::Pipelines;
 use crate::scene::{Globals, Scene};
 use crate::targets::{RenderTargets, best_sample_count};
 
-/// Partage de la plage de profondeur : la scène (grille, maillage) occupe
-/// [SPLIT, 1] et la surcouche « rayons X » (os, poignées) [0, SPLIT]. La
-/// surcouche passe ainsi toujours devant le maillage tout en gardant un test
-/// de profondeur entre os, le tout dans une seule passe — ce qui permet des
-/// attachements sans mémoire sur iPad.
-const OVERLAY_DEPTH_SPLIT: f32 = 0.1;
-
 /// Ce que `prepare` a envoyé et que `render` doit dessiner.
 #[derive(Default)]
-struct Frame {
-    bones: u32,
-    lines: u32,
-    overlay_lines: u32,
-    show_mesh: bool,
-    viewport: [f32; 4],
-    background: [f64; 3],
+pub(crate) struct Frame {
+    pub bones: u32,
+    pub lines: u32,
+    pub overlay_lines: u32,
+    pub show_mesh: bool,
+    pub viewport: [f32; 4],
+    pub background: [f64; 3],
 }
 
 pub struct Renderer {
-    pipelines: Pipelines,
+    pub(crate) pipelines: Pipelines,
     globals: wgpu::Buffer,
-    bind_group: wgpu::BindGroup,
+    pub(crate) bind_group: wgpu::BindGroup,
     joints: GrowBuffer,
-    octahedron: wgpu::Buffer,
-    octahedron_vertices: u32,
-    instances: GrowBuffer,
-    lines: GrowBuffer,
-    overlay_lines: GrowBuffer,
-    mesh: Option<MeshBuffers>,
-    targets: RenderTargets,
-    frame: Frame,
+    pub(crate) octahedron: wgpu::Buffer,
+    pub(crate) octahedron_vertices: u32,
+    pub(crate) instances: GrowBuffer,
+    pub(crate) lines: GrowBuffer,
+    pub(crate) overlay_lines: GrowBuffer,
+    pub(crate) mesh: Option<MeshBuffers>,
+    /// Créé au premier maillage (il faut la file pour la texture blanche).
+    pub(crate) material_context: Option<MaterialContext>,
+    pub(crate) materials: Option<Materials>,
+    pub(crate) targets: RenderTargets,
+    pub(crate) frame: Frame,
     mesh_revision: u64,
     skin_revision: u64,
 }
@@ -61,7 +60,7 @@ impl Renderer {
             mapped_at_creation: false,
         });
         let joints = GrowBuffer::new(device, "joints", wgpu::BufferUsages::STORAGE, 64 * 64);
-        let bind_group = pipelines.bind_group(device, &globals, &joints.buffer);
+        let bind_group = bindings::globals_group(device, &pipelines.bind_layout, &globals, &joints.buffer);
         let octa = octahedron();
         let octahedron = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("octahedron"),
@@ -80,6 +79,8 @@ impl Renderer {
             lines: GrowBuffer::new(device, "lines", vertex, 28 * 1024),
             overlay_lines: GrowBuffer::new(device, "overlay-lines", vertex, 28 * 1024),
             mesh: None,
+            material_context: None,
+            materials: None,
             targets: RenderTargets::new(format, samples),
             frame: Frame::default(),
             mesh_revision: 0,
@@ -87,14 +88,25 @@ impl Renderer {
         }
     }
 
-    /// Envoie le maillage au GPU si sa révision a changé.
+    /// Envoie le maillage, ses matériaux et ses textures au GPU si sa
+    /// révision a changé.
     pub fn set_mesh(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, mesh: &Mesh, revision: u64) {
         if revision == self.mesh_revision && self.mesh.is_some() {
             return;
         }
         self.mesh_revision = revision;
         self.skin_revision = 0;
+        // Les anciennes ressources sont libérées avant d'envoyer les nouvelles.
+        self.mesh = None;
+        self.materials = None;
         self.mesh = MeshBuffers::upload(device, queue, mesh);
+        if self.mesh.is_some() {
+            let layout = &self.pipelines.material_layout;
+            let ctx = self
+                .material_context
+                .get_or_insert_with(|| MaterialContext::new(device, queue, layout.clone()));
+            self.materials = Some(Materials::new(device, queue, ctx, mesh));
+        }
     }
 
     /// Envoie les poids au GPU si leur révision a changé.
@@ -116,9 +128,12 @@ impl Renderer {
             bytemuck::cast_slice(scene.joints)
         };
         if self.joints.write(device, queue, joints) {
-            self.bind_group = self
-                .pipelines
-                .bind_group(device, &self.globals, &self.joints.buffer);
+            self.bind_group = bindings::globals_group(
+                device,
+                &self.pipelines.bind_layout,
+                &self.globals,
+                &self.joints.buffer,
+            );
         }
         self.instances
             .write(device, queue, bytemuck::cast_slice(scene.bones));
@@ -133,111 +148,5 @@ impl Renderer {
             viewport: scene.viewport,
             background: scene.background,
         };
-    }
-
-    /// Dessine la scène préparée dans `target` (taille `size` en pixels), en
-    /// une seule passe.
-    pub fn render(
-        &mut self,
-        device: &wgpu::Device,
-        encoder: &mut wgpu::CommandEncoder,
-        target: &wgpu::TextureView,
-        size: [u32; 2],
-    ) {
-        let views = self.targets.views(device, size);
-        let f = &self.frame;
-        let [x, y, w, h] = clamp_viewport(f.viewport, size);
-        let [r, g, b] = f.background;
-        let (view, resolve_target, store) = match &views.msaa {
-            Some(msaa) => (msaa, Some(target), wgpu::StoreOp::Discard),
-            None => (target, None, wgpu::StoreOp::Store),
-        };
-
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("scene"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view,
-                depth_slice: None,
-                resolve_target,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color { r, g, b, a: 1.0 }),
-                    store,
-                },
-            })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &views.depth,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: wgpu::StoreOp::Discard,
-                }),
-                stencil_ops: None,
-            }),
-            timestamp_writes: None,
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
-        pass.set_bind_group(0, &self.bind_group, &[]);
-
-        // Scène : maillage puis grille.
-        pass.set_viewport(x, y, w, h, OVERLAY_DEPTH_SPLIT, 1.0);
-        if f.show_mesh
-            && let Some(mesh) = &self.mesh
-            && let Some(weights) = &mesh.weights
-        {
-            pass.set_pipeline(&self.pipelines.mesh);
-            pass.set_vertex_buffer(0, mesh.positions.slice(..));
-            pass.set_vertex_buffer(1, mesh.normals.slice(..));
-            pass.set_vertex_buffer(2, weights.slice(..));
-            pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
-            pass.draw_indexed(0..mesh.index_count, 0, 0..1);
-        }
-        if f.lines > 0 {
-            pass.set_pipeline(&self.pipelines.line);
-            pass.set_vertex_buffer(0, self.lines.buffer.slice(..));
-            pass.draw(0..f.lines, 0..1);
-        }
-
-        // Surcouche « rayons X » : os, poignées, trajectoires.
-        pass.set_viewport(x, y, w, h, 0.0, OVERLAY_DEPTH_SPLIT);
-        if f.bones > 0 {
-            pass.set_pipeline(&self.pipelines.bone);
-            pass.set_vertex_buffer(0, self.octahedron.slice(..));
-            pass.set_vertex_buffer(1, self.instances.buffer.slice(..));
-            pass.draw(0..self.octahedron_vertices, 0..f.bones);
-        }
-        if f.overlay_lines > 0 {
-            pass.set_pipeline(&self.pipelines.overlay_line);
-            pass.set_vertex_buffer(0, self.overlay_lines.buffer.slice(..));
-            pass.draw(0..f.overlay_lines, 0..1);
-        }
-    }
-}
-
-/// Restreint la zone de rendu à la cible (wgpu refuse un viewport qui déborde).
-fn clamp_viewport(viewport: [f32; 4], size: [u32; 2]) -> [f32; 4] {
-    let [x, y, w, h] = viewport;
-    let (sw, sh) = (size[0] as f32, size[1] as f32);
-    let (x, y) = (x.clamp(0.0, sw - 1.0), y.clamp(0.0, sh - 1.0));
-    [x, y, w.min(sw - x).max(1.0), h.min(sh - y).max(1.0)]
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn viewport_is_clamped_to_target() {
-        assert_eq!(
-            clamp_viewport([0.0, 0.0, 800.0, 600.0], [800, 600]),
-            [0.0, 0.0, 800.0, 600.0]
-        );
-        assert_eq!(
-            clamp_viewport([-10.0, 50.0, 900.0, 600.0], [800, 600]),
-            [0.0, 50.0, 800.0, 550.0]
-        );
-        assert_eq!(
-            clamp_viewport([0.0, 0.0, 0.0, 0.0], [800, 600]),
-            [0.0, 0.0, 1.0, 1.0]
-        );
     }
 }

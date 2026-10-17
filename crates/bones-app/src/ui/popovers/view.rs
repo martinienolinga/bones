@@ -6,6 +6,7 @@ pub fn show(ui: &mut egui::Ui, editor: &mut Editor) {
     let v = &mut editor.view;
     for (value, label) in [
         (&mut v.mesh, "Maillage"),
+        (&mut v.textures, "Textures et matériaux"),
         (&mut v.bones, "Os"),
         (&mut v.grid, "Grille au sol"),
         (&mut v.weights, "Carte de poids de l'os sélectionné"),

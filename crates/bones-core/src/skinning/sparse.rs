@@ -34,7 +34,7 @@ pub(super) fn cotangent_laplacian(mesh: &Mesh) -> (Csr, Vec<f64>, Vec<f64>) {
     let n = mesh.positions.len();
     let mut entries: Vec<(u32, u32, f64)> = Vec::with_capacity(mesh.indices.len() * 2);
     let mut mass = vec![0.0f64; n];
-    for tri in mesh.indices.chunks_exact(3) {
+    for tri in mesh.indices.as_chunks::<3>().0 {
         let idx = [tri[0], tri[1], tri[2]];
         let p = idx.map(|i| mesh.positions[i as usize].as_dvec3());
         let area2 = (p[1] - p[0]).cross(p[2] - p[0]).length();

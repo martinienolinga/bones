@@ -11,6 +11,8 @@ repository.workspace = true
 bones-core.workspace = true
 bytemuck.workspace = true
 glam.workspace = true
+log.workspace = true
+rayon.workspace = true
 wgpu.workspace = true
 
 [dev-dependencies]
@@ -18,3 +20,5 @@ wgpu.workspace = true
 naga = { version = "30", features = ["wgsl-in"] }
 # Test de rendu hors écran (ignoré s'il n'y a pas d'adaptateur GPU).
 pollster.workspace = true
+# Encodage d'une petite texture PNG pour le test de rendu texturé.
+image.workspace = true

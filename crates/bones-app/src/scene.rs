@@ -16,6 +16,9 @@ pub struct SceneBuilder {
     lines: Vec<LineVertex>,
     overlay: Vec<LineVertex>,
     view_proj: Mat4,
+    /// Unité de la grille (puissance de 10 adaptée à la taille du modèle),
+    /// recalculée seulement quand le maillage change.
+    grid_unit: (u64, f32),
 }
 
 fn color(c: egui::Color32) -> Vec4 {
@@ -33,7 +36,11 @@ impl SceneBuilder {
 
         self.joints.extend(editor.skinning_matrices());
         if editor.view.grid {
-            self.grid();
+            let revision = editor.rig.revisions().mesh;
+            if self.grid_unit.0 != revision {
+                self.grid_unit = (revision, grid_unit(&editor.rig.mesh));
+            }
+            self.grid(self.grid_unit.1);
         }
         if editor.view.bones {
             self.skeleton(editor);
@@ -54,6 +61,7 @@ impl SceneBuilder {
             background: theme::BACKGROUND,
             joints: &self.joints,
             show_mesh: editor.view.mesh,
+            textured: editor.view.textures,
             weight_bone: editor.selected.filter(|_| editor.view.weights).map(|b| b.0),
             lines: &self.lines,
             bones: &self.bones,
@@ -75,13 +83,14 @@ impl SceneBuilder {
         target.push(LineVertex::new(b, c));
     }
 
-    /// Grille au sol (pas de 0,25 m, lignes majeures chaque mètre).
-    fn grid(&mut self) {
+    /// Grille au sol : pas d'un quart d'unité, lignes majeures à chaque unité
+    /// (1 m pour un personnage, 100 pour un modèle en centimètres…).
+    fn grid(&mut self, unit: f32) {
         let minor = Vec4::new(0.35, 0.35, 0.37, 0.25);
         let major = Vec4::new(0.45, 0.45, 0.48, 0.45);
-        let extent = 5.0;
+        let extent = 5.0 * unit;
         for i in -20..=20 {
-            let t = i as f32 * 0.25;
+            let t = i as f32 * 0.25 * unit;
             let c = if i == 0 {
                 continue;
             } else if i % 4 == 0 {
@@ -209,4 +218,14 @@ impl SceneBuilder {
         self.line(p - Vec3::Y * s, p + Vec3::Y * s, c, true);
         self.line(p - Vec3::Z * s, p + Vec3::Z * s, c, true);
     }
+}
+
+/// Puissance de 10 la plus proche de la taille du modèle.
+fn grid_unit(mesh: &bones_core::Mesh) -> f32 {
+    let size = mesh
+        .bounds()
+        .map(|(lo, hi)| (hi - lo).max_element())
+        .unwrap_or(1.0)
+        .max(1e-3);
+    10f32.powf(size.log10().round())
 }

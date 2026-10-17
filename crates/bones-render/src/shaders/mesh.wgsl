@@ -1,10 +1,22 @@
-// Maillage skinné (skinning linéaire calculé sur le GPU)
+// Maillage skinné (skinning linéaire calculé sur le GPU), texturé.
+
+struct Material {
+    // Couleur de base linéaire.
+    base_color: vec4<f32>,
+    // x : 1 si une texture est appliquée.
+    flags: vec4<f32>,
+};
+
+@group(1) @binding(0) var<uniform> material: Material;
+@group(1) @binding(1) var base_texture: texture_2d<f32>;
+@group(1) @binding(2) var base_sampler: sampler;
 
 struct MeshIn {
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) bones: vec4<u32>,
     @location(3) weights: vec4<f32>,
+    @location(4) uv: vec2<f32>,
 };
 
 struct MeshOut {
@@ -12,6 +24,7 @@ struct MeshOut {
     @location(0) normal: vec3<f32>,
     @location(1) world: vec3<f32>,
     @location(2) heat: f32,
+    @location(3) uv: vec2<f32>,
 };
 
 @vertex
@@ -44,6 +57,7 @@ fn vs_mesh(v: MeshIn) -> MeshOut {
     out.normal = normal;
     out.world = world.xyz;
     out.heat = heat;
+    out.uv = v.uv;
     return out;
 }
 
@@ -53,7 +67,13 @@ fn fs_mesh(in: MeshOut, @builtin(front_facing) front: bool) -> @location(0) vec4
     if (!front) {
         n = -n;
     }
+    // Échantillonnage hors de tout branchement (contrôle uniforme) ; la
+    // texture blanche des matériaux sans image laisse la couleur intacte.
+    let texel = textureSample(base_texture, base_sampler, in.uv).rgb;
     var base = vec3<f32>(0.62, 0.6, 0.58);
+    if (globals.params.w > 0.5) {
+        base = material.base_color.rgb * mix(vec3<f32>(1.0), texel, material.flags.x);
+    }
     if (globals.params.x >= 0.0) {
         base = mix(vec3<f32>(0.05, 0.08, 0.35), heat_color(in.heat), 0.92);
     }

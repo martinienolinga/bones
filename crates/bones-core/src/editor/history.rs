@@ -8,7 +8,20 @@ impl Editor {
         if self.undo.len() > UNDO_LIMIT {
             self.undo.remove(0);
         }
-        self.redo.clear();
+        self.redo_backup = std::mem::take(&mut self.redo);
+    }
+
+    /// Abandonne le dernier point de reprise (geste annulé ou sans effet) :
+    /// l'historique redevient exactement celui d'avant. Avec `restore`, le
+    /// document revient aussi à l'état sauvegardé.
+    pub(super) fn drop_checkpoint(&mut self, restore: bool) {
+        if let Some(rig) = self.undo.pop()
+            && restore
+        {
+            self.rig = rig;
+            self.after_history();
+        }
+        self.redo = std::mem::take(&mut self.redo_backup);
     }
 
     pub fn can_undo(&self) -> bool {

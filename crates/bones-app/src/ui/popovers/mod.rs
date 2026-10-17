@@ -68,7 +68,7 @@ pub fn show(
     if close
         || actions
             .iter()
-            .any(|a| matches!(a, UiAction::Open(_) | UiAction::ImportObj(_)))
+            .any(|a| matches!(a, UiAction::Import(_) | UiAction::Export(_)))
     {
         state.popover = None;
     }

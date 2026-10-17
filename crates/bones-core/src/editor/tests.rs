@@ -108,3 +108,19 @@ fn autorig_generates_and_binds() {
     assert!(e.rig.skeleton.find("index1.l").is_none());
     assert!(e.rig.needs_bind());
 }
+
+#[test]
+fn tapping_a_bone_selects_without_history_entry() {
+    let (mut e, vp) = front_editor();
+    e.add_key();
+    assert!(e.can_undo());
+    e.undo();
+    assert!(e.can_redo());
+    // Os de colonne : pas de poignée IK à proximité.
+    let p = screen_of_tail(&e, "spine_02.x", &vp);
+    assert!(e.pointer_down(p, &vp, 10.0));
+    e.pointer_up();
+    assert_eq!(e.selected, e.rig.skeleton.find("spine_02.x"));
+    assert!(!e.can_undo(), "une simple tape ne doit pas créer d'étape");
+    assert!(e.can_redo(), "la pile de rétablissement est conservée");
+}

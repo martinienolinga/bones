@@ -11,13 +11,14 @@
 //!
 //! Organisation :
 //! - [`math`] : transformations, caméra, sélection à l'écran ;
-//! - [`mesh`] : maillages et primitives ;
+//! - [`mesh`] : maillages, matériaux, textures et primitives ;
 //! - [`rig`] : squelette, pose, symétrie, document de travail ;
 //! - [`skinning`] : poids (enveloppes, diffusion de chaleur) et déformation ;
 //! - [`ik`] : FABRIK, IK à deux os, points épinglés ;
 //! - [`autorig`] : rigging assisté façon Auto-Rig Pro ;
 //! - [`anim`] : clés, interpolation, physique (Cascadeur) ;
-//! - [`io`] : fichiers `.bones`, import OBJ, export glTF ;
+//! - [`io`] : fichiers `.bones` et formats d'échange (glTF/GLB, FBX, OBJ,
+//!   STL, PLY, BVH) en import et en export ;
 //! - [`editor`] : état de l'éditeur et gestes, indépendants de la plateforme.
 
 pub mod anim;
@@ -37,8 +38,9 @@ pub use autorig::{AutoRigOptions, Limb, LimbMode, MarkerKind, Markers};
 pub use editor::{BindJob, EditTool, Editor, Handle, Mode, PoseTool, ViewOptions};
 pub use ik::{IkSettings, Pin};
 pub use io::rig_file::RigError;
+pub use io::{Format, Imported, IoError};
 pub use math::{OrbitCamera, Ray, Transform, Viewport};
-pub use mesh::Mesh;
+pub use mesh::{Material, Mesh, Submesh, Texture};
 pub use rig::mirror::{Side, mirror_name, side_of};
 pub use rig::{Bone, BoneId, BoneRemap, Pose, Revisions, Rig, Skeleton, head_tail, next_revision};
 pub use skinning::{BindMethod, Skin, VertexWeights};

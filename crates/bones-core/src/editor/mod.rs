@@ -51,6 +51,8 @@ pub enum EditTool {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ViewOptions {
     pub mesh: bool,
+    /// Matériaux et textures du modèle (sinon rendu « argile »).
+    pub textures: bool,
     pub weights: bool,
     pub bones: bool,
     pub grid: bool,
@@ -63,6 +65,7 @@ impl Default for ViewOptions {
     fn default() -> Self {
         Self {
             mesh: true,
+            textures: true,
             weights: false,
             bones: true,
             grid: true,
@@ -101,6 +104,11 @@ pub struct Editor {
     pub status: Option<String>,
     undo: Vec<Rig>,
     redo: Vec<Rig>,
+    /// Pile de rétablissement vidée par le dernier point de reprise, gardée
+    /// pour pouvoir l'abandonner (geste sans effet).
+    redo_backup: Vec<Rig>,
+    /// Le geste en cours a réellement bougé.
+    drag_moved: bool,
     drag: Option<drag::Drag>,
     bind_requested: Option<(u64, u64)>,
     masses: Option<(u64, u64, Vec<f32>)>,
@@ -126,6 +134,8 @@ impl Editor {
             status: None,
             undo: Vec::new(),
             redo: Vec::new(),
+            redo_backup: Vec::new(),
+            drag_moved: false,
             drag: None,
             bind_requested: None,
             masses: None,

@@ -6,7 +6,7 @@ struct Globals {
     view_proj: mat4x4<f32>,
     eye: vec4<f32>,
     // x : os affiché en carte de poids (-1 : aucun), y : nombre de joints,
-    // z : opacité du maillage.
+    // z : opacité du maillage, w : 1 pour afficher matériaux et textures.
     params: vec4<f32>,
 };
 

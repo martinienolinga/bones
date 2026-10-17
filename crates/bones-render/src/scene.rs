@@ -44,7 +44,7 @@ pub(crate) struct Globals {
     pub view_proj: [[f32; 4]; 4],
     pub eye: [f32; 4],
     /// x : os en carte de poids (-1 : aucun), y : nombre de joints,
-    /// z : opacité du maillage.
+    /// z : opacité du maillage, w : matériaux et textures affichés.
     pub params: [f32; 4],
 }
 
@@ -57,7 +57,7 @@ impl Globals {
                 scene.weight_bone.map(|b| b as f32).unwrap_or(-1.0),
                 scene.joints.len() as f32,
                 1.0,
-                0.0,
+                f32::from(u8::from(scene.textured)),
             ],
         }
     }
@@ -72,7 +72,9 @@ pub struct Scene<'a> {
     pub background: [f64; 3],
     pub joints: &'a [Mat4],
     pub show_mesh: bool,
-    /// Os dont on affiche la carte de poids.
+    /// Matériaux et textures du modèle ; sinon rendu « argile » uniforme.
+    pub textured: bool,
+    /// Os dont on affiche la carte de poids (prioritaire sur les textures).
     pub weight_bone: Option<u32>,
     /// Lignes testées en profondeur (grille).
     pub lines: &'a [LineVertex],

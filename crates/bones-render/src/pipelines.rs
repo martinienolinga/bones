@@ -1,6 +1,8 @@
 //! Shaders, disposition des liaisons et pipelines de rendu.
 
+use crate::bindings;
 use crate::layouts::{LINE_ATTRS, bone_buffers, mesh_buffers};
+use crate::materials;
 use crate::scene::LineVertex;
 
 pub(crate) const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
@@ -14,7 +16,10 @@ const SHADER: &str = concat!(
 );
 
 pub(crate) struct Pipelines {
+    /// Groupe 0 : uniformes globaux et matrices des os.
     pub bind_layout: wgpu::BindGroupLayout,
+    /// Groupe 1 : matériau du maillage.
+    pub material_layout: wgpu::BindGroupLayout,
     /// Maillage skinné, opaque.
     pub mesh: wgpu::RenderPipeline,
     /// Os, fantômes et poignées (instanciés, transparence possible).
@@ -28,6 +33,7 @@ pub(crate) struct Pipelines {
 /// Paramètres variables d'un pipeline.
 struct Spec<'a> {
     label: &'a str,
+    layout: &'a wgpu::PipelineLayout,
     vs: &'a str,
     fs: &'a str,
     buffers: &'a [Option<wgpu::VertexBufferLayout<'a>>],
@@ -44,16 +50,24 @@ impl Pipelines {
             label: Some("bones"),
             source: wgpu::ShaderSource::Wgsl(SHADER.into()),
         });
-        let bind_layout = bind_group_layout(device);
+        let bind_layout = bindings::globals_layout(device);
+        let material_layout = materials::layout(device);
+        // Seul le maillage utilise le groupe 1 (matériau) : les autres
+        // pipelines n'exigent ainsi que le groupe 0.
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("bones"),
             bind_group_layouts: &[Some(&bind_layout)],
             immediate_size: 0,
         });
+        let mesh_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("maillage"),
+            bind_group_layouts: &[Some(&bind_layout), Some(&material_layout)],
+            immediate_size: 0,
+        });
         let create = |s: Spec| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(s.label),
-                layout: Some(&layout),
+                layout: Some(s.layout),
                 vertex: wgpu::VertexState {
                     module: &shader,
                     entry_point: Some(s.vs),
@@ -99,6 +113,7 @@ impl Pipelines {
         })];
         let line = |label, depth_compare| Spec {
             label,
+            layout: &layout,
             vs: "vs_line",
             fs: "fs_line",
             buffers: &lines,
@@ -112,6 +127,7 @@ impl Pipelines {
         Self {
             mesh: create(Spec {
                 label: "mesh",
+                layout: &mesh_layout,
                 vs: "vs_mesh",
                 fs: "fs_mesh",
                 buffers: &mesh_buffers(),
@@ -123,6 +139,7 @@ impl Pipelines {
             }),
             bone: create(Spec {
                 label: "bones",
+                layout: &layout,
                 vs: "vs_bone",
                 fs: "fs_bone",
                 buffers: &bone_buffers(),
@@ -135,59 +152,9 @@ impl Pipelines {
             line: create(line("lines", wgpu::CompareFunction::LessEqual)),
             overlay_line: create(line("overlay-lines", wgpu::CompareFunction::Always)),
             bind_layout,
+            material_layout,
         }
     }
-
-    /// Groupe de liaison : uniformes globaux et matrices des os.
-    pub fn bind_group(
-        &self,
-        device: &wgpu::Device,
-        globals: &wgpu::Buffer,
-        joints: &wgpu::Buffer,
-    ) -> wgpu::BindGroup {
-        device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("globals"),
-            layout: &self.bind_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: globals.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: joints.as_entire_binding(),
-                },
-            ],
-        })
-    }
-}
-
-fn bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-    let buffer = |binding, visibility, ty| wgpu::BindGroupLayoutEntry {
-        binding,
-        visibility,
-        ty: wgpu::BindingType::Buffer {
-            ty,
-            has_dynamic_offset: false,
-            min_binding_size: None,
-        },
-        count: None,
-    };
-    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("globals"),
-        entries: &[
-            buffer(
-                0,
-                wgpu::ShaderStages::VERTEX_FRAGMENT,
-                wgpu::BufferBindingType::Uniform,
-            ),
-            buffer(
-                1,
-                wgpu::ShaderStages::VERTEX,
-                wgpu::BufferBindingType::Storage { read_only: true },
-            ),
-        ],
-    })
 }
 
 #[cfg(test)]

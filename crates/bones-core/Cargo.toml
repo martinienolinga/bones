@@ -8,8 +8,14 @@ publish.workspace = true
 repository.workspace = true
 
 [dependencies]
+base64.workspace = true
 bytemuck.workspace = true
+fbxcel.workspace = true
 glam.workspace = true
+gltf.workspace = true
+image.workspace = true
 rayon.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+stl_io.workspace = true
+tobj.workspace = true

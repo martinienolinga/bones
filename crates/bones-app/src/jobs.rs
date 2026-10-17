@@ -7,17 +7,18 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender, channel};
 
 use bones_core::editor::BindJob;
-use bones_core::{Mesh, Rig, Skin};
+use bones_core::io::{Format, Imported};
+use bones_core::{Rig, Skin};
 use winit::event_loop::EventLoopProxy;
 
 use crate::UserEvent;
 
 pub enum JobResult {
     Bound(Skin, (u64, u64)),
-    Opened(Result<Rig, String>),
-    Imported(Result<Mesh, String>),
+    Imported(Result<Imported, String>),
     Saved(Result<PathBuf, String>),
-    Exported(Result<PathBuf, String>),
+    /// Fichiers écrits (le principal en premier).
+    Exported(Result<Vec<PathBuf>, String>),
 }
 
 pub struct Jobs {
@@ -67,22 +68,10 @@ impl Jobs {
         });
     }
 
-    pub fn open(&mut self, path: PathBuf) {
-        self.spawn(move || {
-            let result = std::fs::File::open(&path)
-                .map_err(|e| e.to_string())
-                .and_then(|f| Rig::load(f).map_err(|e| e.to_string()));
-            JobResult::Opened(result)
-        });
-    }
-
-    pub fn import_obj(&mut self, path: PathBuf) {
-        self.spawn(move || {
-            let result = std::fs::read_to_string(&path)
-                .map_err(|e| e.to_string())
-                .and_then(|src| bones_core::io::obj::parse(&src).map_err(|e| e.to_string()));
-            JobResult::Imported(result)
-        });
+    /// Ouvre un document `.bones` ou importe un fichier 3D (format déduit
+    /// de l'extension, textures cherchées à côté du fichier).
+    pub fn import(&mut self, path: PathBuf) {
+        self.spawn(move || JobResult::Imported(bones_core::io::import(&path).map_err(|e| e.to_string())));
     }
 
     /// Enregistre une copie du document (clone peu coûteux grâce aux `Arc`).
@@ -93,13 +82,9 @@ impl Jobs {
         });
     }
 
-    pub fn export_glb(&mut self, rig: Rig, path: PathBuf) {
+    pub fn export(&mut self, rig: Rig, format: Format, path: PathBuf) {
         self.spawn(move || {
-            let bytes = bones_core::io::gltf::export_glb(&rig);
-            let result = write_atomically(&path, |mut f| {
-                std::io::Write::write_all(&mut f, &bytes).map_err(|e| e.to_string())
-            });
-            JobResult::Exported(result.map(|_| path))
+            JobResult::Exported(bones_core::io::export(&rig, format, &path).map_err(|e| e.to_string()))
         });
     }
 

@@ -51,6 +51,7 @@ pub(super) enum Drag {
 impl Editor {
     pub fn pointer_move(&mut self, pos: Vec2, vp: &Viewport) {
         let Some(drag) = self.drag.clone() else { return };
+        self.drag_moved = true;
         match drag {
             Drag::Fabrik {
                 chain,
@@ -171,12 +172,14 @@ impl Editor {
             Drag::NewBone { bone, .. } => {
                 // Simple tap : pas d'os de longueur nulle.
                 if self.rig.skeleton.bone(bone).length < self.camera.distance * 0.02 {
-                    self.undo();
-                    self.redo.pop();
+                    self.drop_checkpoint(true);
                     self.selected = self.selected.filter(|s| self.rig.skeleton.contains(*s));
                 }
             }
-            Drag::Tail { .. } | Drag::Marker { .. } => {}
+            Drag::Marker { .. } => {}
+            // Simple tape sur un os (sélection) : rien à annuler.
+            _ if !self.drag_moved => self.drop_checkpoint(true),
+            Drag::Tail { .. } => {}
             _ => {
                 self.snap_limbs();
                 self.store_key_if_any();
@@ -187,8 +190,7 @@ impl Editor {
     /// Annule le geste en cours (arrivée d'un second doigt, etc.).
     pub fn pointer_cancel(&mut self) {
         if self.drag.take().is_some() && !matches!(self.mode, Mode::AutoRig) {
-            self.undo();
-            self.redo.pop();
+            self.drop_checkpoint(true);
         }
     }
 

@@ -20,6 +20,7 @@ mod top;
 
 use std::path::PathBuf;
 
+use bones_core::io::Format;
 use bones_core::{Editor, Mode, Viewport};
 
 pub use popovers::Popover;
@@ -29,10 +30,10 @@ use crate::files::{self, FileEntry};
 /// Demandes de l'interface qui passent par l'application (fichiers, tâches).
 pub enum UiAction {
     NewDemo,
-    Open(PathBuf),
-    ImportObj(PathBuf),
+    /// Ouvre un `.bones` ou importe un fichier 3D.
+    Import(PathBuf),
     Save,
-    ExportGlb,
+    Export(Format),
 }
 
 /// État des tâches de fond, pour les indicateurs.
@@ -54,6 +55,7 @@ pub struct UiState {
     pub pencil_only: bool,
     rename: String,
     toast: Option<(String, f64)>,
+    /// Documents `.bones` et fichiers importables du dossier Documents.
     files: Option<(Vec<FileEntry>, Vec<FileEntry>)>,
 }
 
@@ -85,8 +87,8 @@ impl UiState {
         let dir = &self.docs_dir;
         self.files.get_or_insert_with(|| {
             (
-                files::list(dir, files::RIG_EXT),
-                files::list(dir, files::MESH_EXT),
+                files::list(dir, |f| f == Format::Bones),
+                files::list(dir, |f| f != Format::Bones && f.can_import()),
             )
         })
     }
