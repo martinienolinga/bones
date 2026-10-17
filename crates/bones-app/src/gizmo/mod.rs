@@ -84,6 +84,12 @@ pub fn show(ctx: &egui::Context, editor: &mut Editor, style: GizmoStyle) -> Vec<
     vec![cube, grid]
 }
 
+/// Interrompt l'alignement animé en cours (une autre transition de caméra
+/// prend la main).
+pub fn cancel_animation(ctx: &egui::Context) {
+    view::cancel(ctx);
+}
+
 fn gizmo(ui: &mut egui::Ui, editor: &mut Editor, style: GizmoStyle) {
     let (rect, response) = ui.allocate_exact_size(egui::vec2(SIZE, SIZE), egui::Sense::click_and_drag());
     let hovered = response.hovered() || response.dragged();

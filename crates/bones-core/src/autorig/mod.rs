@@ -13,6 +13,7 @@
 pub mod face;
 mod fit;
 mod generate;
+mod head;
 mod layout;
 mod limb;
 mod markers;
@@ -21,6 +22,7 @@ mod tests;
 
 pub use fit::fit_layout;
 pub use generate::{AutoRigOptions, build, generate, generate_fitted, generate_safe};
+pub use head::head_bounds;
 pub use layout::{FINGER_NAMES, Layout};
 pub use limb::{Limb, LimbMode};
 pub use markers::{MarkerKind, Markers};

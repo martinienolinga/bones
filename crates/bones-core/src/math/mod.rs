@@ -1,6 +1,7 @@
 //! Mathématiques : transformations, caméra orbitale et sélection à l'écran.
 
 pub mod camera;
+mod framing;
 pub mod pick;
 pub mod transform;
 

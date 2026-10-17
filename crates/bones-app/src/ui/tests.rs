@@ -543,3 +543,79 @@ fn weights_tools_menu_applies_and_closes() {
         "la ligne applique l'outil et ferme le menu"
     );
 }
+
+// ----------------------------------------------------------------------
+// Gros plan automatique sur la tête à l'étape « Face ».
+
+/// Mannequin en mode Auto-Rig, étape « Body », zones stabilisées.
+fn autorig_mannequin() -> Harness {
+    let mut h = Harness::new();
+    h.editor = Editor::new(bones_core::samples::mannequin());
+    h.editor.set_mode(Mode::AutoRig);
+    for _ in 0..3 {
+        h.frame(vec![]);
+    }
+    h
+}
+
+/// Laisse la transition se terminer (egui avance de 1/60 s par image).
+fn settle(h: &mut Harness) {
+    for _ in 0..40 {
+        h.frame(vec![]);
+    }
+}
+
+#[test]
+fn face_step_frames_the_head_then_restores_the_body_view() {
+    let mut h = autorig_mannequin();
+    let body = h.editor.camera;
+    h.state.autorig_step = Step::Face;
+    h.frame(vec![]);
+    h.frame(vec![]);
+    let midway = h.editor.camera;
+    assert!(
+        !midway.same_view(&body) && midway.distance > 0.0,
+        "transition animée"
+    );
+    settle(&mut h);
+    let face = h.editor.camera;
+    assert_eq!((face.yaw, face.pitch), (0.0, 0.0), "vue de face");
+    assert!(
+        face.distance < 0.4 * body.distance,
+        "gros plan : {} → {}",
+        body.distance,
+        face.distance
+    );
+    let (_, top) = h.editor.rig.mesh.bounds().unwrap();
+    assert!(face.target.y > 0.8 * top.y, "cible sur la tête : {}", face.target);
+    assert!(!h.editor.can_undo(), "aucune étape d'annulation");
+    // Retour au corps : le cadrage d'avant revient (même après un geste).
+    h.editor.camera.orbit(30.0, 0.0);
+    h.state.autorig_step = Step::Body;
+    settle(&mut h);
+    let back = h.editor.camera;
+    assert!(
+        back.target.abs_diff_eq(body.target, 1e-4),
+        "{} / {}",
+        back.target,
+        body.target
+    );
+    assert!((back.distance - body.distance).abs() < 1e-4 && (back.yaw - body.yaw).abs() < 1e-5);
+}
+
+#[test]
+fn camera_gesture_interrupts_the_face_transition() {
+    let mut h = autorig_mannequin();
+    h.state.autorig_step = Step::Face;
+    h.frame(vec![]);
+    h.frame(vec![]);
+    // Un doigt fait tourner la vue en pleine transition : elle s'arrête là.
+    h.editor.camera.orbit(40.0, 10.0);
+    let moved = h.editor.camera;
+    settle(&mut h);
+    assert!(h.editor.camera.same_view(&moved));
+    // Quitter le mode Auto-Rig depuis l'étape « Face » rétablit aussi la vue.
+    h.editor.set_mode(Mode::Pose);
+    settle(&mut h);
+    assert!(!h.editor.camera.same_view(&moved));
+}

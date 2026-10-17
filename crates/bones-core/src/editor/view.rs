@@ -5,7 +5,7 @@ use glam::Vec3;
 
 use super::{Editor, Handle, Mode, is_limb_marker, mirror_x};
 use crate::anim::physics;
-use crate::{LimbMode, MarkerKind, Transform};
+use crate::{LimbMode, MarkerKind, OrbitCamera, Transform, Viewport, autorig};
 
 impl Editor {
     /// Transformations monde des os telles qu'affichées.
@@ -22,6 +22,24 @@ impl Editor {
             Mode::Pose | Mode::WeightPaint => self.rig.skinning_matrices(),
             Mode::Edit | Mode::AutoRig => vec![glam::Mat4::IDENTITY; self.rig.skeleton.len()],
         }
+    }
+
+    /// Gros plan de face sur la tête (étape « Face » de l'auto-rig), cadré
+    /// dans la zone `safe` de l'écran (entre les panneaux). Simple calcul :
+    /// la caméra de l'éditeur n'est pas modifiée.
+    pub fn face_camera(&self, viewport: &Viewport, safe: &Viewport) -> Option<OrbitCamera> {
+        let (lo, hi) = autorig::head_bounds(
+            &self.rig.mesh,
+            &self.rig.skeleton,
+            self.markers.as_ref(),
+            self.face_markers.as_ref(),
+        )?;
+        let front = OrbitCamera {
+            yaw: 0.0,
+            pitch: 0.0,
+            ..self.camera
+        };
+        front.framing_box(lo, hi, viewport, safe)
     }
 
     pub fn is_dragging(&self) -> bool {

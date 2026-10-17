@@ -22,7 +22,9 @@ pub fn show(
     let painter = ctx.layer_painter(egui::LayerId::background());
     let ppp = ctx.pixels_per_point();
     stats(&painter, editor);
-    if editor.mode == Mode::AutoRig {
+    // À l'étape « Face », seules les étiquettes du visage restent (le menton
+    // du corps doublerait celui du visage dans le gros plan).
+    if editor.mode == Mode::AutoRig && state.autorig_step == super::autorig_panel::Step::Body {
         marker_labels(&painter, editor, viewport, ppp);
     }
     if editor.mode == Mode::WeightPaint {

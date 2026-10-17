@@ -15,6 +15,7 @@
 
 mod autorig_panel;
 mod face_markers;
+mod face_view;
 mod overlay;
 mod popovers;
 mod shortcuts;
@@ -85,6 +86,8 @@ pub struct UiState {
     presets: PresetsState,
     /// Étape courante de l'auto-rig (corps ou visage).
     autorig_step: autorig_panel::Step,
+    /// Gros plan automatique sur la tête à l'étape « Face ».
+    face_view: face_view::FaceView,
 }
 
 impl UiState {
@@ -111,6 +114,7 @@ impl UiState {
             gallery_requested: false,
             presets: PresetsState::default(),
             autorig_step: autorig_panel::Step::Body,
+            face_view: face_view::FaceView::default(),
         }
     }
 
@@ -128,6 +132,7 @@ impl UiState {
         self.gallery_requested = false;
         self.presets.reset();
         self.autorig_step = autorig_panel::Step::Body;
+        self.face_view.reset();
     }
 
     /// Ouvre ou ferme une fenêtre ; `anchor_x` est le centre du bouton.
@@ -161,6 +166,7 @@ pub fn show(
 
     rects.push(top::show(ctx, editor, state));
     if std::mem::take(&mut state.gallery_requested) {
+        state.face_view.settle(editor);
         actions.push(UiAction::Gallery);
     }
     close_mode_popovers(editor, state);
@@ -168,6 +174,7 @@ pub fn show(
     rects.push(toolbox::show(ctx, editor, state));
     rects.extend(crate::gizmo::show(ctx, editor, state.settings.gizmo));
     let mut bottom = ctx.content_rect().bottom() - EDGE;
+    let mut autorig_top = None;
     match editor.mode {
         Mode::Pose => {
             let timeline = timeline::show(ctx, editor);
@@ -175,12 +182,17 @@ pub fn show(
             rects.push(timeline);
         }
         Mode::AutoRig => {
-            rects.push(autorig_panel::show(ctx, editor, state));
-            if state.autorig_step == autorig_panel::Step::Face {
-                rects.extend(face_markers::show(ctx, editor, viewport));
-            }
+            let panel = autorig_panel::show(ctx, editor, state);
+            autorig_top = Some(panel.top());
+            rects.push(panel);
         }
         Mode::Edit | Mode::WeightPaint => {}
+    }
+    // Gros plan sur la tête (avant les marqueurs, qui suivent la caméra).
+    let face = editor.mode == Mode::AutoRig && state.autorig_step == autorig_panel::Step::Face;
+    state.face_view.update(ctx, editor, face, viewport, autorig_top);
+    if face && autorig_top.is_some() {
+        rects.extend(face_markers::show(ctx, editor, viewport));
     }
     if transform_bar::available(editor) {
         rects.extend(transform_bar::show(ctx, editor, state, bottom));
