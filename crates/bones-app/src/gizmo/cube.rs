@@ -184,7 +184,11 @@ fn add_fringe(mesh: &mut egui::Mesh, width: f32) {
             egui::vec2(d.y, -d.x)
         };
         let normal = (outward(prev.pos, cur.pos) + outward(cur.pos, next.pos)).normalized();
-        let normal = if normal.is_finite() { normal } else { egui::Vec2::ZERO };
+        let normal = if normal.is_finite() {
+            normal
+        } else {
+            egui::Vec2::ZERO
+        };
         mesh.vertices.push(cur);
         mesh.vertices.push(egui::epaint::Vertex {
             pos: cur.pos + normal * width,
@@ -207,10 +211,14 @@ fn convex_hull(points: &[egui::epaint::Vertex]) -> Vec<egui::epaint::Vertex> {
     let mut hull: Vec<egui::epaint::Vertex> = Vec::with_capacity(64);
     for pass in 0..2 {
         let start = hull.len();
-        let iter: Box<dyn Iterator<Item = &egui::epaint::Vertex>> =
-            if pass == 0 { Box::new(pts.iter()) } else { Box::new(pts.iter().rev()) };
+        let iter: Box<dyn Iterator<Item = &egui::epaint::Vertex>> = if pass == 0 {
+            Box::new(pts.iter())
+        } else {
+            Box::new(pts.iter().rev())
+        };
         for p in iter {
-            while hull.len() >= start + 2 && cross(hull[hull.len() - 2].pos, hull[hull.len() - 1].pos, p.pos) <= 0.0
+            while hull.len() >= start + 2
+                && cross(hull[hull.len() - 2].pos, hull[hull.len() - 1].pos, p.pos) <= 0.0
             {
                 hull.pop();
             }
