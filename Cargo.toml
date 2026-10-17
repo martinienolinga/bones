@@ -37,6 +37,8 @@ stl_io = "0.11"
 fbxcel = { version = "0.9", default-features = false, features = ["tree", "writer"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tga", "bmp"] }
 base64 = "0.23"
+# Fichiers de projet `.kbrig` : conteneur ZIP, compression deflate pure Rust (zlib-rs).
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 [profile.dev.package."*"]
 # Les dépendances (wgpu, egui…) sont compilées optimisées même en debug :

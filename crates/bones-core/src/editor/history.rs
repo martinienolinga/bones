@@ -3,7 +3,24 @@
 use super::{Editor, Mode, UNDO_LIMIT};
 
 impl Editor {
+    /// Compteur de modifications, strictement croissant : il augmente à
+    /// chaque étape d'annulation créée (une fois le geste terminé), à chaque
+    /// retouche regroupée dans une étape existante, à chaque annulation et à
+    /// chaque rétablissement. Un simple toucher sans effet ne le change pas.
+    /// L'application s'en sert pour décider d'un enregistrement automatique.
+    pub fn edit_count(&self) -> u64 {
+        // Pendant un geste, son point de reprise peut encore être abandonné.
+        self.edits + u64::from(self.pending_edit && self.drag.is_none())
+    }
+
+    /// Compte la modification en attente, puis une de plus si `extra`.
+    pub(super) fn count_edit(&mut self, extra: bool) {
+        self.edits += u64::from(std::mem::take(&mut self.pending_edit)) + u64::from(extra);
+    }
+
     pub(super) fn checkpoint(&mut self) {
+        self.count_edit(false);
+        self.pending_edit = true;
         self.coalesce = None;
         self.undo.push(self.rig.clone());
         if self.undo.len() > UNDO_LIMIT {
@@ -16,6 +33,7 @@ impl Editor {
     /// l'historique redevient exactement celui d'avant. Avec `restore`, le
     /// document revient aussi à l'état sauvegardé.
     pub(super) fn drop_checkpoint(&mut self, restore: bool) {
+        self.pending_edit = false;
         if let Some(rig) = self.undo.pop()
             && restore
         {
@@ -35,6 +53,7 @@ impl Editor {
 
     pub fn undo(&mut self) {
         if let Some(rig) = self.undo.pop() {
+            self.count_edit(true);
             self.redo.push(std::mem::replace(&mut self.rig, rig));
             self.after_history();
         }
@@ -42,6 +61,7 @@ impl Editor {
 
     pub fn redo(&mut self) {
         if let Some(rig) = self.redo.pop() {
+            self.count_edit(true);
             self.undo.push(std::mem::replace(&mut self.rig, rig));
             self.after_history();
         }

@@ -25,6 +25,7 @@ pub use bone_info::BoneInfo;
 pub use rig_ops::BindJob;
 
 use glam::Vec3;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     AutoRigOptions, BindMethod, BoneId, ManipulatorSettings, MarkerKind, Markers, Mesh, OrbitCamera, Rig,
@@ -32,7 +33,7 @@ use crate::{
 
 const UNDO_LIMIT: usize = 64;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Mode {
     /// Pose et animation (Cascadeur).
     Pose,
@@ -42,7 +43,7 @@ pub enum Mode {
     AutoRig,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PoseTool {
     /// Glisser un os : IK (FABRIK), membre IK ou translation de la racine.
     Move,
@@ -52,7 +53,7 @@ pub enum PoseTool {
     Pin,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EditTool {
     /// Glisser un os déplace sa queue.
     Select,
@@ -68,7 +69,8 @@ pub enum EditTool {
     Reparent,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ViewOptions {
     pub mesh: bool,
     /// Matériaux et textures du modèle (sinon rendu « argile »).
@@ -137,6 +139,11 @@ pub struct Editor {
     coalesce: Option<(BoneId, u8)>,
     undo: Vec<Rig>,
     redo: Vec<Rig>,
+    /// Modifications comptées (voir [`Editor::edit_count`]).
+    edits: u64,
+    /// Dernier point de reprise pas encore compté tant qu'un geste en cours
+    /// peut l'abandonner (simple toucher sans effet).
+    pending_edit: bool,
     /// Pile de rétablissement vidée par le dernier point de reprise, gardée
     /// pour pouvoir l'abandonner (geste sans effet).
     redo_backup: Vec<Rig>,
@@ -172,6 +179,8 @@ impl Editor {
             coalesce: None,
             undo: Vec::new(),
             redo: Vec::new(),
+            edits: 0,
+            pending_edit: false,
             redo_backup: Vec::new(),
             drag_moved: false,
             drag: None,

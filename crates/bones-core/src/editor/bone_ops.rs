@@ -24,6 +24,9 @@ impl Editor {
         if self.coalesce != Some(key) {
             self.checkpoint();
             self.coalesce = Some(key);
+        } else {
+            // Retouche regroupée : pas de nouvelle étape, mais une modification.
+            self.count_edit(true);
         }
     }
 

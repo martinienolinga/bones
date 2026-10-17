@@ -19,3 +19,4 @@ serde.workspace = true
 serde_json.workspace = true
 stl_io.workspace = true
 tobj.workspace = true
+zip.workspace = true
