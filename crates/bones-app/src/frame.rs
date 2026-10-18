@@ -43,6 +43,7 @@ impl Running {
         };
         let raw = self.egui_state.take_egui_input(&self.window);
         self.glass.publish(&self.egui_ctx);
+        self.showcase.publish(&self.egui_ctx);
         let mut actions: Vec<UiAction> = Vec::new();
         let mut gallery_actions: Vec<GalleryAction> = Vec::new();
         let mut output = self.egui_ctx.run_pass(raw, |ctx| {
@@ -102,6 +103,10 @@ impl Running {
                 &frame.texture,
             );
         }
+
+        // Vignettes des galeries de préréglages, soumises avant l'image.
+        self.showcase
+            .render(&self.egui_ctx, device, queue, &mut self.egui_renderer);
 
         // Interface par-dessus (sur fond effacé dans la galerie).
         let ppp = output.pixels_per_point;

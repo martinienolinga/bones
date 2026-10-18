@@ -37,6 +37,11 @@ impl RenderTargets {
         self.samples
     }
 
+    /// Taille des vues créées par le dernier [`Self::ensure`].
+    pub fn size(&self) -> [u32; 2] {
+        self.size
+    }
+
     /// Vues créées par le dernier [`Self::ensure`].
     pub fn views(&self) -> &Views {
         self.views.as_ref().expect("RenderTargets::ensure appelé avant")

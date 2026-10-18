@@ -10,7 +10,8 @@
 //!   par [`Category`] / [`Section`] ([`Section::contains`]) et filtrer par
 //!   texte ([`PresetInfo::matches`]).
 //! - **Aperçu animé** (vignette) : [`Preview::new`] puis [`Preview::segments`]
-//!   à l'instant voulu, sans toucher au projet.
+//!   à l'instant voulu, sans toucher au projet ; ou, joué sur le mannequin,
+//!   [`Staged::new`] puis [`Staged::joints`] (vignettes rendues).
 //! - **Appliquer** : [`crate::Editor::apply_preset`] avec des [`ApplyOptions`]
 //!   (une seule étape d'annulation), [`crate::Editor::preset_roles`] pour la
 //!   correspondance des os.
@@ -39,6 +40,7 @@ pub mod retarget;
 pub mod roles;
 #[cfg(test)]
 mod sheet;
+pub mod stage;
 #[cfg(test)]
 mod tests;
 pub mod user;
@@ -56,3 +58,4 @@ pub use preview::Preview;
 pub use procedural::Generator;
 pub use reference::RefRig;
 pub use roles::{BodyFrame, Chain, Lr, RigType, Role, RoleMap, detect};
+pub use stage::{Shot, StageModel, Staged, shot_for};

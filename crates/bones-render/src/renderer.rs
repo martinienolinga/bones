@@ -24,6 +24,8 @@ pub(crate) struct Frame {
     pub wire: bool,
     pub viewport: [f32; 4],
     pub background: [f64; 3],
+    /// Opacité du fond (0 : vignette sur fond transparent).
+    pub clear_alpha: f64,
 }
 
 pub struct Renderer {
@@ -150,6 +152,7 @@ impl Renderer {
             wire: scene.weights.is_some_and(|w| w.wire),
             viewport: scene.viewport,
             background: scene.background,
+            clear_alpha: 1.0,
         };
     }
 }

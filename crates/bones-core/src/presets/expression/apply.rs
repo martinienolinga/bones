@@ -37,7 +37,8 @@ pub fn present_mapped(skeleton: &Skeleton) -> Vec<(FaceBone, BoneId)> {
 }
 
 /// Pose du visage produite par l'expression sur `skeleton` : repos + deltas
-/// mis à l'échelle (`intensity`), éventuellement retournée gauche ↔ droite.
+/// mis à l'échelle (`intensity`), décalages adaptés à la taille du visage,
+/// éventuellement retournée gauche ↔ droite.
 /// Seuls les os du visage présents sont posés ; tout le reste reste au repos.
 /// Retourne aussi la couverture (os appliqués / ignorés).
 pub fn face_pose(
@@ -47,12 +48,15 @@ pub fn face_pose(
     mirror: bool,
 ) -> (Pose, ExpressionReport) {
     let present = present_mapped(skeleton);
+    let size = face_scale(skeleton, &present);
     let mut pose = Pose::rest(skeleton);
     let mut report = ExpressionReport::default();
     for (name, delta) in &data.bones {
         match present.iter().find(|(b, _)| b.name() == name) {
             Some((_, id)) => {
-                pose.bones[id.index()] = scaled(delta, intensity);
+                let mut t = scaled(delta, intensity);
+                t.translation *= size;
+                pose.bones[id.index()] = t;
                 report.applied.push(name.clone());
             }
             None => report.skipped.push(name.clone()),
@@ -62,6 +66,24 @@ pub fn face_pose(
         pose = mirrored_pose(skeleton, &pose);
     }
     (pose, report)
+}
+
+/// Rayon des yeux de la tête de référence (mètres) : les décalages des
+/// expressions sont écrits à cette échelle.
+const REFERENCE_EYE_RADIUS: f32 = 0.013;
+
+/// Taille du visage de `skeleton` par rapport à la tête de référence,
+/// d'après la longueur des paupières (proportionnelle au rayon de l'œil,
+/// voir [`FaceLayout`]) : un modèle en centimètres reçoit des décalages
+/// cent fois plus grands. 1 si le modèle n'a pas de paupières.
+fn face_scale(skeleton: &Skeleton, present: &[(FaceBone, BoneId)]) -> f32 {
+    let reference = 1.3 * REFERENCE_EYE_RADIUS;
+    present
+        .iter()
+        .find(|(b, _)| matches!(b, FaceBone::EyelidTopL | FaceBone::EyelidTopR))
+        .map(|(_, id)| skeleton.bone(*id).length / reference)
+        .filter(|s| s.is_finite() && *s > 0.0)
+        .map_or(1.0, |s| s.clamp(1e-3, 1e3))
 }
 
 /// Tête de référence autonome (`head.x` + os du visage, avec dents et langue)
@@ -84,7 +106,7 @@ pub fn reference_head() -> Skeleton {
 fn reference_markers() -> FaceMarkers {
     FaceMarkers {
         eye: Vec3::new(0.035, 1.62, 0.085),
-        eye_radius: 0.013,
+        eye_radius: REFERENCE_EYE_RADIUS,
         brow: Vec3::new(0.035, 1.66, 0.09),
         nose_tip: Vec3::new(0.0, 1.60, 0.12),
         lip_top: Vec3::new(0.0, 1.565, 0.11),

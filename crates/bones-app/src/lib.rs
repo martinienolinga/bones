@@ -19,6 +19,7 @@ mod running;
 mod scene;
 mod session;
 mod settings;
+mod showcase;
 mod thumbnail;
 mod ui;
 

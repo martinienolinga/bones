@@ -21,6 +21,8 @@
 //! - [`renderer`] : état GPU et préparation ; `pass` : dessin ;
 //! - `snapshot` : rendu hors écran et relecture des pixels ([`Readback`],
 //!   miniatures des projets) ;
+//! - `tiles` : vignettes rendues dans leurs propres textures, sur fond
+//!   transparent ([`Tiles`], galeries de préréglages) ;
 //! - `blur` : flou d'arrière-plan des panneaux en verre dépoli de
 //!   l'interface ([`Backdrop`]) ;
 //! - `materials`, `textures` : matériaux et textures du maillage ;
@@ -42,9 +44,11 @@ pub mod scene;
 mod snapshot;
 mod targets;
 mod textures;
+mod tiles;
 
 pub use blur::{Backdrop, Region};
 pub use geometry::{bone_matrix, handle_matrix};
 pub use renderer::Renderer;
 pub use scene::{BoneInstance, LineVertex, Scene, WeightView};
 pub use snapshot::Readback;
+pub use tiles::Tiles;

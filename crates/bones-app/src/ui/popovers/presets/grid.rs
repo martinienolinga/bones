@@ -1,12 +1,16 @@
 //! Vue en grille : catégories de la navigation, champ de recherche, grille de
-//! cartes à vignette animée, et pour les animations les boutons « + » (créer)
-//! et « Import ».
+//! cartes à vignette (le mannequin qui joue le préréglage), et pour les
+//! animations les boutons « + » (créer) et « Import ». Seules les cartes
+//! visibles demandent une vignette.
 
-use bones_core::presets::Section;
+use std::time::Duration;
+
+use bones_core::presets::{Section, shot_for};
 use bones_ui::icons::{self, Icon};
 use bones_ui::{theme, widgets};
 use egui::vec2;
 
+use super::card::Look;
 use super::library::{Entry, Library};
 use super::{Kind, Menu, PresetsState, View, card};
 
@@ -97,34 +101,48 @@ pub fn show(ui: &mut egui::Ui, p: &mut PresetsState, kind: Kind, body: f32) {
         empty_state(ui, kind, body);
         return;
     }
-    let time = ui.input(|i| i.time) as f32;
-    // Les vignettes jouent en continu tant que la galerie est ouverte.
-    ui.ctx().request_repaint();
+    let look = Look::of(kind, ui.input(|i| i.time) as f32);
     egui::ScrollArea::vertical()
         .id_salt(("presets-grid", p.section))
         .auto_shrink([false, false])
         .max_height(body - 48.0)
         .show(ui, |ui| {
-            let fallback = super::fallback_icon(kind);
             const COLS: usize = 3;
             const GAP: f32 = 12.0;
             let w = ((ui.available_width() - GAP * (COLS as f32 - 1.0)) / COLS as f32).max(120.0);
-            let cell = vec2(w, w * 0.78 + 34.0);
-            // Cuisson paresseuse des aperçus visibles (budget par image).
-            let presets: Vec<_> = list.iter().map(|e| p.library.preset(*e)).collect();
-            if p.previews.warm(&presets, 3) {
-                ui.ctx().request_repaint();
-            }
+            let cell = vec2(w, w * look.ratio + 34.0);
+            // Aperçus en bâtons (préréglages d'animaux, de végétaux…) cuits
+            // paresseusement ; les autres sont joués par le mannequin.
+            let sticks: Vec<_> = list
+                .iter()
+                .map(|e| p.library.preset(*e))
+                .filter(|preset| shot_for(preset).is_none())
+                .collect();
+            let mut wait = p.previews.warm(&sticks, 3).then_some(card::FRAME);
             for row in list.chunks(COLS) {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = GAP;
                     for &entry in row {
-                        card::show(ui, p, entry, cell, time, fallback);
+                        wait = soonest(wait, card::show(ui, p, entry, cell, look));
                     }
                 });
                 ui.add_space(GAP);
             }
+            // Seules les vignettes animées ou en préparation redemandent une
+            // image (au plus 30 par seconde) ; une grille d'expressions
+            // prêtes ne redessine plus rien.
+            if let Some(delay) = wait {
+                ui.ctx().request_repaint_after(delay);
+            }
         });
+}
+
+/// Le plus court de deux délais facultatifs.
+pub(super) fn soonest(a: Option<Duration>, b: Option<Duration>) -> Option<Duration> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (a, b) => a.or(b),
+    }
 }
 
 /// Ligne du haut : recherche à gauche ; pour les animations, « + » et

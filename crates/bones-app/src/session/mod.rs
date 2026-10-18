@@ -191,6 +191,7 @@ impl Running {
     /// Alerte mémoire d'iOS : sur la galerie, le projet quitté (déjà
     /// enregistré) n'est plus gardé en mémoire, ni ses tampons GPU.
     pub fn release_memory(&mut self) {
+        self.showcase.release(&mut self.egui_renderer);
         let saved = self
             .session
             .current

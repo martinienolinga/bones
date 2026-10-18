@@ -1,7 +1,7 @@
 //! Galerie de préréglages, dans l'esprit de la Brush Library de Procreate :
 //! une colonne de navigation à gauche (catégories), et à droite un champ de
-//! recherche puis une grille de cartes à vignette animée (squelette joué en
-//! boucle). Toucher une carte ouvre la feuille d'application ; « + » crée un
+//! recherche puis une grille de cartes à vignette 3D : le mannequin de l'app
+//! joue l'animation en boucle ou montre l'expression ([`stage`]). Toucher une carte ouvre la feuille d'application ; « + » crée un
 //! préréglage depuis l'animation, « Import » liste les fichiers importables,
 //! un appui long sur un préréglage utilisateur ouvre son menu.
 //!
@@ -16,6 +16,9 @@ mod grid;
 mod library;
 mod manage;
 mod preview;
+mod stage;
+#[cfg(test)]
+mod tests;
 
 use bones_core::Editor;
 use bones_ui::icons::Icon;
@@ -27,6 +30,7 @@ use self::apply::{ApplyForm, Report};
 use self::create::CreateForm;
 use self::library::{Entry, Importable, Library};
 use self::preview::PreviewCache;
+use self::stage::StageCache;
 use crate::ui::UiState;
 
 /// Genre de galerie ouverte.
@@ -68,6 +72,8 @@ pub struct PresetsState {
     view_slot: Option<View>,
     pub(crate) library: Library,
     previews: PreviewCache,
+    /// Vignettes jouées par le mannequin (animations humaines, expressions).
+    stage: StageCache,
     apply: ApplyForm,
     create: CreateForm,
     imports: Option<Vec<Importable>>,
@@ -109,6 +115,7 @@ impl PresetsState {
     fn refresh(&mut self, root: &std::path::Path) {
         self.library.refresh(&presets_dir(root));
         self.previews.clear();
+        self.stage.clear();
         self.imports = None;
     }
 }
@@ -217,53 +224,5 @@ fn fallback_icon(kind: Kind) -> Icon {
     match kind {
         Kind::Animations => Icon::Motion,
         Kind::Expressions => Icon::Face,
-    }
-}
-
-/// Points d'entrée pour les tests d'interface (pilotage sans toucher aux
-/// coordonnées des cartes).
-#[cfg(test)]
-impl PresetsState {
-    pub(crate) fn test_section(&mut self, i: usize) {
-        self.section = i;
-        self.view_slot = Some(View::Grid);
-    }
-
-    /// Ouvre la feuille d'application sur la première entrée de la section
-    /// courante ; faux si la section est vide.
-    pub(crate) fn test_open_first(&mut self, kind: Kind) -> bool {
-        match grid::entries(self, kind).first() {
-            Some(&entry) => {
-                self.view_slot = Some(View::Apply(entry));
-                true
-            }
-            None => false,
-        }
-    }
-
-    pub(crate) fn test_apply(&mut self, editor: &mut Editor, kind: Kind) {
-        if let View::Apply(entry) = self.view() {
-            apply::run(editor, self, entry, kind);
-        }
-    }
-
-    pub(crate) fn test_create_save(&mut self, editor: &mut Editor, docs: &std::path::Path) {
-        create::test_save(editor, self, docs);
-    }
-
-    pub(crate) fn test_open_import(&mut self) {
-        self.view_slot = Some(View::Import);
-    }
-
-    pub(crate) fn test_is_grid(&self) -> bool {
-        matches!(self.view(), View::Grid)
-    }
-
-    pub(crate) fn test_report_is_some(&self) -> bool {
-        self.report.is_some()
-    }
-
-    pub(crate) fn test_user_count(&self) -> usize {
-        self.library.user_len()
     }
 }

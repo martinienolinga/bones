@@ -30,6 +30,8 @@ pub struct Running {
     pub(crate) egui_renderer: egui_wgpu::Renderer,
     /// Flou des panneaux en verre dépoli.
     pub(crate) glass: crate::glass::Glass,
+    /// Vignettes 3D des galeries de préréglages (mannequin).
+    pub(crate) showcase: crate::showcase::Showcase,
     pub(crate) editor: Editor,
     pub(crate) ui: UiState,
     pub(crate) gestures: Gestures,
@@ -61,6 +63,7 @@ impl Running {
         );
         let copyable = gpu.config.usage.contains(wgpu::TextureUsages::COPY_SRC);
         let glass = crate::glass::Glass::new(&gpu.device, gpu.config.format, copyable);
+        let showcase = crate::showcase::Showcase::new(gpu.config.format);
 
         let docs = files::documents_dir();
         let session = Session::new(&docs, proxy.clone());
@@ -73,6 +76,7 @@ impl Running {
             egui_state,
             egui_renderer,
             glass,
+            showcase,
             // Éditeur vide en attendant l'ouverture d'un projet : l'app
             // démarre toujours sur la galerie.
             editor: Editor::new(Rig::new("", Mesh::default())),

@@ -1,13 +1,17 @@
-//! Feuille d'application d'un préréglage : aperçu animé en bandeau, réglages
+//! Feuille d'application d'un préréglage : aperçu en bandeau (le mannequin
+//! en grand), réglages
 //! ([`ApplyOptions`] pour une animation ; intensité / miroir / additif /
 //! « as key » pour une expression), bouton « Apply » et compte rendu
 //! ([`ApplyReport`] : os non reconnus).
 
+use std::time::Duration;
+
 use bones_core::Editor;
-use bones_core::presets::{ApplyMode, ApplyOptions};
+use bones_core::presets::{ApplyMode, ApplyOptions, shot_for};
 use bones_ui::icons::Icon;
 use bones_ui::{theme, widgets};
 
+use super::card::Look;
 use super::library::Entry;
 use super::{Kind, PresetsState};
 
@@ -48,14 +52,15 @@ pub fn show(
     kind: Kind,
     body: f32,
 ) {
-    let time = ui.input(|i| i.time) as f32;
-    ui.ctx().request_repaint();
+    let look = Look::of(kind, ui.input(|i| i.time) as f32);
     egui::ScrollArea::vertical()
         .id_salt("preset-apply")
         .auto_shrink([false, false])
         .max_height(body)
         .show(ui, |ui| {
-            banner(ui, p, entry, time);
+            if let Some(delay) = banner(ui, p, entry, look) {
+                ui.ctx().request_repaint_after(delay);
+            }
             ui.add_space(10.0);
             let info = p.library.info(entry);
             if !info.description.trim().is_empty() {
@@ -83,16 +88,28 @@ pub fn show(
         });
 }
 
-/// Bandeau d'aperçu animé en tête de la feuille.
-fn banner(ui: &mut egui::Ui, p: &mut PresetsState, entry: Entry, time: f32) {
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 150.0), egui::Sense::hover());
+/// Bandeau d'aperçu en tête de la feuille : le mannequin en grand (ou le
+/// squelette d'un préréglage d'animal). Retourne le délai avant la
+/// prochaine image voulue.
+fn banner(ui: &mut egui::Ui, p: &mut PresetsState, entry: Entry, look: Look) -> Option<Duration> {
+    let preset = p.library.preset(entry);
+    let staged = shot_for(preset).is_some();
+    let height = if staged { BANNER } else { 150.0 };
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), height), egui::Sense::hover());
     ui.painter()
         .rect_filled(rect, egui::CornerRadius::same(14), theme::WIDGET);
-    let preset = p.library.preset(entry);
-    p.previews.warm(std::slice::from_ref(&preset), 1);
-    let painter = ui.painter().with_clip_rect(rect);
-    p.previews.draw(&painter, rect, preset, time);
+    if !staged {
+        p.previews.warm(std::slice::from_ref(&preset), 1);
+    }
+    let look = Look {
+        margin: look.margin + 0.04,
+        ..look
+    };
+    super::card::thumbnail(ui, p, entry, rect.size(), rect, look)
 }
+
+/// Hauteur du bandeau quand le mannequin joue le préréglage.
+const BANNER: f32 = 300.0;
 
 /// Métadonnées : images, fréquence, boucle.
 fn meta(ui: &mut egui::Ui, info: &bones_core::presets::PresetInfo) {

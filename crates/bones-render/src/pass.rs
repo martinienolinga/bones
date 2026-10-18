@@ -48,7 +48,12 @@ impl Renderer {
                 depth_slice: None,
                 resolve_target,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color { r, g, b, a: 1.0 }),
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r,
+                        g,
+                        b,
+                        a: f.clear_alpha,
+                    }),
                     store,
                 },
             })],

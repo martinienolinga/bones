@@ -19,6 +19,7 @@
 //!
 //! [`Category::FacialExpression`]: crate::presets::Category::FacialExpression
 
+mod actions;
 mod apply;
 mod builder;
 mod data;
