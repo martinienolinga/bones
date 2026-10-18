@@ -69,7 +69,8 @@ impl Renderer {
             occlusion_query_set: None,
             multiview_mask: None,
         });
-        pass.set_bind_group(0, &self.bind_group, &[]);
+        // Bloc `Globals` du corps et de la surcouche (décalage dynamique 0).
+        pass.set_bind_group(0, &self.bind_group, &[0]);
 
         // Scène : maillage (une plage d'indices par matériau) puis grille.
         pass.set_viewport(x, y, w, h, OVERLAY_DEPTH_SPLIT, 1.0);
@@ -97,7 +98,10 @@ impl Renderer {
                 pass.draw_indexed(0..end, 0, 0..1);
             }
         }
+        // Objets supplémentaires (accessoires, vêtements), dans la scène.
+        self.draw_objects(&mut pass);
         if f.lines > 0 {
+            pass.set_bind_group(0, &self.bind_group, &[0]);
             pass.set_pipeline(&self.pipelines.line);
             pass.set_vertex_buffer(0, self.lines.buffer.slice(..));
             pass.draw(0..f.lines, 0..1);
@@ -105,6 +109,7 @@ impl Renderer {
 
         // Surcouche « rayons X » : os, poignées, trajectoires.
         pass.set_viewport(x, y, w, h, 0.0, OVERLAY_DEPTH_SPLIT);
+        pass.set_bind_group(0, &self.bind_group, &[0]);
         if f.bones > 0 {
             pass.set_pipeline(&self.pipelines.bone);
             pass.set_vertex_buffer(0, self.octahedron.slice(..));

@@ -9,6 +9,7 @@ use crate::bindings;
 use crate::buffers::{GrowBuffer, MeshBuffers};
 use crate::geometry::octahedron;
 use crate::materials::{MaterialContext, Materials};
+use crate::objects::ObjectCache;
 use crate::pipelines::Pipelines;
 use crate::scene::{Globals, Scene};
 use crate::targets::{RenderTargets, best_sample_count};
@@ -30,7 +31,13 @@ pub(crate) struct Frame {
 
 pub struct Renderer {
     pub(crate) pipelines: Pipelines,
-    globals: wgpu::Buffer,
+    /// Un bloc `Globals` par élément (corps au décalage 0, puis un par objet),
+    /// adressés par décalage dynamique.
+    globals: GrowBuffer,
+    /// Pas d'un bloc `Globals` (aligné sur le périphérique).
+    globals_stride: u32,
+    /// Blocs `Globals` assemblés sur le CPU, réutilisés d'une image à l'autre.
+    globals_blob: Vec<u8>,
     pub(crate) bind_group: wgpu::BindGroup,
     joints: GrowBuffer,
     pub(crate) octahedron: wgpu::Buffer,
@@ -42,6 +49,7 @@ pub struct Renderer {
     /// Créé au premier maillage (il faut la file pour la texture blanche).
     pub(crate) material_context: Option<MaterialContext>,
     pub(crate) materials: Option<Materials>,
+    pub(crate) objects: ObjectCache,
     pub(crate) targets: RenderTargets,
     pub(crate) frame: Frame,
     mesh_revision: u64,
@@ -57,14 +65,17 @@ impl Renderer {
     /// Moteur de rendu avec un nombre d'échantillons imposé (1 : sans MSAA).
     pub fn with_samples(device: &wgpu::Device, format: wgpu::TextureFormat, samples: u32) -> Self {
         let pipelines = Pipelines::new(device, format, samples);
-        let globals = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("globals"),
-            size: std::mem::size_of::<Globals>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+        let align = device.limits().min_uniform_buffer_offset_alignment.max(1);
+        let globals_stride = (std::mem::size_of::<Globals>() as u32).next_multiple_of(align);
+        let globals = GrowBuffer::new(
+            device,
+            "globals",
+            wgpu::BufferUsages::UNIFORM,
+            u64::from(globals_stride) * 8,
+        );
         let joints = GrowBuffer::new(device, "joints", wgpu::BufferUsages::STORAGE, 64 * 64);
-        let bind_group = bindings::globals_group(device, &pipelines.bind_layout, &globals, &joints.buffer);
+        let bind_group =
+            bindings::globals_group(device, &pipelines.bind_layout, &globals.buffer, &joints.buffer);
         let octa = octahedron();
         let octahedron = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("octahedron"),
@@ -75,6 +86,8 @@ impl Renderer {
         Self {
             pipelines,
             globals,
+            globals_stride,
+            globals_blob: Vec::new(),
             bind_group,
             joints,
             octahedron,
@@ -85,6 +98,7 @@ impl Renderer {
             mesh: None,
             material_context: None,
             materials: None,
+            objects: ObjectCache::default(),
             targets: RenderTargets::new(format, samples),
             frame: Frame::default(),
             mesh_revision: 0,
@@ -125,17 +139,18 @@ impl Renderer {
 
     /// Prépare les données de l'image (uniformes, matrices, instances, lignes).
     pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, scene: &Scene) {
-        queue.write_buffer(&self.globals, 0, bytemuck::bytes_of(&Globals::from_scene(scene)));
         let joints: &[u8] = if scene.joints.is_empty() {
             bytemuck::bytes_of(&Mat4::IDENTITY)
         } else {
             bytemuck::cast_slice(scene.joints)
         };
-        if self.joints.write(device, queue, joints) {
+        let joints_grew = self.joints.write(device, queue, joints);
+        let globals_grew = self.prepare_globals(device, queue, scene);
+        if joints_grew || globals_grew {
             self.bind_group = bindings::globals_group(
                 device,
                 &self.pipelines.bind_layout,
-                &self.globals,
+                &self.globals.buffer,
                 &self.joints.buffer,
             );
         }
@@ -154,5 +169,41 @@ impl Renderer {
             background: scene.background,
             clear_alpha: 1.0,
         };
+    }
+
+    /// Met à jour les tampons des objets et assemble un bloc `Globals` par
+    /// élément (corps puis objets). Retourne `true` si le tampon a grandi.
+    fn prepare_globals(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, scene: &Scene) -> bool {
+        // Contexte des matériaux créé au premier objet (il faut la file).
+        if !scene.objects.is_empty() && self.material_context.is_none() {
+            let layout = self.pipelines.material_layout.clone();
+            self.material_context = Some(MaterialContext::new(device, queue, layout));
+        }
+        if let Some(ctx) = &self.material_context {
+            self.objects.sync(
+                device,
+                queue,
+                ctx,
+                &self.pipelines.material_layout,
+                scene.objects,
+                self.globals_stride,
+            );
+        } else {
+            self.objects.clear();
+        }
+
+        let size = std::mem::size_of::<Globals>();
+        let stride = self.globals_stride as usize;
+        self.globals_blob.clear();
+        self.globals_blob.resize((1 + scene.objects.len()) * stride, 0);
+        let base = Globals::from_scene(scene);
+        self.globals_blob[..size].copy_from_slice(bytemuck::bytes_of(&base));
+        for (i, draw) in scene.objects.iter().enumerate() {
+            let skinned = self.objects.is_skinned(draw.id);
+            let g = Globals::for_object(scene, draw, skinned);
+            let off = (i + 1) * stride;
+            self.globals_blob[off..off + size].copy_from_slice(bytemuck::bytes_of(&g));
+        }
+        self.globals.write(device, queue, &self.globals_blob)
     }
 }

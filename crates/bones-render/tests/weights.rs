@@ -39,6 +39,7 @@ fn render(device: &wgpu::Device, queue: &wgpu::Queue, weights: WeightView, name:
         lines: &[],
         bones: &[],
         overlay_lines: &[],
+        objects: &[],
     };
     let mut renderer = Renderer::with_samples(device, FORMAT, 1);
     renderer.set_mesh(device, queue, &rig.mesh, 1);

@@ -1,7 +1,7 @@
 //! Shaders, disposition des liaisons et pipelines de rendu.
 
 use crate::bindings;
-use crate::layouts::{LINE_ATTRS, bone_buffers, mesh_buffers};
+use crate::layouts::{LINE_ATTRS, bone_buffers, mesh_buffers, object_buffers};
 use crate::materials;
 use crate::scene::LineVertex;
 
@@ -20,8 +20,10 @@ pub(crate) struct Pipelines {
     pub bind_layout: wgpu::BindGroupLayout,
     /// Groupe 1 : matériau du maillage.
     pub material_layout: wgpu::BindGroupLayout,
-    /// Maillage skinné, opaque.
+    /// Maillage skinné, opaque (corps et objets déformés).
     pub mesh: wgpu::RenderPipeline,
+    /// Objet rigide : maillage placé par sa matrice, sans poids.
+    pub object: wgpu::RenderPipeline,
     /// Os, fantômes et poignées (instanciés, transparence possible).
     pub bone: wgpu::RenderPipeline,
     /// Lignes testées en profondeur (grille).
@@ -157,6 +159,19 @@ impl Pipelines {
                 depth_compare: wgpu::CompareFunction::Less,
                 wire: false,
             }),
+            object: create(Spec {
+                label: "object",
+                layout: &mesh_layout,
+                vs: "vs_object",
+                fs: "fs_mesh",
+                buffers: &object_buffers(),
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                cull: None,
+                blend: None,
+                depth_write: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                wire: false,
+            }),
             bone: create(Spec {
                 label: "bones",
                 layout: &layout,
@@ -208,7 +223,14 @@ mod tests {
         .validate(&module)
         .expect("validation naga");
         for entry in [
-            "vs_mesh", "fs_mesh", "fs_wire", "vs_bone", "fs_bone", "vs_line", "fs_line",
+            "vs_mesh",
+            "vs_object",
+            "fs_mesh",
+            "fs_wire",
+            "vs_bone",
+            "fs_bone",
+            "vs_line",
+            "fs_line",
         ] {
             assert!(
                 module.entry_points.iter().any(|e| e.name == entry),

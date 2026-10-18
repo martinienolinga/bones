@@ -52,6 +52,7 @@ fn renders_demo_rig_with_and_without_msaa() {
         lines: &lines,
         bones: &bones,
         overlay_lines: &lines,
+        objects: &[],
     };
 
     for samples in [1, 4] {

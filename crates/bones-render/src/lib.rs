@@ -25,6 +25,8 @@
 //!   transparent ([`Tiles`], galeries de préréglages) ;
 //! - `blur` : flou d'arrière-plan des panneaux en verre dépoli de
 //!   l'interface ([`Backdrop`]) ;
+//! - `objects` : objets supplémentaires (accessoires, vêtements), cache GPU
+//!   par objet et dessin dans la passe de scène ;
 //! - `materials`, `textures` : matériaux et textures du maillage ;
 //! - `pipelines`, `bindings`, `layouts`, `buffers`, `targets`, `geometry` :
 //!   détails internes ;
@@ -37,6 +39,7 @@ mod buffers;
 mod geometry;
 mod layouts;
 mod materials;
+mod objects;
 mod pass;
 mod pipelines;
 pub mod renderer;

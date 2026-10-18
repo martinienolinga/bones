@@ -9,8 +9,16 @@ struct Globals {
     // joints, z : opacité du maillage, w : 1 pour afficher matériaux et
     // textures.
     params: vec4<f32>,
-    // x : 1 pour afficher en noir les sommets sans poids (« Zero Weights »).
+    // x : 1 pour afficher en noir les sommets sans poids (« Zero Weights ») ;
+    // y : 1 si le skinning s'applique (corps et objets déformés), 0 sinon ;
+    // z : 1 si l'élément est sélectionné (liseré d'accent).
     paint: vec4<f32>,
+    // Transformation du modèle appliquée avant le skinning : identité pour le
+    // corps, placement de liaison pour un objet déformé, matrice monde pour un
+    // objet rigide.
+    model: mat4x4<f32>,
+    // Couleur du liseré de sélection (accent de l'app), en espace d'affichage.
+    tint: vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> globals: Globals;

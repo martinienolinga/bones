@@ -56,6 +56,7 @@ impl Bench {
             lines: &[],
             bones: &[],
             overlay_lines: &[],
+            objects: &[],
         };
         let (device, queue) = (&self.device, &self.queue);
         self.tiles

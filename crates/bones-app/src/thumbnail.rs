@@ -3,7 +3,7 @@
 //! n'est dessiné que s'il n'y a pas de maillage. La lecture des pixels et
 //! l'encodage JPEG se font sur le fil des projets.
 
-use bones_core::{Editor, Side, Viewport, side_of};
+use bones_core::{Editor, ObjectDraw, Side, Viewport, side_of};
 use bones_render::{BoneInstance, Renderer, Scene, bone_matrix};
 use bones_ui::theme;
 use glam::{Mat4, Vec4};
@@ -33,15 +33,20 @@ pub fn backdrop() -> egui::Color32 {
 pub struct ThumbnailScene {
     joints: Vec<Mat4>,
     bones: Vec<BoneInstance>,
+    objects: Vec<ObjectDraw>,
 }
 
 impl ThumbnailScene {
     fn build(&mut self, editor: &Editor) -> Scene<'_> {
         self.joints.clear();
         self.bones.clear();
+        self.objects.clear();
+        // Accessoires et pièces inclus : l'épée du personnage figure sur sa
+        // vignette.
+        self.objects.extend(editor.object_draws());
         self.joints.extend(editor.skinning_matrices());
-        let has_mesh = editor.rig.mesh.triangle_count() > 0;
-        if !has_mesh {
+        let has_mesh = editor.rig.mesh.triangle_count() > 0 && editor.body_visible();
+        if !has_mesh && self.objects.is_empty() {
             let world = editor.display_world();
             for (i, bone) in editor.rig.skeleton.bones().iter().enumerate() {
                 let color = match side_of(&bone.name) {
@@ -71,6 +76,7 @@ impl ThumbnailScene {
             lines: &[],
             bones: &self.bones,
             overlay_lines: &[],
+            objects: &self.objects,
         }
     }
 }

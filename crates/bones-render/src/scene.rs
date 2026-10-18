@@ -1,7 +1,12 @@
 //! Données d'une image, telles que l'application les fournit au moteur de rendu.
 
+use bones_core::ObjectDraw;
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3, Vec4};
+
+/// Couleur du liseré de sélection (accent `#0A84FF` de l'app), en espace
+/// d'affichage (sRGB).
+pub(crate) const ACCENT: [f32; 4] = [10.0 / 255.0, 132.0 / 255.0, 1.0, 1.0];
 
 /// Instance d'octaèdre : un os, un fantôme ou une poignée.
 #[repr(C)]
@@ -61,11 +66,16 @@ pub(crate) struct Globals {
     /// x : os en carte de poids (-1 : pas de carte), y : nombre de joints,
     /// z : opacité du maillage, w : matériaux et textures affichés.
     pub params: [f32; 4],
-    /// x : poids nuls en noir ; y, z, w : réservés.
+    /// x : poids nuls en noir ; y : skinning appliqué ; z : sélectionné.
     pub paint: [f32; 4],
+    /// Placement avant skinning (identité pour le corps).
+    pub model: [[f32; 4]; 4],
+    /// Couleur du liseré de sélection.
+    pub tint: [f32; 4],
 }
 
 impl Globals {
+    /// Uniformes du corps et de la surcouche (modèle identité, skinning actif).
     pub fn from_scene(scene: &Scene) -> Self {
         let heat = scene
             .weights
@@ -80,7 +90,32 @@ impl Globals {
                 1.0,
                 f32::from(u8::from(scene.textured)),
             ],
-            paint: [f32::from(u8::from(zero_black)), 0.0, 0.0, 0.0],
+            paint: [f32::from(u8::from(zero_black)), 1.0, 0.0, 0.0],
+            model: Mat4::IDENTITY.to_cols_array_2d(),
+            tint: ACCENT,
+        }
+    }
+
+    /// Uniformes d'un objet : carte de poids désactivée, modèle = placement,
+    /// skinning actif seulement si l'objet est déformé.
+    pub fn for_object(scene: &Scene, draw: &ObjectDraw, skinned: bool) -> Self {
+        Self {
+            view_proj: scene.view_proj.to_cols_array_2d(),
+            eye: scene.eye.extend(1.0).to_array(),
+            params: [
+                -1.0,
+                scene.joints.len() as f32,
+                1.0,
+                f32::from(u8::from(scene.textured)),
+            ],
+            paint: [
+                0.0,
+                f32::from(u8::from(skinned)),
+                f32::from(u8::from(draw.selected)),
+                0.0,
+            ],
+            model: draw.model.to_cols_array_2d(),
+            tint: ACCENT,
         }
     }
 }
@@ -104,6 +139,9 @@ pub struct Scene<'a> {
     pub bones: &'a [BoneInstance],
     /// Lignes par-dessus tout (trajectoires, pôles IK, centre de masse).
     pub overlay_lines: &'a [LineVertex],
+    /// Objets supplémentaires visibles (accessoires, vêtements, pièces), à
+    /// dessiner avec le corps (voir [`bones_core::ObjectDraw`]).
+    pub objects: &'a [ObjectDraw],
 }
 
 #[cfg(test)]
@@ -114,6 +152,6 @@ mod tests {
     fn layouts_match_shaders() {
         assert_eq!(std::mem::size_of::<BoneInstance>(), 80);
         assert_eq!(std::mem::size_of::<LineVertex>(), 28);
-        assert_eq!(std::mem::size_of::<Globals>(), 112);
+        assert_eq!(std::mem::size_of::<Globals>(), 192);
     }
 }

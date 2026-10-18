@@ -49,12 +49,13 @@ fn vs_mesh(v: MeshIn) -> MeshOut {
             }
         }
     }
-    var world = vec4<f32>(v.position, 1.0);
-    var normal = v.normal;
+    // Placement du modèle avant le skinning (identité pour le corps).
+    var world = globals.model * vec4<f32>(v.position, 1.0);
+    var normal = (globals.model * vec4<f32>(v.normal, 0.0)).xyz;
     if (total > 1e-5) {
         skin = skin * (1.0 / total);
         world = skin * world;
-        normal = (skin * vec4<f32>(v.normal, 0.0)).xyz;
+        normal = (skin * vec4<f32>(normal, 0.0)).xyz;
     }
     var out: MeshOut;
     out.clip = globals.view_proj * world;
@@ -63,6 +64,26 @@ fn vs_mesh(v: MeshIn) -> MeshOut {
     out.heat = heat;
     out.uv = v.uv;
     out.referenced = referenced;
+    return out;
+}
+
+// Sommet d'un objet rigide : pas de poids, uniquement la matrice du modèle.
+struct ObjectIn {
+    @location(0) position: vec3<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+};
+
+@vertex
+fn vs_object(v: ObjectIn) -> MeshOut {
+    let world = globals.model * vec4<f32>(v.position, 1.0);
+    var out: MeshOut;
+    out.clip = globals.view_proj * world;
+    out.normal = (globals.model * vec4<f32>(v.normal, 0.0)).xyz;
+    out.world = world.xyz;
+    out.heat = 0.0;
+    out.uv = v.uv;
+    out.referenced = 0.0;
     return out;
 }
 
@@ -85,7 +106,14 @@ fn fs_mesh(in: MeshOut, @builtin(front_facing) front: bool) -> @location(0) vec4
             base = base * clamp(in.referenced, 0.0, 1.0);
         }
     }
-    return vec4<f32>(to_srgb(shade(base, n, in.world)), globals.params.z);
+    var color = to_srgb(shade(base, n, in.world));
+    // Sélection : liseré d'accent concentré sur la silhouette (aplat, net).
+    if (globals.paint.z > 0.5) {
+        let v = normalize(globals.eye.xyz - in.world);
+        let edge = pow(1.0 - max(dot(n, v), 0.0), 4.0);
+        color = mix(color, globals.tint.rgb, clamp(edge, 0.0, 1.0));
+    }
+    return vec4<f32>(color, globals.params.z);
 }
 
 // Arêtes du maillage (tracé en fil de fer) sur la carte de poids.

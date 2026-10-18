@@ -6,6 +6,8 @@ const POSITION_ATTRS: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![0 =>
 const NORMAL_ATTRS: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![1 => Float32x3];
 const WEIGHT_ATTRS: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![2 => Uint16x4, 3 => Unorm16x4];
 const UV_ATTRS: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![4 => Float32x2];
+/// Coordonnées de texture d'un objet rigide (pas de poids : emplacement 2).
+const OBJECT_UV_ATTRS: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![2 => Float32x2];
 const OCTAHEDRON_ATTRS: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3];
 const INSTANCE_ATTRS: [wgpu::VertexAttribute; 5] =
     wgpu::vertex_attr_array![2 => Float32x4, 3 => Float32x4, 4 => Float32x4, 5 => Float32x4, 6 => Float32x4];
@@ -35,6 +37,27 @@ pub(crate) fn mesh_buffers() -> [Option<wgpu::VertexBufferLayout<'static>>; 4] {
             array_stride: 8,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &UV_ATTRS,
+        }),
+    ]
+}
+
+/// Objet rigide : positions, normales et coordonnées de texture (aucun poids).
+pub(crate) fn object_buffers() -> [Option<wgpu::VertexBufferLayout<'static>>; 3] {
+    [
+        Some(wgpu::VertexBufferLayout {
+            array_stride: 12,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &POSITION_ATTRS,
+        }),
+        Some(wgpu::VertexBufferLayout {
+            array_stride: 12,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &NORMAL_ATTRS,
+        }),
+        Some(wgpu::VertexBufferLayout {
+            array_stride: 8,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &OBJECT_UV_ATTRS,
         }),
     ]
 }

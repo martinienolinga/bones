@@ -2,7 +2,7 @@
 //! Les tableaux sont réutilisés d'une image à l'autre (aucune allocation en
 //! régime établi).
 
-use bones_core::{Editor, Handle, Mode, Viewport, side_of};
+use bones_core::{Editor, Handle, Mode, ObjectDraw, Viewport, side_of};
 use bones_render::{BoneInstance, LineVertex, Scene, bone_matrix, handle_matrix};
 use bones_ui::theme;
 use glam::{Mat4, Vec3, Vec4};
@@ -15,6 +15,8 @@ pub struct SceneBuilder {
     bones: Vec<BoneInstance>,
     lines: Vec<LineVertex>,
     overlay: Vec<LineVertex>,
+    /// Appels de dessin des objets visibles, reconstruits à chaque image.
+    objects: Vec<ObjectDraw>,
     view_proj: Mat4,
     /// Unité de la grille (puissance de 10 adaptée à la taille du modèle),
     /// recalculée seulement quand le maillage change.
@@ -51,6 +53,8 @@ impl SceneBuilder {
         self.bones.clear();
         self.lines.clear();
         self.overlay.clear();
+        self.objects.clear();
+        self.objects.extend(editor.object_draws());
 
         self.view_proj = editor.camera.view_proj(viewport);
 
@@ -80,12 +84,13 @@ impl SceneBuilder {
             viewport: [viewport.x, viewport.y, viewport.width, viewport.height],
             background: theme::BACKGROUND,
             joints: &self.joints,
-            show_mesh: editor.view.mesh,
+            show_mesh: editor.view.mesh && editor.body_visible(),
             textured: editor.view.textures,
             weights: weight_view(editor),
             lines: &self.lines,
             bones: &self.bones,
             overlay_lines: &self.overlay,
+            objects: &self.objects,
         }
     }
 

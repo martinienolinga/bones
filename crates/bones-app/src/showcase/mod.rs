@@ -101,6 +101,7 @@ impl Showcase {
                 lines: &[],
                 bones: &[],
                 overlay_lines: &[],
+                objects: &[],
             };
             self.tiles
                 .render(renderer, device, queue, &scene, slot, tile.size);

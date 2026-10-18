@@ -77,6 +77,7 @@ fn magenta_pixels(mesh: &Mesh, textured: bool) -> Option<usize> {
         lines: &[],
         bones: &[],
         overlay_lines: &[],
+        objects: &[],
     };
     let mut renderer = Renderer::new(&device, FORMAT);
     renderer.set_mesh(&device, &queue, mesh, 1);

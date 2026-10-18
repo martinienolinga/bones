@@ -27,6 +27,7 @@ fn scene<'a>(rig: &Rig, joints: &'a [glam::Mat4], show_mesh: bool, background: [
         lines: &[],
         bones: &[],
         overlay_lines: &[],
+        objects: &[],
     }
 }
 
