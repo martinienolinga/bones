@@ -143,6 +143,8 @@ fn tools(ui: &mut egui::Ui, editor: &mut Editor, state: &mut UiState) {
         Mode::AutoRig => {
             widgets::bar_tool(ui, Icon::Marker, true, "Markers: drag them onto the model");
         }
+        // Outils du mode Objet : étape 3 (interface).
+        Mode::Object => {}
     }
 }
 

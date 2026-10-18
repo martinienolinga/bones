@@ -16,6 +16,8 @@ use crate::{BoneId, Transform, Viewport};
 pub(super) enum Target {
     Bone(BoneId),
     Model,
+    /// Objet de la scène (mode Objet).
+    Object(crate::ObjectId),
 }
 
 /// Comment un os suit une translation en mode Pose.
@@ -49,7 +51,7 @@ pub(super) struct ManipGesture {
 impl Editor {
     /// Cible du manipulateur, son repère et la disponibilité de l'échelle
     /// par axe ; `None` quand il est masqué ou sans objet.
-    fn manipulator_target(&self) -> Option<(Target, Frame, bool)> {
+    pub(super) fn manipulator_target(&self) -> Option<(Target, Frame, bool)> {
         if !self.manipulator.visible {
             return None;
         }
@@ -58,6 +60,7 @@ impl Editor {
             // Les outils d'édition directe (tête, os, roulis…) gardent la main.
             Mode::Edit => self.edit_tool == EditTool::Select,
             Mode::AutoRig | Mode::WeightPaint => false,
+            Mode::Object => return self.object_manip_target(),
         };
         if !tool_ok {
             return None;
@@ -89,18 +92,21 @@ impl Editor {
                 // Échelle d'un os : uniforme (delta de pose ou longueur).
                 Some((Target::Bone(bone), frame, false))
             }
-            None if self.mode == Mode::Edit => {
-                let origin = match &self.drag {
-                    Some(Drag::Manip(g)) => g.drag.frame.origin + g.drag.last.translate,
-                    _ => self.model_pivot(),
-                };
-                let frame = Frame {
-                    origin,
-                    orientation: Quat::IDENTITY,
-                };
-                Some((Target::Model, frame, true))
-            }
+            None if self.mode == Mode::Edit => Some((Target::Model, self.model_frame(), true)),
             None => None,
+        }
+    }
+
+    /// Repère du modèle entier : pivot au sol, axes du monde ; pendant le
+    /// geste il suit la translation.
+    pub(super) fn model_frame(&self) -> Frame {
+        let origin = match &self.drag {
+            Some(Drag::Manip(g)) => g.drag.frame.origin + g.drag.last.translate,
+            _ => self.model_pivot(),
+        };
+        Frame {
+            origin,
+            orientation: Quat::IDENTITY,
         }
     }
 

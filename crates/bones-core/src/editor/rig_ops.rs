@@ -5,19 +5,27 @@ use std::sync::Arc;
 use super::{Editor, Mode};
 use crate::autorig::{self, face};
 use crate::rig::mirror;
+use crate::scene::ObjectBindInput;
 use crate::{BindMethod, Markers, Mesh, Side, Skeleton, Skin};
 
-/// Calcul de poids à lancer en tâche de fond.
+/// Calcul de poids à lancer en tâche de fond : le corps, ou un objet
+/// déformé (`mesh` est alors celui de l'objet). Le résultat revient tel quel
+/// à [`Editor::finish_bind`], qui sait à qui il est destiné.
 pub struct BindJob {
     pub mesh: Arc<Mesh>,
     pub skeleton: Skeleton,
     pub method: BindMethod,
     pub key: (u64, u64),
+    pub(super) object: Option<ObjectBindInput>,
 }
 
 impl BindJob {
     pub fn run(self) -> (Skin, (u64, u64)) {
-        (self.method.compute(&self.mesh, &self.skeleton), self.key)
+        let skin = match &self.object {
+            Some(input) => input.compute(&self.skeleton),
+            None => self.method.compute(&self.mesh, &self.skeleton),
+        };
+        (skin, self.key)
     }
 }
 
@@ -84,9 +92,16 @@ impl Editor {
 
     /// Tâche de liaison à lancer, s'il y en a une de nouvelle.
     pub fn bind_job(&mut self) -> Option<BindJob> {
+        if self.drag.is_some() {
+            return None;
+        }
+        self.body_bind_job().or_else(|| self.object_bind_job())
+    }
+
+    fn body_bind_job(&mut self) -> Option<BindJob> {
         // Poids peints : les retouches du squelette remappent les indices sans
         // relancer de liaison automatique (jusqu'à « Automatic »).
-        if !self.rig.needs_bind() || self.drag.is_some() || self.rig.weights_painted() {
+        if !self.rig.needs_bind() || self.rig.weights_painted() {
             return None;
         }
         let revs = self.rig.revisions();
@@ -100,11 +115,14 @@ impl Editor {
             skeleton: self.rig.skeleton.clone(),
             method: self.bind_method,
             key,
+            object: None,
         })
     }
 
     pub fn finish_bind(&mut self, skin: Skin, key: (u64, u64)) {
-        if self.rig.apply_skin(skin, key) {
+        if let Some(skin) = self.finish_object_bind(skin, key)
+            && self.rig.apply_skin(skin, key)
+        {
             self.status = Some("Weights ready".into());
         }
     }

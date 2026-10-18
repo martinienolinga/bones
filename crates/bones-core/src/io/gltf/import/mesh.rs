@@ -37,7 +37,7 @@ fn texture(image: gltf::Image, buffers: &[Arc<[u8]>], base: Option<&Path>) -> Op
     })
 }
 
-fn materials(doc: &gltf::Document, buffers: &[Arc<[u8]>], base: Option<&Path>) -> Vec<Material> {
+pub(super) fn materials(doc: &gltf::Document, buffers: &[Arc<[u8]>], base: Option<&Path>) -> Vec<Material> {
     let mut images: HashMap<usize, Option<Texture>> = HashMap::new();
     doc.materials()
         .map(|m| {
@@ -78,66 +78,11 @@ pub(super) fn read_meshes(
     let mut raw: RawWeights = Vec::new();
     for &n in &scene.order {
         let node = &nodes[n];
-        let Some(gmesh) = node.mesh() else { continue };
         let skinned = skin.is_some() && node.skin().map(|s| s.index()) == skin.map(|s| s.index());
         let matrix = if skinned { bind } else { scene.world[n] };
         // Maillage rigide sous une articulation : lié à 100 % à celle-ci.
         let rigid_joint = (!skinned).then(|| nearest_joint(scene, n, joint_nodes)).flatten();
-        for primitive in gmesh.primitives() {
-            if primitive.mode() != gltf::mesh::Mode::Triangles {
-                continue;
-            }
-            let reader = primitive.reader(|b| buffers.get(b.index()).map(|d| &d[..]));
-            let Some(positions) = reader.read_positions() else {
-                continue;
-            };
-            let mut part = Mesh {
-                positions: positions.map(Vec3::from_array).collect(),
-                ..Default::default()
-            };
-            let count = part.positions.len();
-            part.indices = match reader.read_indices() {
-                Some(i) => i.into_u32().collect(),
-                None => (0..count as u32).collect(),
-            };
-            if part.indices.iter().any(|i| *i as usize >= count) {
-                return Err(super::err("vertex index out of range"));
-            }
-            part.uvs = reader
-                .read_tex_coords(0)
-                .map(|t| t.into_f32().map(Vec2::from_array).collect())
-                .unwrap_or_default();
-            if part.uvs.len() != count {
-                part.uvs.clear();
-            }
-            let normals: Vec<Vec3> = reader
-                .read_normals()
-                .map(|n| n.map(Vec3::from_array).collect())
-                .unwrap_or_default();
-            transform_part(&mut part, normals, matrix);
-
-            let weights: Vec<Vec<(usize, f32)>> =
-                match (skinned, reader.read_joints(0), reader.read_weights(0)) {
-                    (true, Some(j), Some(w)) => j
-                        .into_u16()
-                        .zip(w.into_f32())
-                        .map(|(j, w)| {
-                            (0..4)
-                                .filter(|k| w[*k] > 0.0)
-                                .map(|k| (j[k] as usize, w[k]))
-                                .collect()
-                        })
-                        .collect(),
-                    _ => vec![rigid_joint.map(|j| vec![(j, 1.0)]).unwrap_or_default(); count],
-                };
-            raw.extend(
-                weights
-                    .into_iter()
-                    .chain(std::iter::repeat_with(Vec::new))
-                    .take(count),
-            );
-            mesh.append_part(part, primitive.material().index());
-        }
+        read_node(node, buffers, skinned, matrix, rigid_joint, &mut mesh, &mut raw)?;
     }
     if mesh.indices.is_empty() && skin.is_none() {
         return Err(super::err("no triangulated mesh"));
@@ -146,7 +91,77 @@ pub(super) fn read_meshes(
     Ok((mesh, raw))
 }
 
-fn nearest_joint(scene: &Scene, node: usize, joint_nodes: &[usize]) -> Option<usize> {
+/// Ajoute à `mesh` les primitives triangulées d'un nœud, passées par
+/// `matrix`, et leurs influences brutes à `raw` (une par sommet). Les
+/// indices de matériaux sont ceux du fichier.
+pub(super) fn read_node(
+    node: &gltf::Node,
+    buffers: &[Arc<[u8]>],
+    skinned: bool,
+    matrix: Mat4,
+    rigid_joint: Option<usize>,
+    mesh: &mut Mesh,
+    raw: &mut RawWeights,
+) -> Result<(), IoError> {
+    let Some(gmesh) = node.mesh() else { return Ok(()) };
+    for primitive in gmesh.primitives() {
+        if primitive.mode() != gltf::mesh::Mode::Triangles {
+            continue;
+        }
+        let reader = primitive.reader(|b| buffers.get(b.index()).map(|d| &d[..]));
+        let Some(positions) = reader.read_positions() else {
+            continue;
+        };
+        let mut part = Mesh {
+            positions: positions.map(Vec3::from_array).collect(),
+            ..Default::default()
+        };
+        let count = part.positions.len();
+        part.indices = match reader.read_indices() {
+            Some(i) => i.into_u32().collect(),
+            None => (0..count as u32).collect(),
+        };
+        if part.indices.iter().any(|i| *i as usize >= count) {
+            return Err(super::err("vertex index out of range"));
+        }
+        part.uvs = reader
+            .read_tex_coords(0)
+            .map(|t| t.into_f32().map(Vec2::from_array).collect())
+            .unwrap_or_default();
+        if part.uvs.len() != count {
+            part.uvs.clear();
+        }
+        let normals: Vec<Vec3> = reader
+            .read_normals()
+            .map(|n| n.map(Vec3::from_array).collect())
+            .unwrap_or_default();
+        transform_part(&mut part, normals, matrix);
+
+        let weights: Vec<Vec<(usize, f32)>> = match (skinned, reader.read_joints(0), reader.read_weights(0)) {
+            (true, Some(j), Some(w)) => j
+                .into_u16()
+                .zip(w.into_f32())
+                .map(|(j, w)| {
+                    (0..4)
+                        .filter(|k| w[*k] > 0.0)
+                        .map(|k| (j[k] as usize, w[k]))
+                        .collect()
+                })
+                .collect(),
+            _ => vec![rigid_joint.map(|j| vec![(j, 1.0)]).unwrap_or_default(); count],
+        };
+        raw.extend(
+            weights
+                .into_iter()
+                .chain(std::iter::repeat_with(Vec::new))
+                .take(count),
+        );
+        mesh.append_part(part, primitive.material().index());
+    }
+    Ok(())
+}
+
+pub(super) fn nearest_joint(scene: &Scene, node: usize, joint_nodes: &[usize]) -> Option<usize> {
     let mut cur = scene.parent[node];
     while let Some(p) = cur {
         if let Some(j) = joint_nodes.iter().position(|n| *n == p) {

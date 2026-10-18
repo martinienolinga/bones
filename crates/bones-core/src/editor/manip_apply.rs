@@ -24,6 +24,11 @@ impl Editor {
             follow: Follow::Delta,
             viewport,
         };
+        if let Target::Object(id) = target {
+            // Transformation monde de l'objet au début du geste.
+            gesture.start_pose = self.object_display_world(id).unwrap_or_default();
+            return gesture;
+        }
         let Target::Bone(bone) = target else {
             return gesture;
         };
@@ -56,7 +61,9 @@ impl Editor {
         if !self.drag_moved || (tap && gesture.drag.last.is_identity()) {
             self.drop_checkpoint(true);
             let (at, radius) = (gesture.drag.last_pos, 12.0 * self.pixels_per_point);
-            if let Some(bone) = self.pick(at, &gesture.viewport, radius) {
+            if self.mode == Mode::Object {
+                self.select_object(self.pick_object(at, &gesture.viewport));
+            } else if let Some(bone) = self.pick(at, &gesture.viewport, radius) {
                 self.selected = Some(bone);
             }
             return;
@@ -78,6 +85,7 @@ impl Editor {
         match (gesture.target, self.mode) {
             (Target::Bone(bone), Mode::Pose) => self.manip_pose(bone, gesture, &delta),
             (Target::Bone(bone), _) => self.manip_rest(bone, gesture, &delta),
+            (Target::Object(id), _) => self.manip_object(id, gesture, &delta),
             (Target::Model, _) => {
                 let m = model_transform(&gesture.drag.frame, &delta);
                 if let Some(start) = self.undo.last() {

@@ -9,6 +9,7 @@ mod edit_tools;
 mod history;
 mod manip_apply;
 mod manipulate;
+mod objects;
 mod pointer;
 mod pose_ops;
 mod presets;
@@ -26,6 +27,7 @@ mod view;
 mod weight_paint;
 
 pub use bone_info::BoneInfo;
+pub use objects::ObjectInfo;
 pub use rig_ops::BindJob;
 
 use glam::Vec3;
@@ -47,6 +49,9 @@ pub enum Mode {
     AutoRig,
     /// Peinture des poids de l'os sélectionné (« Weight Paint » de Blender).
     WeightPaint,
+    /// Objets de la scène : sélection, déplacement et manipulateur sur les
+    /// objets (« Object Mode » de Blender), sur la pose courante.
+    Object,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -120,6 +125,8 @@ pub struct Editor {
     pub pose_tool: PoseTool,
     pub edit_tool: EditTool,
     pub selected: Option<BoneId>,
+    /// Objet sélectionné (corps ou objet supplémentaire), indépendant de l'os.
+    pub selected_object: Option<crate::ObjectRef>,
     /// Longueur de chaîne de l'IK FABRIK et des épingles.
     pub chain_len: usize,
     pub bind_method: BindMethod,
@@ -145,6 +152,8 @@ pub struct Editor {
     pub weight_paint: crate::WeightPaintSettings,
     /// Caches et trait en cours de la peinture de poids.
     paint: crate::weight_paint::PaintState,
+    /// Liaisons d'objets en cours et dernier toucher (mode Objet).
+    objects: objects::ObjectState,
     /// Outil « Parent » : enfant choisi, en attente de son nouveau parent.
     reparent_child: Option<BoneId>,
     /// Dernière retouche numérique (os, propriété) : les réglages continus
@@ -177,6 +186,7 @@ impl Editor {
             pose_tool: PoseTool::Move,
             edit_tool: EditTool::Select,
             selected: None,
+            selected_object: None,
             chain_len: 2,
             bind_method: BindMethod::Heat,
             view: ViewOptions::default(),
@@ -191,6 +201,7 @@ impl Editor {
             pixels_per_point: 1.0,
             weight_paint: Default::default(),
             paint: Default::default(),
+            objects: Default::default(),
             reparent_child: None,
             coalesce: None,
             undo: Vec::new(),
@@ -213,6 +224,7 @@ impl Editor {
         self.checkpoint();
         self.rig = rig;
         self.selected = None;
+        self.selected_object = None;
         self.markers = None;
         self.face_markers = None;
         self.frame = 0.0;

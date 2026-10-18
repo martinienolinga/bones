@@ -186,7 +186,7 @@ pub fn show(
             autorig_top = Some(panel.top());
             rects.push(panel);
         }
-        Mode::Edit | Mode::WeightPaint => {}
+        Mode::Edit | Mode::WeightPaint | Mode::Object => {}
     }
     // Gros plan sur la tête (avant les marqueurs, qui suivent la caméra).
     let face = editor.mode == Mode::AutoRig && state.autorig_step == autorig_panel::Step::Face;

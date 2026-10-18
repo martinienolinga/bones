@@ -126,7 +126,7 @@ fn context_slider(ui: &mut egui::Ui, editor: &mut Editor) -> bool {
             }
         }
         // La peinture de poids a ses propres curseurs ([`brush_sliders`]).
-        Mode::Edit | Mode::WeightPaint => return false,
+        Mode::Edit | Mode::WeightPaint | Mode::Object => return false,
     }
     true
 }

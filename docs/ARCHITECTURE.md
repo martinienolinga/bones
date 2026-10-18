@@ -67,6 +67,33 @@ La pose est la **seule source de vérité** : les cibles et pôles IK ne sont qu
 recalées sur la pose quand on change d'image. Les clés d'animation stockent donc des poses complètes
 (rotations « cuites »), lisibles par n'importe quel moteur.
 
+### Objets de la scène (module `scene`)
+
+Le maillage principal reste le **corps** (`rig.mesh` / `rig.skin`) : l'auto-rig, la peinture de
+poids, le skinning et les préréglages le ciblent toujours. Autour de lui, `rig.objects()` liste des
+**objets supplémentaires** (`SceneObject`), à la manière de Blender : accessoires (épée, chapeau,
+lunettes), vêtements, parties du corps séparées. Un objet a un identifiant stable et sérialisé
+(`ObjectId`), un nom, un maillage partagé par `Arc`, un parent, une transformation locale, une
+liaison, un drapeau de visibilité et de verrou, et ses propres révisions.
+
+- **Parent** (`Parent::{World, Object(ObjectId), Bone(BoneId)}`) : la transformation locale est
+  relative au parent ; pour un os, relative à sa transformation monde **posée** (l'objet suit l'os).
+  Les cycles sont refusés. Le parentage d'os survit aux modifications du squelette via le même
+  `BoneRemap` que les poids : si l'os disparaît, l'objet passe à l'os héritier (ou au monde) en
+  gardant sa place ; au remplacement complet du squelette (auto-rig), les os sont retrouvés par
+  leur nom.
+- **Liaison** (`Binding::{Rigid, Skinned{SkinBinding}}`) : `Rigid` suit rigidement le parent ;
+  `Skinned` est déformé par l'armature avec ses propres poids. Les méthodes de poids
+  (`SkinMethod::{Transfer, Heat, Envelope, Manual}`) sont calculées en tâche de fond par la **même
+  file que le corps** (`Editor::bind_job` / `finish_bind`, cf. « Liaison en tâche de fond »). Le
+  transfert copie les poids du corps au point le plus proche (« Data Transfer » de Blender,
+  `skinning/closest.rs` + `transfer.rs`) ; un objet déformé est d'abord placé par sa transformation
+  évaluée **au repos** (placement de liaison), puis déformé par la palette d'os du corps.
+- Cloner un `Rig` reste peu coûteux : les maillages et poids des objets sont partagés par `Arc`,
+  donc l'historique d'annulation ne les copie pas.
+- Les transformations des objets **ne sont pas animées** pour l'instant (un accessoire s'anime en
+  suivant l'os auquel il est attaché) ; extension possible.
+
 ### Révisions
 
 Chaque donnée porte un numéro de révision unique (compteur atomique global, jamais réutilisé) :
@@ -113,6 +140,14 @@ Deux passes par image, puis l'interface :
 
 L'éclairage est calculé en linéaire et converti en sRGB dans le shader, car la surface utilise un
 format non sRGB (celui que préfère egui).
+
+Les **vignettes des galeries de préréglages** montrent le mannequin qui joue le préréglage. Un fil
+de fond le cuit sur le mannequin (`presets::Staged` : animation reciblée sur place, ou expression
+à pleine intensité, cadrage calculé sur des sommets sondes déformés). Chaque carte visible demande
+sa vignette par les données du contexte egui ; après l'interface, `bones-app/src/showcase` la rend
+avec un moteur dédié (maillage du mannequin) dans sa propre texture native d'egui
+(`bones_render::Tiles`, fond transparent, aucune relecture). Une expression n'est rendue qu'une
+fois ; une animation à chaque image de son cycle (30 i/s au plus).
 
 ## Performance et mémoire
 
@@ -169,3 +204,58 @@ Exemple : un outil de pose « Échelle ».
 Un outil qui modifie le squelette de repos doit appeler `Rig::touch_skeleton()` : la liaison en
 tâche de fond sera relancée automatiquement à la fin du geste. Un outil qui modifie l'animation
 passe par `Rig::clip_mut()`, qui met à jour la révision de l'animation.
+
+## API des objets de scène (pour les phases 2 et 3)
+
+Le cœur (`bones-core`, étape 1) expose tout ce qu'il faut au rendu (étape 2, `bones-render` +
+construction de scène) et à l'interface (étape 3, nouvel outliner + mode Objet). Rien n'est à
+ajouter au cœur pour ces étapes ; les signatures ci-dessous sont stables.
+
+### Rendu (`Editor`, lecture seule)
+
+- `Editor::body_visible() -> bool` : dessiner le corps (en plus de `ViewOptions::mesh`).
+- `Editor::object_draws() -> Vec<ObjectDraw>` : un appel par objet **visible**. Chaque `ObjectDraw`
+  porte `id: ObjectId`, `mesh: Arc<Mesh>`, `mesh_revision: u64` (clé des tampons GPU, à coupler avec
+  `id`), `model: Mat4`, `skin: Option<SkinDraw>`, `selected: bool`.
+  - Objet **rigide** (`skin == None`) : dessiner `mesh` avec la matrice `model`, sans palette d'os.
+  - Objet **déformé** (`skin == Some`) : `model` est le **placement de liaison** ; appliquer `model`
+    puis le skinning linéaire avec `Editor::skinning_matrices()` (la **même** palette que le corps)
+    et les poids `SkinDraw { skin: Arc<Skin>, revision }`. Les sommets sans poids gardent leur
+    position (comme le corps). Le shader `mesh.wgsl` convient tel quel (poids `u16`, matrices d'os).
+- Révisions : `ObjectDraw::mesh_revision` et `SkinDraw::revision` changent quand la géométrie ou les
+  poids de l'objet changent ; les caches GPU se clavent sur `(id, mesh_revision)` et
+  `(id, skin.revision)`. Surbrillance de la sélection : `ObjectDraw::selected`.
+
+### Interface (`Editor`)
+
+- Liste : `Editor::outliner() -> Vec<OutlinerRow>` (corps en premier, puis objets en profondeur
+  d'abord). `OutlinerRow { item: ObjectRef, name, depth, parent, skinned, visible, locked,
+  children }`. `Editor::object_info(id) -> Option<ObjectInfo>` pour le panneau de propriétés.
+- Sélection (hors historique) : champ `Editor::selected_object: Option<ObjectRef>`,
+  `select_object`, `select_object_parent` / `_child` / `next_object_sibling`, `selected_extra`,
+  `frame_selected_object`. `ObjectRef::{Body, Extra(ObjectId)}`.
+- Mode : `Mode::Object` (nouvelle variante). Dans ce mode, `pointer_down/move/up` sélectionnent et
+  déplacent l'objet sous le doigt ; le manipulateur 3D (`manipulator_*`) agit sur l'objet
+  sélectionné (ou sur le modèle entier pour le corps). Chaque glissement produit **une** étape
+  d'annulation. `pick_object(pos, vp) -> Option<ObjectRef>` fait le lancer de rayon (objets
+  déformés piqués sur leur position déformée).
+- Opérations (toutes passent par l'historique, renvoient `Result<_, ObjectError>` avec message
+  anglais) : `add_primitive(Primitive)`, `add_object_mesh(name, Mesh)`,
+  `add_imported_objects(io::SceneImport)`, `duplicate_object`, `delete_object` /
+  `delete_selected_object`, `rename_object`, `set_object_visible`, `set_object_locked`,
+  `set_object_parent(id, Parent, keep_transform)`, `parent_object_to_selected_bone`,
+  `clear_object_parent`, `set_object_binding(id, Option<SkinMethod>)`, `rebind_object`,
+  `set_object_transform(id, Transform)` (regroupe les retouches en une étape), `reorder_object`.
+- Primitives : `mesh::Primitive::{Cube, Sphere, Cylinder, Cone, Plane, Torus}` (`ALL`, `label()`,
+  `mesh()`).
+- Liaison en tâche de fond : `Editor::bind_job()` renvoie désormais aussi les tâches des objets
+  déformés (champ `BindJob::object`) ; `finish_bind` route le résultat. `objects_binding()` indique
+  qu'un calcul d'objet est en attente.
+
+### Import en objets (`io`)
+
+- `io::import_scene(path)` / `import_scene_bytes(format, bytes, name, base)` → `SceneImport`
+  (un objet par maillage, hiérarchie conservée). `SceneImport::into_rig()` crée un projet (le plus
+  grand maillage skinné devient le corps) ; `Editor::add_imported_objects` ajoute au projet ouvert
+  (os retrouvés par leur nom). L'import « personnage » classique (`io::import`) reste inchangé : il
+  fusionne tout dans le corps.

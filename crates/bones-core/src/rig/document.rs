@@ -11,6 +11,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use glam::{Mat4, Vec3};
 use serde::{Deserialize, Serialize};
 
+use crate::scene::{BodyProps, SceneObject};
 use crate::{BindMethod, BoneId, Clip, Limb, Mesh, Pin, Pose, Skeleton, Skin, Transform};
 
 static NEXT_REVISION: AtomicU64 = AtomicU64::new(1);
@@ -62,6 +63,12 @@ pub struct Rig {
     /// jusqu'à ce que l'utilisateur relance les poids automatiques.
     #[serde(default)]
     pub(crate) painted: bool,
+    /// Nom, visibilité et verrou du corps dans la liste des objets.
+    #[serde(default)]
+    pub body: BodyProps,
+    /// Objets supplémentaires (voir [`crate::scene`]), dans l'ordre de la liste.
+    #[serde(default)]
+    pub(crate) objects: Vec<SceneObject>,
     #[serde(skip)]
     pub(crate) revisions: Revisions,
 }
@@ -81,6 +88,8 @@ impl Rig {
             limbs: Vec::new(),
             pins: Vec::new(),
             painted: false,
+            body: BodyProps::default(),
+            objects: Vec::new(),
             revisions: Revisions::default(),
         }
     }
@@ -148,6 +157,9 @@ impl Rig {
     /// Remplace tout le squelette (auto-rig) : pose, animation et épingles
     /// sont réinitialisées car elles ne correspondent plus aux os.
     pub fn set_skeleton(&mut self, skeleton: Skeleton, limbs: Vec<Limb>) {
+        // Objets attachés aux os : retrouvés par le nom de l'os.
+        let anchors = self.object_rest_anchors();
+        let old_names: Vec<String> = self.skeleton.bones().iter().map(|b| b.name.clone()).collect();
         self.pose = Pose::rest(&skeleton);
         self.skeleton = skeleton;
         self.limbs = limbs;
@@ -157,6 +169,7 @@ impl Rig {
         self.clip = Arc::new(Clip::new(self.clip.fps, self.clip.frame_count));
         self.touch_clip();
         self.touch_skeleton();
+        self.retarget_objects(&old_names, &anchors);
     }
 
     /// Remplace le maillage (import) en gardant le squelette.
@@ -184,8 +197,9 @@ impl Rig {
 
     /// Supprime un os ; ses enfants passent à son parent.
     pub fn remove_bone(&mut self, id: BoneId) {
+        let anchors = self.object_anchors();
         let remap = self.skeleton.remove_bone(id);
-        self.apply_remap(&remap, true);
+        self.apply_remap_keeping(&remap, true, &anchors);
     }
 
     pub fn world(&self) -> Vec<Transform> {

@@ -25,6 +25,7 @@
 //! - [`presets`] : galeries de préréglages d'animation (procéduraux,
 //!   utilisateur, importés), reciblage et fichiers `.kb3da` ;
 //! - [`samples`] : modèles d'exemple embarqués (mannequin par défaut) ;
+//! - [`scene`] : objets de la scène (accessoires, vêtements) et leur hiérarchie ;
 //! - [`weight_paint`] : peinture de poids (mode « Weight Paint » de Blender).
 
 pub mod anim;
@@ -39,6 +40,7 @@ pub mod presets;
 pub mod project;
 pub mod rig;
 pub mod samples;
+pub mod scene;
 pub mod skinning;
 pub mod weight_paint;
 
@@ -55,5 +57,8 @@ pub use math::{OrbitCamera, Ray, Transform, Viewport};
 pub use mesh::{Material, Mesh, Submesh, Texture};
 pub use rig::mirror::{Side, mirror_name, side_of};
 pub use rig::{Bone, BoneId, BoneRemap, Pose, Revisions, Rig, Skeleton, head_tail, next_revision};
+pub use scene::{
+    Binding, ObjectDraw, ObjectError, ObjectId, ObjectRef, OutlinerRow, Parent, SceneObject, SkinMethod,
+};
 pub use skinning::{BindMethod, Skin, VertexWeights};
 pub use weight_paint::{WeightPaintSettings, WeightsTool};

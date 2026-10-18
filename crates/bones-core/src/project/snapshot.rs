@@ -71,6 +71,9 @@ impl ProjectSnapshot {
             rig.touch_skeleton();
         }
         rig.pose.sync_len(&rig.skeleton);
+        // Poids d'objets déformés présents : considérés à jour (pas de
+        // recalcul inutile à l'ouverture) ; vides : ils seront recalculés.
+        rig.settle_object_bindings();
         let mut editor = Editor::new(rig);
         state.apply(&mut editor);
         editor

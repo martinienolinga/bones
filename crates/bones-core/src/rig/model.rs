@@ -78,6 +78,7 @@ impl Rig {
             pin.target = m.transform_point(pin.target);
         }
 
+        self.transform_objects_from(start, m);
         self.skin = start.skin.clone();
         self.revisions = start.revisions;
         self.revisions.mesh = next_revision();

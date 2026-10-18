@@ -10,6 +10,7 @@
 mod anim;
 mod clips;
 mod mesh;
+mod objects;
 
 use std::path::Path;
 use std::sync::Arc;
@@ -18,6 +19,7 @@ use base64::Engine;
 use glam::Mat4;
 
 pub(crate) use clips::animations;
+pub(crate) use objects::import_scene;
 
 use crate::Rig;
 use crate::io::rigging::{Joint, assemble, build_skeleton, weights_from_joints};
@@ -96,10 +98,14 @@ fn scene(doc: &gltf::Document) -> Scene {
     s
 }
 
-pub(crate) fn import(bytes: &[u8], name: &str, base: Option<&Path>) -> Result<Rig, IoError> {
+/// Document et tampons binaires (GLB intégré ou fichiers à côté).
+/// Document glTF et tampons binaires décodés.
+type Loaded = (gltf::Document, Vec<Arc<[u8]>>);
+
+fn load(bytes: &[u8], base: Option<&Path>) -> Result<Loaded, IoError> {
     let gltf = gltf::Gltf::from_slice(bytes).map_err(err)?;
-    let doc = &gltf.document;
-    let mut blob = gltf.blob.clone();
+    let mut blob = gltf.blob;
+    let doc = gltf.document;
     let buffers: Vec<Arc<[u8]>> = doc
         .buffers()
         .map(|b| match b.source() {
@@ -110,15 +116,24 @@ pub(crate) fn import(bytes: &[u8], name: &str, base: Option<&Path>) -> Result<Ri
             gltf::buffer::Source::Uri(uri) => load_uri(uri, base).map(Arc::from),
         })
         .collect::<Result<_, _>>()?;
-    let scene = scene(doc);
+    Ok((doc, buffers))
+}
 
-    // Peau retenue : la première utilisée par un maillage de la scène.
-    let skin = scene
+/// Peau retenue : la première utilisée par un maillage de la scène.
+fn main_skin<'a>(doc: &'a gltf::Document, scene: &Scene) -> Option<gltf::Skin<'a>> {
+    scene
         .order
         .iter()
         .filter_map(|i| doc.nodes().nth(*i)?.skin())
         .next()
-        .or_else(|| doc.skins().next());
+        .or_else(|| doc.skins().next())
+}
+
+pub(crate) fn import(bytes: &[u8], name: &str, base: Option<&Path>) -> Result<Rig, IoError> {
+    let (doc, buffers) = load(bytes, base)?;
+    let doc = &doc;
+    let scene = scene(doc);
+    let skin = main_skin(doc, &scene);
 
     let rig_data = skin.as_ref().map(|skin| skin_joints(skin, &scene, &buffers));
     let joint_nodes: Vec<usize> = skin.iter().flat_map(|s| s.joints().map(|j| j.index())).collect();

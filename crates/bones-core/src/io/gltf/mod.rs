@@ -18,7 +18,7 @@ use glam::Mat4;
 use serde_json::{Value, json};
 
 // `animations` sert à l'import de préréglages (crate::io::read_animations).
-pub(crate) use import::{animations, import};
+pub(crate) use import::{animations, import, import_scene};
 
 use crate::io::{IoError, safe_file_name};
 use crate::{BoneId, Rig, Transform};

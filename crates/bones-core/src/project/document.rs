@@ -8,6 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::objects::ObjectCounts;
 use super::state::EditorState;
 use super::{ProjectError, ProjectInfo};
 use crate::Rig;
@@ -28,10 +29,10 @@ pub(super) const WEIGHTS: &str = "skin/weights.bin";
 pub(super) const POSES: &str = "anim/poses.bin";
 pub(super) const TEXTURES_DIR: &str = "textures/";
 
-/// Nombre maximal de sommets d'un projet.
-const MAX_VERTICES: u32 = 1 << 23;
-/// Nombre maximal d'indices de triangles.
-const MAX_INDICES: u32 = 3 << 24;
+/// Nombre maximal de sommets d'un projet (corps ou un objet).
+pub(super) const MAX_VERTICES: u32 = 1 << 23;
+/// Nombre maximal d'indices de triangles (corps ou un objet).
+pub(super) const MAX_INDICES: u32 = 3 << 24;
 /// Nombre maximal de transformations de poses-clés (clés × os).
 const MAX_POSES: u64 = 1 << 23;
 /// Nombre maximal d'os : les poids les désignent sur 16 bits.
@@ -118,6 +119,10 @@ pub(super) struct Document {
     /// Les poids correspondaient au squelette et au maillage enregistrés.
     #[serde(default)]
     pub weights_bound: bool,
+    /// Tailles des données lourdes de chaque objet supplémentaire (même
+    /// ordre que `rig.objects`).
+    #[serde(default)]
+    pub objects: Vec<ObjectCounts>,
     #[serde(default)]
     pub editor: EditorState,
 }

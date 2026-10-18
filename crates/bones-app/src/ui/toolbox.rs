@@ -32,6 +32,8 @@ pub fn show(ctx: &egui::Context, editor: &mut Editor, _state: &mut UiState) -> e
                     Mode::Edit => edit(ui, editor),
                     Mode::AutoRig => autorig(ui, editor),
                     Mode::WeightPaint => weights(ui, editor),
+                    // Outils du mode Objet : étape 3 (interface).
+                    Mode::Object => {}
                 }
             });
         },

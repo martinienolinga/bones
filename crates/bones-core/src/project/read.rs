@@ -1,16 +1,19 @@
 //! Ouverture d'un projet : manifeste (version), document, tableaux binaires
 //! et textures, puis assemblage vérifié.
 
+use glam::Vec3;
 use std::path::Path;
 use std::sync::Arc;
 
 use bytemuck::Pod;
+use rayon::prelude::*;
 
 use super::codec::decode_indices;
 use super::container::{Archive, MAX_JSON, MAX_MANIFEST, MAX_TEXTURE, MAX_THUMBNAIL};
 use super::document::*;
 use super::error::invalid;
-use super::validate::{Arrays, assemble};
+use super::objects::ObjectCounts;
+use super::validate::{Arrays, ObjectArrays, assemble};
 use super::{LoadedProject, ProjectError, ProjectInfo};
 
 /// Lecture rapide : manifeste + vignette encodée, sans décompresser le reste.
@@ -41,7 +44,9 @@ fn load_archive(mut archive: Archive, name: &str) -> Result<LoadedProject, Proje
 
     let c = document.counts;
     let poses = c.check(document.rig.clip.keys().len(), document.rig.skeleton.len())?;
+    super::objects::check_objects(&document.objects)?;
     let arrays = read_arrays(&archive, &c, poses)?;
+    let object_arrays = read_object_arrays(&archive, &document.objects)?;
     let textures = document
         .textures
         .iter()
@@ -53,7 +58,7 @@ fn load_archive(mut archive: Archive, name: &str) -> Result<LoadedProject, Proje
         })
         .collect::<Result<Vec<_>, ProjectError>>()?;
 
-    let snapshot = assemble(document, arrays, textures)?;
+    let snapshot = assemble(document, arrays, object_arrays, textures)?;
     let info = snapshot.info(name, manifest.created, manifest.modified);
     Ok(LoadedProject {
         info,
@@ -92,6 +97,28 @@ fn read_arrays(archive: &Archive, c: &Counts, poses: u32) -> Result<Arrays, Proj
         poses: poses?,
         key_bones: c.key_bones as usize,
     })
+}
+
+/// Tableaux binaires de chaque objet, décompressés en parallèle.
+fn read_object_arrays(archive: &Archive, counts: &[ObjectCounts]) -> Result<Vec<ObjectArrays>, ProjectError> {
+    use super::objects::entry;
+    counts
+        .par_iter()
+        .enumerate()
+        .map(|(i, c)| {
+            let a = |kind: &str, count: u32| -> Result<Vec<Vec3>, ProjectError> {
+                archive.clone().read_array(&entry(i, kind), count)
+            };
+            let bytes: Vec<u8> = archive.clone().read_array(&entry(i, "indices"), c.indices * 4)?;
+            Ok(ObjectArrays {
+                positions: a("positions", c.positions)?,
+                normals: a("normals", c.normals)?,
+                uvs: archive.clone().read_array(&entry(i, "uvs"), c.uvs)?,
+                indices: decode_indices(&bytes),
+                weights: archive.clone().read_array(&entry(i, "weights"), c.weights)?,
+            })
+        })
+        .collect()
 }
 
 pub(super) fn read_manifest(archive: &mut Archive) -> Result<Manifest, ProjectError> {

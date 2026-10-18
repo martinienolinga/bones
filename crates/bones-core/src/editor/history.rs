@@ -74,6 +74,7 @@ impl Editor {
         if self.selected.is_some_and(|s| !self.rig.skeleton.contains(s)) {
             self.selected = None;
         }
+        self.validate_object_selection();
         self.snap_limbs();
     }
 

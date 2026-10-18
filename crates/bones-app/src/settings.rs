@@ -67,7 +67,7 @@ impl PencilPolicy {
         match editor.mode {
             Mode::Pose if editor.pose_tool == PoseTool::Pin => self.pins,
             Mode::Pose => self.pose,
-            Mode::Edit => self.skeleton,
+            Mode::Edit | Mode::Object => self.skeleton,
             Mode::AutoRig => self.markers,
             Mode::WeightPaint => self.painting,
         }

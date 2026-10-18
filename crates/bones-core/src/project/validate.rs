@@ -30,11 +30,21 @@ pub(super) struct Arrays {
     pub key_bones: usize,
 }
 
+/// Tableaux binaires d'un objet supplémentaire.
+pub(super) struct ObjectArrays {
+    pub positions: Vec<Vec3>,
+    pub normals: Vec<Vec3>,
+    pub uvs: Vec<Vec2>,
+    pub indices: Vec<u32>,
+    pub weights: Vec<VertexWeights>,
+}
+
 /// Reconstitue le projet : géométrie, poids et textures réinsérés dans le
 /// document, puis vérifiés.
 pub(super) fn assemble(
     document: Document,
     arrays: Arrays,
+    object_arrays: Vec<ObjectArrays>,
     textures: Vec<Arc<[u8]>>,
 ) -> Result<ProjectSnapshot, ProjectError> {
     let Document {
@@ -43,6 +53,7 @@ pub(super) fn assemble(
         textures: _,
         material_textures,
         weights_bound,
+        objects: object_counts,
         editor: mut state,
     } = document;
 
@@ -114,11 +125,13 @@ pub(super) fn assemble(
         rig.touch_skeleton();
     }
     check_clip(&mut rig);
+    // Objets supplémentaires : géométrie, poids et hiérarchie vérifiés.
+    super::objects::assemble_objects(&mut rig, object_arrays, &object_counts, &textures)?;
     state.sanitize(&rig);
     Ok(ProjectSnapshot { rig, state })
 }
 
-fn check_mesh(mesh: &mut Mesh) -> Result<(), ProjectError> {
+pub(super) fn check_mesh(mesh: &mut Mesh) -> Result<(), ProjectError> {
     let n = mesh.vertex_count();
     if !mesh.positions.par_iter().all(|p| p.is_finite()) {
         mesh.positions

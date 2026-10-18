@@ -1,7 +1,9 @@
 //! Maillages triangulés, matériaux, textures et primitives de démonstration.
 
 mod material;
+mod place;
 mod primitives;
+mod shapes;
 #[cfg(test)]
 mod tests;
 mod weld;
@@ -12,6 +14,7 @@ use glam::{Quat, Vec2, Vec3};
 use serde::{Deserialize, Serialize};
 
 pub use material::{Material, Texture, TextureError, sniff_mime};
+pub use shapes::Primitive;
 
 /// Portion du maillage (plage d'indices) dessinée avec un matériau.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -4,6 +4,7 @@ mod bvh;
 mod corpus;
 mod fbx;
 mod gltf;
+mod gltf_objects;
 mod obj;
 mod ply;
 mod stl;

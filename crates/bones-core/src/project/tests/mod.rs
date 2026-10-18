@@ -3,6 +3,7 @@
 mod codec;
 mod edit_count;
 mod hostile;
+mod objects;
 mod roundtrip;
 mod store;
 
@@ -17,6 +18,8 @@ use super::ProjectSnapshot;
 use crate::autorig::face::FaceMarkers;
 use crate::editor::{EditTool, Mode, PoseTool, ViewOptions};
 use crate::manipulator::{ManipulatorMode, TransformSpace};
+use crate::mesh::Primitive;
+use crate::scene::{BodyProps, Parent};
 use crate::{
     AutoRigOptions, BindMethod, BoneId, Editor, Interpolation, LimbMode, ManipulatorSettings, Markers,
     Material, OrbitCamera, Pin, Rig, Submesh, Texture, Transform,
@@ -144,6 +147,50 @@ pub(super) fn full_editor() -> Editor {
     // Poids marqués comme peints : couvre le champ dans le test « tout champ
     // diffère du défaut » et son aller-retour.
     rig.set_painted(true);
+    // Corps et objets supplémentaires : un accessoire rigide (caché,
+    // verrouillé) attaché à un os, et un vêtement déformé à poids manuels.
+    rig.body = BodyProps {
+        name: "Hero body".into(),
+        visible: true,
+        locked: true,
+    };
+    let bone = rig.skeleton.find("head.x").unwrap_or(BoneId(0));
+    let mut hat = Primitive::Cube.mesh();
+    hat.uvs = hat.positions.iter().map(|p| Vec2::new(p.x, p.y)).collect();
+    hat.materials = vec![Material {
+        name: "Felt".into(),
+        base_color: [0.1, 0.1, 0.1, 1.0],
+        ..Material::default()
+    }];
+    let a = rig
+        .add_object(
+            "Hat",
+            Arc::new(hat),
+            Parent::Bone(bone),
+            Transform::from_translation(Vec3::new(0.0, 0.2, 0.0)),
+        )
+        .unwrap();
+    rig.object_mut(a).unwrap().visible = false;
+    rig.object_mut(a).unwrap().locked = true;
+    let cloth_mesh = Primitive::Sphere.mesh();
+    let n = cloth_mesh.vertex_count();
+    let b = rig
+        .add_object(
+            "Cloak",
+            Arc::new(cloth_mesh),
+            Parent::Object(a),
+            Transform::from_translation(Vec3::new(0.1, 0.0, 0.0)),
+        )
+        .unwrap();
+    rig.set_object_weights(
+        b,
+        crate::Skin {
+            weights: (0..n)
+                .map(|i| crate::VertexWeights::single(BoneId((i % 2) as u32)))
+                .collect(),
+        },
+    )
+    .unwrap();
 
     let mut e = Editor::new(rig);
     e.camera = OrbitCamera {

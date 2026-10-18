@@ -12,14 +12,14 @@ impl Editor {
     pub fn display_world(&self) -> Vec<Transform> {
         match self.mode {
             // La peinture de poids se fait sur le maillage posé, comme dans Blender.
-            Mode::Pose | Mode::WeightPaint => self.rig.world(),
+            Mode::Pose | Mode::WeightPaint | Mode::Object => self.rig.world(),
             Mode::Edit | Mode::AutoRig => self.rig.skeleton.rest_world(),
         }
     }
 
     pub fn skinning_matrices(&self) -> Vec<glam::Mat4> {
         match self.mode {
-            Mode::Pose | Mode::WeightPaint => self.rig.skinning_matrices(),
+            Mode::Pose | Mode::WeightPaint | Mode::Object => self.rig.skinning_matrices(),
             Mode::Edit | Mode::AutoRig => vec![glam::Mat4::IDENTITY; self.rig.skeleton.len()],
         }
     }
@@ -118,7 +118,7 @@ impl Editor {
                     }
                 }
             }
-            Mode::Edit | Mode::WeightPaint => {}
+            Mode::Edit | Mode::WeightPaint | Mode::Object => {}
         }
         out
     }

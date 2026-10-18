@@ -1,6 +1,7 @@
 //! Skinning : poids des sommets (format compact), calcul automatique
 //! (enveloppes ou diffusion de chaleur) et déformation.
 
+mod closest;
 mod deform;
 pub mod envelope;
 mod face;
@@ -10,6 +11,7 @@ mod sparse;
 mod tests;
 #[cfg(test)]
 mod tests_visibility;
+mod transfer;
 mod visibility;
 mod weights;
 

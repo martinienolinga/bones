@@ -33,6 +33,7 @@ pub(crate) mod container;
 mod document;
 mod error;
 mod finite;
+mod objects;
 mod read;
 mod snapshot;
 mod split;

@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use super::SkeletonError;
 use super::document::next_revision;
+use crate::scene::ObjectAnchors;
 use crate::{BoneId, BoneRemap, Pin, Rig};
 
 impl Rig {
@@ -22,6 +23,17 @@ impl Rig {
     /// à tout ce qui référence des os. Avec `keep_binding`, les poids
     /// remappés restent considérés comme liés (géométrie de repos inchangée).
     pub fn apply_remap(&mut self, remap: &BoneRemap, keep_binding: bool) {
+        self.apply_remap_keeping(remap, keep_binding, &ObjectAnchors::default());
+    }
+
+    /// Comme [`Rig::apply_remap`] ; un objet dont l'os parent disparaît garde
+    /// sa place en monde notée dans `anchors` (relevée avant la modification).
+    pub(crate) fn apply_remap_keeping(
+        &mut self,
+        remap: &BoneRemap,
+        keep_binding: bool,
+        anchors: &ObjectAnchors,
+    ) {
         self.pose.remap(remap);
         if !self.clip.is_empty() {
             self.touch_clip();
@@ -45,6 +57,7 @@ impl Rig {
         if keep_binding && was_bound {
             self.revisions.bound_to = (self.revisions.skeleton, self.revisions.mesh);
         }
+        self.remap_objects(remap, anchors);
     }
 
     /// Change le parent d'un os (voir `Skeleton::set_parent`).
@@ -54,16 +67,18 @@ impl Rig {
         parent: Option<BoneId>,
         connect: bool,
     ) -> Result<BoneRemap, SkeletonError> {
+        let anchors = self.object_anchors();
         let remap = self.skeleton.set_parent(id, parent, connect)?;
         // Sans connexion, rien ne bouge : les poids restent valables.
-        self.apply_remap(&remap, !connect);
+        self.apply_remap_keeping(&remap, !connect, &anchors);
         Ok(remap)
     }
 
     /// Supprime un os et sa descendance.
     pub fn remove_with_children(&mut self, id: BoneId) -> BoneRemap {
+        let anchors = self.object_anchors();
         let remap = self.skeleton.remove_with_children(id);
-        self.apply_remap(&remap, true);
+        self.apply_remap_keeping(&remap, true, &anchors);
         remap
     }
 

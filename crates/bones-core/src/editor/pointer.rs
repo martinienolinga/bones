@@ -50,6 +50,7 @@ impl Editor {
             Mode::Edit => self.edit_down(pos, vp, radius),
             Mode::AutoRig => self.marker_down(pos, vp, radius),
             Mode::WeightPaint => self.paint_down(pos, vp, radius),
+            Mode::Object => self.object_down(pos, vp, radius),
         }
     }
 

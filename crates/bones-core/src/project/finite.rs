@@ -35,6 +35,11 @@ pub(super) fn make_finite(rig: &mut Rig) {
         }
     }
     rig.pins.retain(|p| p.target.is_finite());
+    for o in &mut rig.objects {
+        if !transform_ok(&o.local) {
+            o.local = Transform::IDENTITY;
+        }
+    }
     if !rig.clip.fps.is_finite() {
         Arc::make_mut(&mut rig.clip).fps = Clip::default().fps;
     }

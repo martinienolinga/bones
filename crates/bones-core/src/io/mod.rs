@@ -24,6 +24,7 @@ pub mod gltf;
 pub mod obj;
 mod ply;
 pub(crate) mod rigging;
+mod scene;
 mod stl;
 #[cfg(test)]
 mod tests;
@@ -32,6 +33,7 @@ use std::path::{Path, PathBuf};
 
 pub use error::IoError;
 pub use format::Format;
+pub use scene::{ImportedObject, ImportedParent, SceneImport, import_scene, import_scene_bytes};
 
 use crate::{Mesh, Rig};
 

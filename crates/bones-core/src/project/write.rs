@@ -11,6 +11,7 @@ use super::container::{
     MAX_JSON, MAX_TEXTURE, MAX_THUMBNAIL, deflate, finish, store, write_atomically, writer,
 };
 use super::document::*;
+use super::objects::entry as object_entry;
 use super::split::split;
 use super::{ProjectError, ProjectInfo, ProjectSnapshot, unix_now};
 
@@ -35,6 +36,7 @@ pub(super) fn save(
     document
         .counts
         .check(snapshot.rig.clip.keys().len(), snapshot.rig.skeleton.len())?;
+    super::objects::check_objects(&document.objects)?;
     let sizes = heavy
         .textures
         .iter()
@@ -47,17 +49,55 @@ pub(super) fn save(
     let mesh = &*rig.mesh;
 
     // Une tâche par entrée : encodage et compression en parallèle (les
-    // tableaux déjà au bon format sont compressés sans copie).
-    type Encode<'a> = &'a (dyn Fn() -> Result<Cow<'a, [u8]>, ProjectError> + Sync);
-    let entries: [(&str, Encode); 7] = [
-        (DOCUMENT, &|| json(&document)),
-        (POSITIONS, &|| raw(bytemuck::cast_slice(&mesh.positions))),
-        (NORMALS, &|| raw(bytemuck::cast_slice(&mesh.normals))),
-        (UVS, &|| raw(bytemuck::cast_slice(&mesh.uvs))),
-        (INDICES, &|| Ok(Cow::Owned(encode_indices(&mesh.indices)))),
-        (WEIGHTS, &|| raw(bytemuck::cast_slice(&rig.skin.weights))),
-        (POSES, &|| raw(bytemuck::cast_slice(&heavy.poses))),
+    // tableaux déjà au bon format sont compressés sans copie). Les entrées
+    // du corps d'abord, puis la géométrie et les poids de chaque objet.
+    type Encode<'a> = Box<dyn Fn() -> Result<Cow<'a, [u8]>, ProjectError> + Sync + 'a>;
+    let mut entries: Vec<(String, Encode)> = vec![
+        (DOCUMENT.into(), Box::new(|| json(&document))),
+        (
+            POSITIONS.into(),
+            Box::new(|| raw(bytemuck::cast_slice(&mesh.positions))),
+        ),
+        (
+            NORMALS.into(),
+            Box::new(|| raw(bytemuck::cast_slice(&mesh.normals))),
+        ),
+        (UVS.into(), Box::new(|| raw(bytemuck::cast_slice(&mesh.uvs)))),
+        (
+            INDICES.into(),
+            Box::new(|| Ok(Cow::Owned(encode_indices(&mesh.indices)))),
+        ),
+        (
+            WEIGHTS.into(),
+            Box::new(|| raw(bytemuck::cast_slice(&rig.skin.weights))),
+        ),
+        (POSES.into(), Box::new(|| raw(bytemuck::cast_slice(&heavy.poses)))),
     ];
+    for (i, o) in heavy.objects.heavy.iter().enumerate() {
+        let m = &*o.mesh;
+        entries.push((
+            object_entry(i, "positions"),
+            Box::new(|| raw(bytemuck::cast_slice(&m.positions))),
+        ));
+        entries.push((
+            object_entry(i, "normals"),
+            Box::new(|| raw(bytemuck::cast_slice(&m.normals))),
+        ));
+        entries.push((
+            object_entry(i, "uvs"),
+            Box::new(|| raw(bytemuck::cast_slice(&m.uvs))),
+        ));
+        entries.push((
+            object_entry(i, "indices"),
+            Box::new(|| Ok(Cow::Owned(encode_indices(&m.indices)))),
+        ));
+        if let Some(skin) = &o.skin {
+            entries.push((
+                object_entry(i, "weights"),
+                Box::new(|| raw(bytemuck::cast_slice(&skin.weights))),
+            ));
+        }
+    }
     let prepared = entries
         .par_iter()
         .map(|(name, encode)| {

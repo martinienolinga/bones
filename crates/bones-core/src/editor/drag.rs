@@ -52,6 +52,13 @@ pub(super) enum Drag {
     Edit(EditDrag),
     /// Poignée du manipulateur 3D.
     Manip(Box<ManipGesture>),
+    /// Objet glissé dans le plan de l'écran (mode Objet) ; `start` est sa
+    /// transformation monde au début du geste.
+    Object {
+        id: crate::ObjectId,
+        start: Transform,
+        grab: Vec3,
+    },
 }
 
 impl Editor {
@@ -148,6 +155,7 @@ impl Editor {
                 self.after_bone_edit(bone);
             }
             Drag::Edit(edit) => self.edit_drag(edit, pos, vp),
+            Drag::Object { id, start, grab } => self.object_drag(id, &start, grab, pos, vp),
             Drag::Manip(_) => {}
             Drag::NewBone { bone, anchor } => {
                 let p = self.plane_point(pos, vp, anchor);
@@ -209,7 +217,7 @@ impl Editor {
             Drag::Manip(gesture) => self.manipulator_up(&gesture),
             // Simple tape sur un os (sélection) : rien à annuler.
             _ if !self.drag_moved => self.drop_checkpoint(true),
-            Drag::Tail { .. } | Drag::Edit(_) => {}
+            Drag::Tail { .. } | Drag::Edit(_) | Drag::Object { .. } => {}
             _ => {
                 self.snap_limbs();
                 self.store_key_if_any();
@@ -231,6 +239,10 @@ impl Editor {
     /// Tape dans le vide : désélection (ou, avec l'outil « Parent » en
     /// cours, l'os choisi devient une racine).
     pub fn tap_empty(&mut self) {
+        if self.mode == Mode::Object {
+            self.object_tap();
+            return;
+        }
         if !self.reparent_to_root() {
             self.selected = None;
         }
