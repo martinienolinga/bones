@@ -17,6 +17,8 @@ pub enum JobResult {
     Bound(Skin, (u64, u64)),
     /// Fichiers écrits (le principal en premier).
     Exported(Result<Vec<PathBuf>, String>),
+    /// Fichier lu en objets (import dans le projet ouvert).
+    ImportedObjects(Result<bones_core::io::SceneImport, String>),
 }
 
 pub struct Jobs {
@@ -69,6 +71,13 @@ impl Jobs {
     pub fn export(&mut self, rig: Rig, format: Format, path: PathBuf) {
         self.spawn(move || {
             JobResult::Exported(bones_core::io::export(&rig, format, &path).map_err(|e| e.to_string()))
+        });
+    }
+
+    /// Lit un fichier de maillage en objets, hors du fil de l'interface.
+    pub fn import_scene(&mut self, path: PathBuf) {
+        self.spawn(move || {
+            JobResult::ImportedObjects(bones_core::io::import_scene(&path).map_err(|e| e.to_string()))
         });
     }
 

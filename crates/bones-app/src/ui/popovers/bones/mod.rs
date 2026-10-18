@@ -8,6 +8,7 @@
 
 mod bone;
 mod hierarchy;
+pub mod scene;
 mod tools;
 mod transform;
 
@@ -20,7 +21,7 @@ use super::{note, studio};
 use crate::ui::UiState;
 
 const SECTIONS: [(Icon, &str); 6] = [
-    (Icon::Hierarchy, "Skeleton"),
+    (Icon::Object, "Scene"),
     (Icon::Bone, "Bone"),
     (Icon::Move, "Transform"),
     (Icon::Chain, "Parent"),
@@ -40,7 +41,11 @@ pub fn show(ui: &mut egui::Ui, editor: &mut Editor, state: &mut UiState, height:
         height,
         |ui| close = widgets::confirm_button(ui, "Done").clicked(),
         |ui, section| match section {
-            0 => hierarchy::tree(ui, editor),
+            0 => {
+                scene::tree(ui, editor, state);
+                ui.add_space(6.0);
+                scene::selection_props(ui, editor, state);
+            }
             5 => hierarchy::limbs(ui, editor),
             _ => selected(ui, editor, state, section),
         },

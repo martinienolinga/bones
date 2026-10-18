@@ -32,8 +32,7 @@ pub fn show(ctx: &egui::Context, editor: &mut Editor, _state: &mut UiState) -> e
                     Mode::Edit => edit(ui, editor),
                     Mode::AutoRig => autorig(ui, editor),
                     Mode::WeightPaint => weights(ui, editor),
-                    // Outils du mode Objet : étape 3 (interface).
-                    Mode::Object => {}
+                    Mode::Object => object(ui, editor),
                 }
             });
         },
@@ -118,6 +117,36 @@ fn weights(ui: &mut egui::Ui, editor: &mut Editor) {
     divider(ui);
     toggle(ui, Icon::Grid, "Wire", &mut wp.show_wire);
     toggle(ui, Icon::Eye, "Zero", &mut wp.show_zero_weights);
+}
+
+/// Bandeau du mode Objet : copie, suppression et cadrage de l'objet
+/// sélectionné (les mêmes actions existent dans le panneau du bas).
+fn object(ui: &mut egui::Ui, editor: &mut Editor) {
+    let id = editor.selected_extra();
+    let dup = ui
+        .add_enabled_ui(id.is_some(), |ui| {
+            widgets::tool_cell(ui, Icon::Duplicate, "Copy", false)
+        })
+        .inner;
+    if dup.clicked()
+        && let Some(id) = id
+    {
+        let _ = editor.duplicate_object(id, true);
+    }
+    let del = ui
+        .add_enabled_ui(id.is_some(), |ui| {
+            widgets::tool_cell(ui, Icon::Delete, "Delete", false)
+        })
+        .inner;
+    if del.clicked()
+        && let Some(id) = id
+    {
+        let _ = editor.delete_object(id);
+    }
+    divider(ui);
+    if widgets::tool_cell(ui, Icon::Frame, "Frame", false).clicked() {
+        editor.frame_selected_object();
+    }
 }
 
 fn toggle(ui: &mut egui::Ui, icon: Icon, label: &str, value: &mut bool) {

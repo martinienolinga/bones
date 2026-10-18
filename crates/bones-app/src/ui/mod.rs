@@ -16,6 +16,8 @@
 mod autorig_panel;
 mod face_markers;
 mod face_view;
+mod object_panel;
+mod object_props;
 mod overlay;
 mod popovers;
 mod shortcuts;
@@ -30,7 +32,7 @@ use std::path::PathBuf;
 use bones_core::io::Format;
 use bones_core::{EditTool, Editor, Mode, Viewport};
 
-pub use popovers::{Popover, PresetsState};
+pub use popovers::{OutlinerState, Popover, PresetsState};
 
 use crate::settings::Settings;
 
@@ -39,6 +41,8 @@ pub enum UiAction {
     /// Retour à la galerie des projets (le projet est enregistré).
     Gallery,
     Export(Format),
+    /// Importe un fichier de maillage comme objet(s) dans le projet ouvert.
+    ImportObject(PathBuf),
 }
 
 /// État des tâches de fond, pour les indicateurs.
@@ -88,6 +92,10 @@ pub struct UiState {
     autorig_step: autorig_panel::Step,
     /// Gros plan automatique sur la tête à l'étape « Face ».
     face_view: face_view::FaceView,
+    /// État de l'outliner unifié (repli, recherche, renommage).
+    outliner: OutlinerState,
+    /// Liste d'import des maillages ouverte dans le panneau du mode Objet.
+    object_import: bool,
 }
 
 impl UiState {
@@ -115,6 +123,8 @@ impl UiState {
             presets: PresetsState::default(),
             autorig_step: autorig_panel::Step::Body,
             face_view: face_view::FaceView::default(),
+            outliner: OutlinerState::default(),
+            object_import: false,
         }
     }
 
@@ -133,6 +143,8 @@ impl UiState {
         self.presets.reset();
         self.autorig_step = autorig_panel::Step::Body;
         self.face_view.reset();
+        self.outliner = OutlinerState::default();
+        self.object_import = false;
     }
 
     /// Ouvre ou ferme une fenêtre ; `anchor_x` est le centre du bouton.
@@ -186,7 +198,14 @@ pub fn show(
             autorig_top = Some(panel.top());
             rects.push(panel);
         }
-        Mode::Edit | Mode::WeightPaint | Mode::Object => {}
+        Mode::Object => {
+            let panels = object_panel::show(ctx, editor, state, &mut actions);
+            if let Some(bar) = panels.first() {
+                bottom = bar.top();
+            }
+            rects.extend(panels);
+        }
+        Mode::Edit | Mode::WeightPaint => {}
     }
     // Gros plan sur la tête (avant les marqueurs, qui suivent la caméra).
     let face = editor.mode == Mode::AutoRig && state.autorig_step == autorig_panel::Step::Face;

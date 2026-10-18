@@ -201,9 +201,120 @@ fn mode_control_switches_to_weight_paint() {
     // Deux images pour que les zones ancrées aux bords se stabilisent.
     h.frame(vec![]);
     h.frame(vec![]);
-    let p = segment_center(&h.ctx, &["Pose", "Weights", "Edit", "Auto-Rig"], 1);
+    let p = segment_center(&h.ctx, &["Pose", "Weights", "Edit", "Object", "Auto-Rig"], 1);
     click(&mut h, p);
     assert_eq!(h.editor.mode, Mode::WeightPaint);
+}
+
+// ----------------------------------------------------------------------
+// Outliner unifié et mode Objet (étape 3).
+
+use bones_core::mesh::Primitive;
+use bones_core::scene::{ObjectRef, Parent, SkinMethod};
+
+#[test]
+fn object_mode_tab_switches_via_the_mode_control() {
+    let mut h = Harness::new();
+    h.frame(vec![]);
+    h.frame(vec![]);
+    let p = segment_center(&h.ctx, &["Pose", "Weights", "Edit", "Object", "Auto-Rig"], 3);
+    click(&mut h, p);
+    assert_eq!(h.editor.mode, Mode::Object);
+}
+
+#[test]
+fn object_mode_adds_a_selected_primitive_and_shows_its_gizmo() {
+    let mut h = Harness::new();
+    h.editor.set_mode(Mode::Object);
+    let id = h.editor.add_primitive(Primitive::Cube);
+    for _ in 0..3 {
+        h.frame(vec![]);
+    }
+    assert_eq!(h.editor.mode, Mode::Object);
+    assert_eq!(
+        h.editor.selected_extra(),
+        Some(id),
+        "la nouvelle primitive est sélectionnée"
+    );
+    assert!(
+        super::transform_bar::available(&h.editor),
+        "le manipulateur agit sur l'objet sélectionné"
+    );
+    assert!(!h.state.rects.is_empty(), "le panneau du mode Objet s'affiche");
+}
+
+#[test]
+fn outliner_lists_the_body_and_objects_nested_under_a_bone() {
+    let mut h = Harness::new();
+    h.editor.add_primitive(Primitive::Cube);
+    let bone = h.editor.rig.skeleton.find("arm.l").expect("os du mannequin");
+    h.editor.select(Some(bone));
+    let prop = h.editor.add_primitive(Primitive::Sphere);
+    h.editor.parent_object_to_selected_bone(prop).unwrap();
+    h.state.popover = Some(Popover::Outliner);
+    h.state.popover_anchor = 212.0;
+    h.state.bones_section = 0;
+    for _ in 0..4 {
+        h.frame(vec![]);
+    }
+    let rows = h.editor.outliner();
+    assert_eq!(rows[0].item, ObjectRef::Body, "le corps est en tête");
+    assert!(rows.iter().any(|r| r.name == "Cube"));
+    assert!(
+        rows.iter().any(|r| matches!(r.parent, Parent::Bone(_))),
+        "un objet est parenté à un os"
+    );
+    assert!(!h.state.rects.is_empty());
+}
+
+#[test]
+fn outliner_visibility_and_lock_toggle_through_the_editor() {
+    let mut h = Harness::new();
+    h.editor.set_mode(Mode::Object);
+    let id = h.editor.add_primitive(Primitive::Cube);
+    let r = ObjectRef::Extra(id);
+    assert!(h.editor.object_info(id).unwrap().visible);
+    h.editor.set_object_visible(r, false).unwrap();
+    assert!(!h.editor.object_info(id).unwrap().visible);
+    assert!(
+        !h.editor.object_draws().iter().any(|d| d.id == id),
+        "un objet caché n'est pas dessiné"
+    );
+    h.editor.set_object_locked(r, true).unwrap();
+    assert!(h.editor.object_info(id).unwrap().locked);
+    // L'outliner se construit avec un objet caché et verrouillé.
+    h.state.popover = Some(Popover::Outliner);
+    h.state.popover_anchor = 212.0;
+    h.state.bones_section = 0;
+    for _ in 0..3 {
+        h.frame(vec![]);
+    }
+    assert!(!h.state.rects.is_empty());
+}
+
+#[test]
+fn object_binding_rename_reparent_and_delete_round_trip() {
+    let mut h = Harness::new();
+    h.editor.set_mode(Mode::Object);
+    let id = h.editor.add_primitive(Primitive::Cube);
+    let r = ObjectRef::Extra(id);
+    h.editor.rename_object(r, "Sword").unwrap();
+    assert_eq!(h.editor.object_info(id).unwrap().name, "Sword");
+    h.editor
+        .set_object_binding(id, Some(SkinMethod::Transfer))
+        .unwrap();
+    assert!(h.editor.object_info(id).unwrap().skin_method.is_some());
+    h.editor.set_object_binding(id, None).unwrap();
+    assert!(h.editor.object_info(id).unwrap().skin_method.is_none());
+    let bone = h.editor.rig.skeleton.find("arm.l").expect("os du mannequin");
+    h.editor.select(Some(bone));
+    h.editor.parent_object_to_selected_bone(id).unwrap();
+    assert!(matches!(
+        h.editor.object_info(id).unwrap().parent,
+        Parent::Bone(_)
+    ));
+    h.editor.delete_object(id).unwrap();
+    assert!(h.editor.object_info(id).is_none(), "objet supprimé");
 }
 
 #[test]

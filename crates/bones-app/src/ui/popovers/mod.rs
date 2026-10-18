@@ -17,6 +17,7 @@ use bones_core::Editor;
 use bones_ui::icons::Icon;
 use bones_ui::{theme, widgets};
 
+pub use bones::scene::OutlinerState;
 pub use brush::tool_icon as brush_tool_icon;
 pub use presets::PresetsState;
 pub use weights_tools::{State as WeightsToolsState, confirm_dialog as confirm_automatic};

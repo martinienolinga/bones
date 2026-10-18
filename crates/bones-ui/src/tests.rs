@@ -20,7 +20,7 @@ fn run(mut ui_fn: impl FnMut(&mut egui::Ui)) -> egui::FullOutput {
 
 #[test]
 fn every_icon_is_valid_and_visible() {
-    assert_eq!(icons::all().len(), 68);
+    assert_eq!(icons::all().len(), 75);
     for &icon in icons::all() {
         let pixels = icons::rasterize(icon, 40);
         let opaque = pixels.chunks_exact(4).filter(|p| p[3] > 128).count();

@@ -1,38 +1,12 @@
-//! Sections « Skeleton » (arbre des os, un toucher sélectionne), « Parent »
-//! (choix du nouveau parent dans une liste à cocher) et « Limbs » (bascules
-//! IK / FK des membres, comme Auto-Rig Pro).
+//! Sections « Parent » (choix du nouveau parent de l'os dans une liste à
+//! cocher) et « Limbs » (bascules IK / FK des membres, comme Auto-Rig Pro).
+//! L'arbre du squelette vit désormais dans l'outliner unifié ([`super::scene`]).
 
 use bones_core::editor::BoneInfo;
-use bones_core::{Editor, LimbMode, Side, side_of};
+use bones_core::{Editor, LimbMode};
 use bones_ui::{theme, widgets};
 
 use crate::ui::popovers::note;
-
-pub fn tree(ui: &mut egui::Ui, editor: &mut Editor) {
-    let mut clicked = None;
-    let skeleton = &editor.rig.skeleton;
-    widgets::group(ui, |g| {
-        for id in skeleton.ids() {
-            let bone = skeleton.bone(id);
-            let dot = match side_of(&bone.name) {
-                Some(Side::Left) => theme::BONE_LEFT,
-                Some(Side::Right) => theme::BONE_RIGHT,
-                None => theme::BONE_CENTER,
-            };
-            if g.tree_row(skeleton.depth(id), &bone.name, dot, editor.selected == Some(id))
-                .clicked()
-            {
-                clicked = Some(id);
-            }
-        }
-    });
-    if skeleton.is_empty() {
-        note(ui, "No bones yet: add some in Edit mode, or use Auto-Rig.");
-    }
-    if let Some(id) = clicked {
-        editor.select(Some(id));
-    }
-}
 
 pub fn parent(ui: &mut egui::Ui, editor: &mut Editor, info: &BoneInfo) {
     widgets::section_title(ui, "New parent");

@@ -6,6 +6,7 @@ mod misc;
 mod motion;
 mod paint;
 mod rig;
+mod shapes;
 mod view;
 
 use super::Icon;
@@ -81,5 +82,12 @@ pub fn source(icon: Icon) -> &'static str {
         Icon::Normalize => paint::NORMALIZE,
         Icon::Motion => anim::MOTION,
         Icon::Face => rig::FACE,
+        Icon::Object => shapes::OBJECT,
+        Icon::Cube => shapes::CUBE,
+        Icon::Sphere => shapes::SPHERE,
+        Icon::Cylinder => shapes::CYLINDER,
+        Icon::Cone => shapes::CONE,
+        Icon::Plane => shapes::PLANE,
+        Icon::Torus => shapes::TORUS,
     }
 }

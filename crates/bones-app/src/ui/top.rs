@@ -149,10 +149,16 @@ fn tools(ui: &mut egui::Ui, editor: &mut Editor, state: &mut UiState) {
 }
 
 fn modes(ui: &mut egui::Ui, editor: &mut Editor) {
-    const MODES: [Mode; 4] = [Mode::Pose, Mode::WeightPaint, Mode::Edit, Mode::AutoRig];
+    const MODES: [Mode; 5] = [
+        Mode::Pose,
+        Mode::WeightPaint,
+        Mode::Edit,
+        Mode::Object,
+        Mode::AutoRig,
+    ];
     let mut index = MODES.iter().position(|m| *m == editor.mode).unwrap_or(0);
     // Le contrôle dessine ses segments de gauche à droite dans sa zone.
-    if widgets::segmented(ui, &["Pose", "Weights", "Edit", "Auto-Rig"], &mut index).changed() {
+    if widgets::segmented(ui, &["Pose", "Weights", "Edit", "Object", "Auto-Rig"], &mut index).changed() {
         editor.set_mode(MODES[index]);
     }
 }

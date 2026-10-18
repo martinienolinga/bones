@@ -200,6 +200,10 @@ impl Running {
                 let path = files::free_path(&dir, &self.editor.rig.name, format.extension());
                 self.jobs.export(self.editor.rig.clone(), format, path);
             }
+            UiAction::ImportObject(path) => {
+                self.ui.notify(format!("Importing “{}”…", files::stem(&path)));
+                self.jobs.import_scene(path);
+            }
         }
     }
 
@@ -216,6 +220,11 @@ impl Running {
                     });
                 }
                 JobResult::Exported(Err(e)) => self.ui.notify(format!("Error: {e}")),
+                JobResult::ImportedObjects(Ok(scene)) => match self.editor.add_imported_objects(scene) {
+                    Ok(ids) => self.ui.notify(format!("Imported {} object(s)", ids.len())),
+                    Err(e) => self.ui.notify(format!("Error: {e}")),
+                },
+                JobResult::ImportedObjects(Err(e)) => self.ui.notify(format!("Error: {e}")),
             }
         }
     }

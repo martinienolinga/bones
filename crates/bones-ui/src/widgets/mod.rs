@@ -18,6 +18,7 @@ mod studio;
 mod switch;
 mod tile;
 mod timeline;
+mod tree;
 
 pub use bar::{bar_tab, bar_tool, square_button, tab, well_button};
 pub use buttons::{pill_button, separator_dot, text_button, tool_button, tool_cell};
@@ -33,6 +34,7 @@ pub use studio::{
 pub use switch::{switch, switch_row};
 pub use tile::tile;
 pub use timeline::key_strip;
+pub use tree::{RowResponse, RowSpec, outliner_row};
 
 use egui::{Color32, Id, Response, Ui};
 

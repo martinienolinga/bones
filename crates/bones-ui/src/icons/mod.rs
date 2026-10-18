@@ -84,9 +84,18 @@ pub enum Icon {
     Motion,
     /// Visage : galerie d'expressions et étape « Face » de l'auto-rig.
     Face,
+    /// Objets de scène : mode Objet et objets rigides de l'outliner.
+    Object,
+    /// Primitives du mode Objet.
+    Cube,
+    Sphere,
+    Cylinder,
+    Cone,
+    Plane,
+    Torus,
 }
 
-const ALL: [Icon; 68] = [
+const ALL: [Icon; 75] = [
     Icon::Gallery,
     Icon::Actions,
     Icon::Adjust,
@@ -155,6 +164,13 @@ const ALL: [Icon; 68] = [
     Icon::Normalize,
     Icon::Motion,
     Icon::Face,
+    Icon::Object,
+    Icon::Cube,
+    Icon::Sphere,
+    Icon::Cylinder,
+    Icon::Cone,
+    Icon::Plane,
+    Icon::Torus,
 ];
 
 /// Toutes les icônes (aperçus, tests).
